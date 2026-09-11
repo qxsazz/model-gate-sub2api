@@ -50,13 +50,19 @@ function mountHome(settings: Record<string, unknown> = {}) {
         RouterLink: RouterLinkStub,
         LocaleSwitcher: { template: '<div data-testid="locale-switcher" />' },
         Icon: { template: '<span data-testid="icon" />' },
+        ParticleNetwork: { template: '<div data-testid="particle-network" />' },
+        HomeConsolePreview: { template: '<div data-testid="console-preview" />' },
       },
     },
   })
 }
 
 function compactDestination(wrapper: ReturnType<typeof mountHome>) {
-  return wrapper.get('[data-testid="compact-home"]').findComponent(RouterLinkStub).props('to')
+  return wrapper
+    .get('[data-testid="compact-home"]')
+    .findAllComponents(RouterLinkStub)
+    .map((link) => link.props('to'))
+    .find((to) => to === '/login' || to === '/dashboard' || to === '/admin/dashboard')
 }
 
 function modelPlazaDestination(wrapper: ReturnType<typeof mountHome>) {
@@ -64,6 +70,12 @@ function modelPlazaDestination(wrapper: ReturnType<typeof mountHome>) {
     .findAllComponents(RouterLinkStub)
     .find((link) => link.props('to') === '/model-plaza')
     ?.props('to')
+}
+
+function docsDestinations(wrapper: ReturnType<typeof mountHome>) {
+  return wrapper
+    .findAllComponents(RouterLinkStub)
+    .filter((link) => link.props('to') === '/docs')
 }
 
 describe('HomeView compact mode', () => {
@@ -74,7 +86,16 @@ describe('HomeView compact mode', () => {
     authStore.checkAuth.mockClear()
     appStore.fetchPublicSettings.mockClear()
     localStorage.clear()
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList)
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
   })
 
   it('renders custom HTML ahead of compact mode', () => {
@@ -108,7 +129,7 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
-    expect(wrapper.find('.terminal-container').exists()).toBe(true)
+    expect(wrapper.find('.model-gate-home').exists()).toBe(true)
   })
 
   it('links unauthenticated visitors to login', () => {
@@ -180,5 +201,10 @@ describe('HomeView compact mode', () => {
     })
 
     expect(modelPlazaDestination(wrapper)).toBeUndefined()
+  })
+
+  it('always links the compact and branded home variants to the internal docs center', () => {
+    expect(docsDestinations(mountHome({ compact_home_enabled: true }))).toHaveLength(1)
+    expect(docsDestinations(mountHome())).toHaveLength(2)
   })
 })
