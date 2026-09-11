@@ -38,6 +38,14 @@
             <Icon name="book" size="md" />
           </a>
           <router-link
+            v-else
+            to="/docs"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-dark-400 dark:hover:bg-dark-800"
+            :title="t('home.viewDocs')"
+          >
+            <Icon name="book" size="md" />
+          </router-link>
+          <router-link
             v-if="showModelPlazaEntry"
             to="/model-plaza"
             class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
@@ -101,6 +109,7 @@
 
         <div class="nav-center">
           <a href="#hero" class="nav-link">主页</a>
+          <router-link to="/docs" class="nav-link">文档</router-link>
           <a href="#dashboard" class="nav-link">控制台</a>
           <a href="#claude" class="nav-link">Claude</a>
           <a href="#openai" class="nav-link">OpenAI</a>
@@ -531,7 +540,7 @@ GEMINI_API_KEY=sk-...</pre>
         <div class="footer-content animate-section" :class="{ visible: visibleSections[6] }" style="animation-delay: 0.4s">
           <h2 class="footer-slogan">One Gateway, Every Model — Seamlessly.</h2>
           <div class="footer-links">
-            <a href="#">文档</a>
+            <router-link to="/docs">文档</router-link>
             <span class="dot-separator">·</span>
             <a href="#">状态</a>
             <span class="dot-separator">·</span>
