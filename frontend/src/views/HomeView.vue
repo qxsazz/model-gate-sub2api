@@ -544,8 +544,6 @@ GEMINI_API_KEY=sk-...</pre>
             <span class="dot-separator">·</span>
             <a href="#">状态</a>
             <span class="dot-separator">·</span>
-            <a :href="githubUrl" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <span class="dot-separator">·</span>
             <a href="#">联系</a>
           </div>
           <div class="footer-copyright">&copy; {{ currentYear }} MODEL-GATE</div>
@@ -599,9 +597,6 @@ const isHomeContentUrl = computed(() => {
 
 // Theme
 const isDark = ref(document.documentElement.classList.contains('dark'))
-
-// GitHub URL
-const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)

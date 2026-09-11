@@ -207,4 +207,11 @@ describe('HomeView compact mode', () => {
     expect(docsDestinations(mountHome({ compact_home_enabled: true }))).toHaveLength(1)
     expect(docsDestinations(mountHome())).toHaveLength(2)
   })
+
+  it('does not show the upstream GitHub link in the branded home footer', () => {
+    const wrapper = mountHome()
+
+    expect(wrapper.find('.footer-links').text()).not.toContain('GitHub')
+    expect(wrapper.find('a[href="https://github.com/Wei-Shaw/sub2api"]').exists()).toBe(false)
+  })
 })
