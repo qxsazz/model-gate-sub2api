@@ -137,6 +137,7 @@ vite.config.js
 docs/*
 !docs/cicd.md
 !docs/cicd-release-runbook.md
+!docs/cicd-ui-handoff.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
