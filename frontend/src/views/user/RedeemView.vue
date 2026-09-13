@@ -1,26 +1,28 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-2xl space-y-6">
+    <div data-testid="redeem-luxury-page" class="redeem-luxury-page">
+      <div class="redeem-page-inner mx-auto max-w-2xl space-y-6">
       <!-- Current Balance Card -->
-      <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
+      <div class="card redeem-diamond-card overflow-hidden">
+        <div class="redeem-diamond-content px-6 py-8 text-center">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
+            class="redeem-diamond-mark mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl"
           >
-            <Icon name="creditCard" size="xl" class="text-white" />
+            <Icon name="creditCard" size="xl" class="redeem-diamond-icon" />
           </div>
-          <p class="text-sm font-medium text-primary-100">{{ t('redeem.currentBalance') }}</p>
-          <p class="mt-2 text-4xl font-bold text-white">
+          <p class="redeem-eyebrow">MODEL-GATE / REDEMPTION</p>
+          <p class="mt-3 text-sm font-medium text-white">{{ t('redeem.currentBalance') }}</p>
+          <p class="redeem-balance mt-2 text-4xl font-bold">
             ${{ user?.balance?.toFixed(2) || '0.00' }}
           </p>
-          <p class="mt-2 text-sm text-primary-100">
+          <p class="redeem-meta mt-2 text-sm">
             {{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}
           </p>
         </div>
       </div>
 
       <!-- Redeem Form -->
-      <div class="card">
+      <div class="card redeem-form-card">
         <div class="p-6">
           <form @submit.prevent="handleRedeem" class="space-y-5">
             <div>
@@ -29,7 +31,7 @@
               </label>
               <div class="relative mt-1">
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                  <Icon name="gift" size="md" class="text-gray-400 dark:text-dark-500" />
+                  <Icon name="gift" size="md" class="redeem-code-icon" />
                 </div>
                 <input
                   id="code"
@@ -38,7 +40,7 @@
                   required
                   :placeholder="t('redeem.redeemCodePlaceholder')"
                   :disabled="submitting"
-                  class="input py-3 pl-12 text-lg"
+                  class="input redeem-code-input py-3 pl-12 text-lg"
                 />
               </div>
               <p class="input-hint">
@@ -49,7 +51,7 @@
             <button
               type="submit"
               :disabled="!redeemCode || submitting"
-              class="btn btn-primary w-full py-3"
+              class="btn redeem-submit-button w-full py-3"
             >
               <svg
                 v-if="submitting"
@@ -82,14 +84,14 @@
       <transition name="fade">
         <div
           v-if="redeemResult"
-          class="card border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
+          class="card redeem-status-card redeem-status-success"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
               <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30"
+                class="redeem-status-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
               >
-                <Icon name="checkCircle" size="md" class="text-emerald-600 dark:text-emerald-400" />
+                <Icon name="checkCircle" size="md" class="redeem-status-icon-glyph" />
               </div>
               <div class="flex-1">
                 <h3 class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
@@ -136,17 +138,17 @@
       <transition name="fade">
         <div
           v-if="errorMessage"
-          class="card border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
+          class="card redeem-status-card redeem-status-error"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
               <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30"
+                class="redeem-status-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30"
               >
                 <Icon
                   name="exclamationCircle"
                   size="md"
-                  class="text-red-600 dark:text-red-400"
+                  class="redeem-status-icon-glyph text-red-600 dark:text-red-400"
                 />
               </div>
               <div class="flex-1">
@@ -164,14 +166,14 @@
 
       <!-- Information Card -->
       <div
-        class="card border-primary-200 bg-primary-50 dark:border-primary-800/50 dark:bg-primary-900/20"
+        class="card redeem-info-card"
       >
         <div class="p-6">
           <div class="flex items-start gap-4">
             <div
-              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30"
+              class="redeem-info-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
             >
-              <Icon name="infoCircle" size="md" class="text-primary-600 dark:text-primary-400" />
+              <Icon name="infoCircle" size="md" class="redeem-info-icon-glyph" />
             </div>
             <div class="flex-1">
               <h3 class="text-sm font-semibold text-primary-800 dark:text-primary-300">
@@ -199,8 +201,8 @@
       </div>
 
       <!-- Recent Activity -->
-      <div class="card">
-        <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+      <div class="card redeem-history-card">
+        <div class="redeem-history-header border-b border-gray-100 px-6 py-4 dark:border-dark-700">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('redeem.recentActivity') }}
           </h2>
@@ -230,7 +232,7 @@
             <div
               v-for="item in history"
               :key="item.id"
-              class="flex items-center justify-between rounded-xl bg-gray-50 p-4 dark:bg-dark-800"
+              class="redeem-history-item flex items-center justify-between rounded-xl bg-gray-50 p-4 dark:bg-dark-800"
             >
               <div class="flex items-center gap-4">
                 <div
@@ -325,17 +327,18 @@
           </div>
 
           <!-- Empty State -->
-          <div v-else class="empty-state py-8">
+          <div v-else class="empty-state redeem-history-empty py-8">
             <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+              class="redeem-history-empty-icon mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
             >
-              <Icon name="clock" size="xl" class="text-gray-400 dark:text-dark-500" />
+              <Icon name="clock" size="xl" />
             </div>
             <p class="text-sm text-gray-500 dark:text-dark-400">
               {{ t('redeem.historyWillAppear') }}
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </AppLayout>
@@ -497,5 +500,231 @@ onMounted(async () => {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.redeem-luxury-page {
+  --redeem-ink: var(--mg-ink-950, #121316);
+  --redeem-ink-soft: var(--mg-ink-700, #4a4740);
+  --redeem-gold: var(--mg-gold-700, #9c8344);
+  --redeem-gold-bright: var(--mg-gold-500, #c9b477);
+  --redeem-diamond: #101114;
+  --redeem-diamond-soft: #24252a;
+  --redeem-pearl: var(--mg-pearl-50, #fbfaf7);
+  --redeem-champagne: var(--mg-champagne-50, #f5f1e7);
+  --redeem-line: var(--mg-line-warm, #e7e1d4);
+  --redeem-surface: var(--mg-surface, #ffffff);
+  color: var(--redeem-ink-soft);
+}
+
+.redeem-page-inner {
+  position: relative;
+}
+
+.redeem-luxury-page :deep(.card) {
+  border: 1px solid var(--redeem-line);
+  border-radius: 0.625rem;
+  background: var(--redeem-surface);
+  box-shadow: 0 12px 28px rgb(18 19 22 / 5%);
+}
+
+.redeem-diamond-card {
+  position: relative;
+  overflow: hidden;
+  border-color: #2c2a25 !important;
+  background:
+    radial-gradient(circle at 88% 12%, rgb(201 180 119 / 18%), transparent 30%),
+    linear-gradient(135deg, #17181b, var(--redeem-diamond)) !important;
+  box-shadow: 0 18px 36px rgb(18 19 22 / 18%) !important;
+}
+
+.redeem-diamond-card::after {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 0.8rem;
+  color: rgb(201 180 119 / 28%);
+  content: 'MODEL-GATE';
+  font-family: 'Bodoni Moda', Georgia, serif;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.redeem-diamond-content {
+  display: flex;
+  min-height: 15rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.redeem-diamond-mark {
+  border: 1px solid rgb(201 180 119 / 45%);
+  background: rgb(201 180 119 / 10%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 4%),
+    0 8px 24px rgb(0 0 0 / 20%);
+}
+
+.redeem-diamond-icon {
+  color: var(--redeem-gold-bright) !important;
+}
+
+.redeem-eyebrow {
+  color: var(--redeem-gold-bright);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.redeem-balance {
+  color: var(--mg-pearl-50, #f5f1e7);
+  font-family: 'Bodoni Moda', Georgia, serif;
+  letter-spacing: 0;
+}
+
+.redeem-meta {
+  color: #d6cebd;
+}
+
+.redeem-form-card {
+  padding: 0;
+}
+
+.redeem-code-input {
+  border-color: var(--redeem-line) !important;
+  background: var(--redeem-pearl) !important;
+  color: var(--redeem-ink) !important;
+}
+
+.redeem-code-input:focus {
+  border-color: var(--redeem-gold) !important;
+  box-shadow: 0 0 0 3px rgb(201 180 119 / 16%) !important;
+}
+
+.redeem-code-icon {
+  color: var(--redeem-gold) !important;
+}
+
+.redeem-submit-button {
+  border: 1px solid rgb(201 180 119 / 35%) !important;
+  background: linear-gradient(135deg, #1b1c20, #101114) !important;
+  color: #f5f1e7 !important;
+  box-shadow: 0 8px 18px rgb(18 19 22 / 14%);
+}
+
+.redeem-submit-button:hover:not(:disabled) {
+  border-color: var(--redeem-gold-bright) !important;
+  box-shadow: 0 12px 22px rgb(18 19 22 / 20%);
+  transform: translateY(-1px);
+}
+
+.redeem-status-success {
+  border-color: rgb(201 180 119 / 40%) !important;
+  background: linear-gradient(135deg, var(--redeem-pearl), var(--redeem-champagne)) !important;
+}
+
+.redeem-status-success .redeem-status-icon {
+  border: 1px solid rgb(201 180 119 / 36%);
+  background: rgb(201 180 119 / 16%);
+}
+
+.redeem-status-success .redeem-status-icon-glyph {
+  color: var(--redeem-gold) !important;
+}
+
+.redeem-status-error {
+  border-color: rgb(185 77 74 / 30%) !important;
+  background: linear-gradient(135deg, var(--redeem-pearl), #fbf0ee) !important;
+}
+
+.redeem-info-card {
+  border-color: var(--redeem-line) !important;
+  background: linear-gradient(135deg, var(--redeem-pearl), var(--redeem-champagne)) !important;
+}
+
+.redeem-info-icon {
+  border: 1px solid rgb(201 180 119 / 36%);
+  background: rgb(201 180 119 / 14%);
+}
+
+.redeem-info-icon-glyph {
+  color: var(--redeem-gold) !important;
+}
+
+.redeem-history-header {
+  border-color: var(--redeem-line) !important;
+}
+
+.redeem-history-item {
+  border: 1px solid transparent;
+  background: var(--redeem-pearl) !important;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.redeem-history-item:hover {
+  border-color: rgb(201 180 119 / 35%);
+  background: var(--redeem-champagne) !important;
+  transform: translateY(-1px);
+}
+
+.redeem-history-empty-icon {
+  border: 1px solid rgb(201 180 119 / 28%);
+  background: var(--redeem-champagne) !important;
+  color: var(--redeem-gold) !important;
+}
+
+.redeem-luxury-page :deep(.text-emerald-600),
+.redeem-luxury-page :deep(.text-emerald-400),
+.redeem-luxury-page :deep(.text-purple-600),
+.redeem-luxury-page :deep(.text-purple-400),
+.redeem-luxury-page :deep(.text-blue-600),
+.redeem-luxury-page :deep(.text-blue-400),
+.redeem-luxury-page :deep(.text-orange-600),
+.redeem-luxury-page :deep(.text-orange-400) {
+  color: var(--redeem-gold) !important;
+}
+
+.redeem-luxury-page :deep(.bg-emerald-100),
+.redeem-luxury-page :deep(.bg-emerald-900\/30),
+.redeem-luxury-page :deep(.bg-purple-100),
+.redeem-luxury-page :deep(.bg-purple-900\/30),
+.redeem-luxury-page :deep(.bg-blue-100),
+.redeem-luxury-page :deep(.bg-blue-900\/30),
+.redeem-luxury-page :deep(.bg-orange-100),
+.redeem-luxury-page :deep(.bg-orange-900\/30) {
+  background: rgb(201 180 119 / 12%) !important;
+}
+
+.redeem-info-card :deep(.text-primary-800),
+.redeem-info-card :deep(.text-primary-700),
+.redeem-info-card :deep(.text-primary-600),
+.redeem-info-card :deep(.text-primary-400),
+.redeem-info-card :deep(.text-primary-300),
+.redeem-info-card :deep(.text-primary-200) {
+  color: var(--redeem-ink-soft) !important;
+}
+
+.redeem-info-card :deep(.bg-primary-200\/50),
+.redeem-info-card :deep(.bg-primary-800\/40) {
+  background: rgb(201 180 119 / 14%) !important;
+}
+
+.dark .redeem-luxury-page {
+  --redeem-ink: #f5f1e7;
+  --redeem-ink-soft: #d6cebd;
+  --redeem-pearl: #111214;
+  --redeem-champagne: #23221f;
+  --redeem-line: #38352f;
+  --redeem-surface: #18191d;
+}
+
+.dark .redeem-status-error {
+  background: linear-gradient(135deg, var(--redeem-surface), #2b1d1d) !important;
 }
 </style>

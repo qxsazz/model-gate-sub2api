@@ -3,7 +3,10 @@
     class="sidebar"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
-      { '-translate-x-full lg:translate-x-0': !mobileOpen }
+      {
+        '-translate-x-full lg:translate-x-0': !mobileOpen,
+        'user-console-sidebar': isUserConsole
+      }
     ]"
   >
     <!-- Logo/Brand -->
@@ -12,9 +15,18 @@
       <router-link
         :to="homePath"
         class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
+        :class="{
+          'sidebar-logo-user-expanded': isUserConsole && !sidebarCollapsed,
+          'sidebar-logo-user-collapsed': isUserConsole && sidebarCollapsed
+        }"
         @click="handleMenuItemClick(homePath)"
       >
-        <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+        <img
+          v-if="settingsLoaded"
+          :src="siteLogo || (isUserConsole ? '/model-gate-mg-luxury.svg' : '/logo.svg')"
+          alt="Logo"
+          class="h-full w-full object-contain"
+        />
       </router-link>
       <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
         <router-link
@@ -22,10 +34,10 @@
           class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
           @click="handleMenuItemClick(homePath)"
         >
-          {{ siteName }}
+          {{ displaySiteName }}
         </router-link>
-        <!-- Version Badge -->
-        <VersionBadge :version="siteVersion" />
+        <!-- Keep version details in the admin console only. -->
+        <VersionBadge v-if="!isUserConsole" :version="siteVersion" />
       </div>
     </div>
 
@@ -248,6 +260,7 @@ const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
+const isUserConsole = computed(() => !route.path.startsWith('/admin'))
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
@@ -261,6 +274,7 @@ const groupExpandOverrides = ref<Map<string, boolean>>(new Map())
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
+const displaySiteName = computed(() => (isUserConsole.value ? 'Model-Gate' : siteName.value || 'Sub2API'))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
@@ -964,12 +978,37 @@ onBeforeUnmount(() => {
 .sidebar-logo {
   flex: 0 0 2.25rem;
   min-width: 2.25rem;
+  transition:
+    width 0.2s ease,
+    height 0.2s ease,
+    flex-basis 0.2s ease;
+}
+
+.sidebar-logo-user-expanded {
+  width: 3rem;
+  height: 3rem;
+  min-width: 3rem;
+  flex-basis: 3rem;
+  border-radius: 0.5rem;
+}
+
+.sidebar-logo-user-collapsed {
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  flex-basis: 2.75rem;
+  border-radius: 0.5rem;
 }
 
 .sidebar-header-collapsed {
   gap: 0;
   padding-left: 1.125rem;
   padding-right: 1.125rem;
+}
+
+.user-console-sidebar .sidebar-header-collapsed {
+  padding-left: 0.875rem;
+  padding-right: 0.875rem;
 }
 
 .sidebar-brand {

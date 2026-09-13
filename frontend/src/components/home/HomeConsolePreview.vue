@@ -27,7 +27,7 @@
       <div :id="'preview-panel-' + currentTab" :key="currentTab + '-' + isDark" class="preview-panel" role="tabpanel" :aria-labelledby="'preview-tab-' + currentTab">
         <template v-if="active && currentTab === 'overview'">
           <div class="space-y-6">
-            <UserDashboardStats :stats="dashboardStats" :balance="12.8" :is-simple="false" />
+            <UserDashboardStats :stats="dashboardStats" :balance="12.8" :is-simple="false" :show-platform-breakdown="false" />
             <UserDashboardCharts :key="refreshVersion" v-model:start-date="startDate" v-model:end-date="endDate"
               v-model:granularity="granularity" :loading="false" :models="charts.models" :trend="charts.trend" @refresh="refreshDemo" />
           </div>

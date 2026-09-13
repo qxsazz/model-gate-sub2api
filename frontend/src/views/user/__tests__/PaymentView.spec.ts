@@ -281,6 +281,14 @@ async function mountSubscriptionPlanList(planCount: number) {
   return wrapper
 }
 
+describe('PaymentView luxury surface', () => {
+  it('marks the main payment page with the shared luxury theme container', async () => {
+    const wrapper = await mountSubscriptionPlanList(0)
+
+    expect(wrapper.get('[data-testid="payment-luxury-page"]').classes()).toContain('payment-luxury-page')
+  })
+})
+
 describe('PaymentView help text', () => {
   beforeEach(() => {
     vi.useRealTimers()
