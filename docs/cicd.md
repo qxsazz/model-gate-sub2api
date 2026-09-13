@@ -30,9 +30,11 @@ Create two GitHub Environments named `model-gate-staging` and
 cannot accidentally reuse deployment credentials from another project in the
 same repository.
 
-The `model-gate-production` environment must require an approver. Use environment-scoped
-secrets for both environments so a staging job cannot read production-only
-credentials.
+Use environment-scoped secrets for both environments so a staging job cannot
+read production-only credentials. When the repository remains on a private
+plan without enforced Environment reviewers, production is protected by a
+manual workflow dispatch and an explicit `DEPLOY` confirmation instead of an
+automatic merge-triggered deployment.
 
 Required environment secrets:
 
@@ -50,12 +52,25 @@ STAGING_DEPLOY_PATH=/opt/sub2api-staging
 PRODUCTION_DEPLOY_PATH=/opt/sub2api
 ```
 
-The repository must also configure branch rules for `main` and `staging`:
+If the repository is later moved to a plan that enforces repository rules, the
+repository should configure branch rules for `main` and `staging`:
 
 - Pull requests are required.
 - The CI, Frontend CI, and Security Scan checks are required.
 - At least one approval is required.
 - Force pushes, branch deletion, and bypassing required checks are disabled.
+
+## Manual production release
+
+In the private-plan setup, merge the reviewed `staging` changes to `main`, then
+open **Actions -> Deploy Production -> Run workflow**. Enter the SHA of the
+commit that produced the successful staging image and type `DEPLOY` in the
+confirmation field. The workflow resolves the immutable GHCR digest, verifies
+that the same image is running in staging, and only then updates production.
+
+Do not enter the `main` merge commit unless staging was separately built from
+that exact commit. The normal value is the feature or upgrade commit SHA shown
+by the successful `Deploy Staging / build` run.
 
 ## Staging runtime
 
