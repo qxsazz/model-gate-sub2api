@@ -1,0 +1,79 @@
+name: Deploy Staging
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [staging]
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image_tag: staging-${{ github.event.pull_request.head.sha }}
+      source_sha: ${{ github.event.pull_request.head.sha }}
+
+  deploy:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: build
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prepare SSH credentials
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY"
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: Upload staging deployment assets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+        run: |
+          set -euo pipefail
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
+            "mkdir -p '$STAGING_DEPLOY_PATH'"
+          scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            deploy/docker-compose.local.yml \
+            "$target:$STAGING_DEPLOY_PATH/docker-compose.base.yml"
+          scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            deploy/docker-compose.staging.yml \
+            deploy/scripts/sub2api-staging-init.sh \
+            deploy/scripts/sub2api-deploy.sh \
+            "$target:$STAGING_DEPLOY_PATH/"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
+            "chmod 700 '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' '$STAGING_DEPLOY_PATH/sub2api-deploy.sh'"
+
+      - name: Initialize and deploy staging
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          image="ghcr.io/qxsazz/model-gate-sub2api@$IMAGE_DIGEST"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
+            "if [ ! -f '$STAGING_DEPLOY_PATH/.env' ]; then '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' '$image'; fi; docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' up -d postgres redis; '$STAGING_DEPLOY_PATH/sub2api-deploy.sh' deploy staging '$image'"

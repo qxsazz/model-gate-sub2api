@@ -1,0 +1,29 @@
+# Staging overrides for the local-directory Compose definition.
+# The base file is copied to the staging host as docker-compose.base.yml.
+
+services:
+  sub2api:
+    image: ${SUB2API_IMAGE:?SUB2API_IMAGE is required}
+    container_name: sub2api-staging
+    cpus: "1.0"
+    mem_limit: 768m
+    volumes:
+      - ./data:/app/data
+
+  postgres:
+    container_name: sub2api-staging-postgres
+    cpus: "0.5"
+    mem_limit: 512m
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+  redis:
+    container_name: sub2api-staging-redis
+    cpus: "0.25"
+    mem_limit: 128m
+    volumes:
+      - ./redis_data:/data
+
+networks:
+  sub2api-network:
+    name: sub2api-staging-network
