@@ -34,7 +34,7 @@ credentials.
 Required environment secrets:
 
 ```text
-DEPLOY_HOST=model-gate.cc
+DEPLOY_HOST=154.222.26.115
 DEPLOY_USER=root
 DEPLOY_KEY=<private SSH key>
 DEPLOY_KNOWN_HOSTS=<known_hosts entry for model-gate.cc>
