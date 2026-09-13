@@ -25,7 +25,7 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     needs: build
     runs-on: ubuntu-latest
-    environment: staging
+    environment: model-gate-staging
     steps:
       - uses: actions/checkout@v6
         with:

@@ -25,9 +25,12 @@ not recreate PostgreSQL or Redis.
 
 ## GitHub configuration
 
-Create two GitHub Environments named `staging` and `production`.
+Create two GitHub Environments named `model-gate-staging` and
+`model-gate-production`. The names are intentionally project-specific so they
+cannot accidentally reuse deployment credentials from another project in the
+same repository.
 
-The `production` environment must require an approver. Use environment-scoped
+The `model-gate-production` environment must require an approver. Use environment-scoped
 secrets for both environments so a staging job cannot read production-only
 credentials.
 
