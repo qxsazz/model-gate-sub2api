@@ -1,0 +1,78 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+    paths:
+      - 'frontend/**'
+      - 'docs/legal/**'
+      - 'Dockerfile'
+      - 'frontend/package.json'
+      - 'frontend/pnpm-lock.yaml'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm run lint:check
+
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm run typecheck
+
+      - name: Check i18n
+        working-directory: frontend
+        run: pnpm run check:i18n
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: pnpm run test:run
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm run build
+
+  frontend-boundary:
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'frontend')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Reject backend changes in frontend PRs
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only '${{ github.event.pull_request.base.sha }}' '${{ github.event.pull_request.head.sha }}')"
+          if printf '%s\n' "$changed" | grep -q '^backend/'; then
+            echo 'Frontend-labelled pull requests cannot modify backend/.' >&2
+            printf '%s\n' "$changed" | grep '^backend/' >&2
+            exit 1
+          fi

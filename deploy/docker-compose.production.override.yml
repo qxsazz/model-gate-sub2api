@@ -1,0 +1,6 @@
+# Production-only override. The existing production Compose file remains
+# untouched; this file injects the exact image digest during deployment.
+
+services:
+  sub2api:
+    image: ${SUB2API_IMAGE:?SUB2API_IMAGE is required}

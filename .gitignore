@@ -122,6 +122,8 @@ tests
 CLAUDE.md
 .claude
 scripts
+!deploy/scripts/
+!deploy/scripts/*.sh
 !backend/scripts/
 !backend/scripts/resolve-version.sh
 .code-review-state
@@ -133,6 +135,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/cicd.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
