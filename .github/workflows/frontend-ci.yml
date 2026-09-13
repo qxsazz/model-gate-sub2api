@@ -3,15 +3,6 @@ name: Frontend CI
 on:
   pull_request:
     branches: [staging, main]
-    paths:
-      - 'frontend/**'
-      - 'docs/legal/**'
-      - 'Dockerfile'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'frontend/package.json'
-      - 'frontend/pnpm-lock.yaml'
-      - '.github/workflows/**'
   push:
     branches: [staging, main]
     paths:
