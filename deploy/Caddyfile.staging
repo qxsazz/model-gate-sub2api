@@ -1,0 +1,6 @@
+# Add this block to the existing server Caddyfile after staging DNS points to
+# the production host. The application itself stays bound to localhost:8081.
+
+staging.model-gate.cc {
+    reverse_proxy 127.0.0.1:8081
+}
