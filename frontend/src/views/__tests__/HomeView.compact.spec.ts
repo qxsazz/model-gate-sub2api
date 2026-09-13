@@ -132,6 +132,28 @@ describe('HomeView compact mode', () => {
     expect(wrapper.find('.model-gate-home').exists()).toBe(true)
   })
 
+  it('uses the MG logo and keeps the landing page free of the console preview', () => {
+    const wrapper = mountHome()
+
+    expect(wrapper.get('.logo-image').attributes('src')).toBe('/model-gate-mg-luxury.svg')
+    expect(wrapper.find('#dashboard').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="console-preview"]').exists()).toBe(false)
+    expect(wrapper.findAll('a[href="#dashboard"]')).toHaveLength(0)
+  })
+
+  it('uses the approved tech-luxury positioning across the landing page', () => {
+    const wrapper = mountHome()
+
+    expect(wrapper.text()).toContain('统一接入主流 AI 模型')
+    expect(wrapper.text()).toContain('集中管理 API Key、调用渠道与 Token 用量')
+    expect(wrapper.text()).toContain('统一模型入口')
+    expect(wrapper.text()).toContain('清晰的用量管理')
+    expect(wrapper.text()).toContain('稳定的接入体验')
+    expect(wrapper.text()).toContain('主流模型，一个统一入口')
+    expect(wrapper.get('.hero-support').text()).toContain('Claude · OpenAI · Gemini · Grok')
+    expect(wrapper.get('.models-description').text()).toContain('统一的 API 配置')
+  })
+
   it('links unauthenticated visitors to login', () => {
     expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/login')
   })

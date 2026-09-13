@@ -1,6 +1,12 @@
 <template>
-  <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
-    <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
+  <header
+    class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50"
+    :class="{ 'user-console-header': isUserConsole }"
+  >
+    <div
+      class="flex items-center justify-between gap-2 px-2 sm:px-4 md:px-6"
+      :class="isUserConsole ? 'h-[72px]' : 'h-16'"
+    >
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex shrink-0 items-center gap-2 sm:gap-4">
         <button
@@ -11,11 +17,21 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="hidden lg:block">
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <div class="hidden min-w-0 lg:block">
+          <p v-if="isUserConsole && userPageEyebrow" class="user-console-eyebrow">
+            {{ userPageEyebrow }}
+          </p>
+          <h1
+            class="text-lg font-semibold text-gray-900 dark:text-white"
+            :class="{ 'user-console-page-title': isUserConsole }"
+          >
             {{ pageTitle }}
           </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
+          <p
+            v-if="pageDescription"
+            class="text-xs text-gray-500 dark:text-dark-400"
+            :class="{ 'user-console-page-description': isUserConsole }"
+          >
             {{ pageDescription }}
           </p>
         </div>
@@ -57,7 +73,7 @@
         <!-- Balance Display -->
         <div
           v-if="user"
-          class="group relative hidden items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 dark:bg-primary-900/20 sm:flex"
+          class="user-console-balance group relative hidden items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 dark:bg-primary-900/20 sm:flex"
         >
           <svg
             class="h-4 w-4 text-primary-600 dark:text-primary-400"
@@ -108,7 +124,7 @@
             class="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-800"
             :aria-label="t('common.userMenu')"
           >
-            <div class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
+            <div class="user-console-avatar flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
               <img
                 v-if="avatarUrl"
                 :src="avatarUrl"
@@ -277,6 +293,22 @@ const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
+const isUserConsole = computed(() => !route.path.startsWith('/admin'))
+const userPageEyebrow = computed(() => {
+  const labels: Record<string, string> = {
+    Dashboard: 'OVERVIEW',
+    Keys: 'ACCESS KEYS',
+    Usage: 'USAGE ATELIER',
+    Redeem: 'REDEMPTION',
+    Affiliate: 'AFFILIATE',
+    Profile: 'PROFILE',
+    Subscriptions: 'SUBSCRIPTIONS',
+    Orders: 'ORDERS',
+    AvailableChannels: 'CHANNELS',
+    Monitor: 'SERVICE STATUS'
+  }
+  return labels[String(route.name || '')] || 'MODEL-GATE CONSOLE'
+})
 const availableBalance = computed(() => Number(user.value?.balance || 0))
 const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
 const totalBalance = computed(() => availableBalance.value + frozenBalance.value)

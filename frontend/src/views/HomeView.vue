@@ -102,7 +102,7 @@
       <div class="nav-container">
         <div class="nav-left">
           <div class="nav-logo">
-            <img class="logo-image" src="/logo.svg" alt="MODEL-GATE" />
+            <img class="logo-image" src="/model-gate-mg-luxury.svg" alt="MODEL-GATE" />
             <span class="logo-text">MODEL-GATE</span>
           </div>
         </div>
@@ -110,7 +110,7 @@
         <div class="nav-center">
           <a href="#hero" class="nav-link">主页</a>
           <router-link to="/docs" class="nav-link">文档</router-link>
-          <a href="#dashboard" class="nav-link">控制台</a>
+          <router-link to="/dashboard" class="nav-link">控制台</router-link>
           <a href="#claude" class="nav-link">Claude</a>
           <a href="#openai" class="nav-link">OpenAI</a>
           <a href="#grok" class="nav-link">Grok</a>
@@ -182,55 +182,36 @@
       <div class="hero-content" :class="{ visible: heroContentVisible }">
         <div class="hero-label">AI · API GATEWAY</div>
         <h1 class="hero-title">MODEL-GATE</h1>
-        <p class="hero-subtitle">One Gateway, Every Model — Instantly Connected.</p>
+        <p class="hero-subtitle">统一接入主流 AI 模型，集中管理 API Key、调用渠道与 Token 用量。</p>
+        <p class="hero-support">Claude · OpenAI · Gemini · Grok</p>
         <div class="hero-actions">
           <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="btn-primary">
             <span>开始接入</span>
             <span class="arrow">→</span>
           </router-link>
-          <a href="#dashboard" class="btn-secondary">
+          <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="btn-secondary">
             <span>查看控制台</span>
             <span class="arrow">→</span>
-          </a>
+          </router-link>
         </div>
       </div>
     </section>
 
-    <!-- Screen 2: Dashboard Preview -->
-    <section id="dashboard" class="dashboard-section" data-section="1">
-      <div class="section-container">
-        <div class="dashboard-header animate-section" :class="{ visible: visibleSections[1] }">
-          <h2 class="dashboard-title">强大的控制台</h2>
-          <p class="dashboard-subtitle">实时掌控每一次调用</p>
-        </div>
-
-        <div class="console-preview-frame" :style="previewSizing">
-        <HomeConsolePreview
-          :is-dark="isDark"
-          site-name="MODEL-GATE"
-          site-logo="/logo.svg"
-          :active="currentSection === 1"
-          @toggle-theme="toggleTheme"
-        />
-        </div>
-      </div>
-    </section>
-
-    <!-- Screen 3: Claude Code -->
-    <section id="claude" class="model-detail-section claude" data-section="2">
+    <!-- Screen 2: Claude Code -->
+    <section id="claude" class="model-detail-section claude" data-section="1">
       <div class="model-detail-container">
         <div class="model-detail-left">
-          <div class="model-detail-visual claude-visual animate-section" :class="{ visible: visibleSections[2] }">
+          <div class="model-detail-visual claude-visual animate-section" :class="{ visible: visibleSections[1] }">
             <svg class="claude-icon" viewBox="0 0 24 24" width="200" height="200">
               <path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"/>
             </svg>
           </div>
         </div>
         <div class="model-detail-right">
-          <div class="animate-section" :class="{ visible: visibleSections[2] }">
-            <div class="model-tag ide">IDE 集成</div>
+          <div class="animate-section" :class="{ visible: visibleSections[1] }">
+            <div class="model-tag ide">开发工作流</div>
             <h2 class="model-detail-title">Claude Code</h2>
-            <p class="model-detail-desc">通过 MODEL-GATE 接入 Claude Code，在终端中理解项目、编写代码与排查问题，让开发更专注。</p>
+            <p class="model-detail-desc">通过 MODEL-GATE 接入 Claude Code，在终端中阅读项目、编写代码与排查问题，让模型接入保持统一。</p>
 
             <div class="code-blocks">
               <div class="code-block">
@@ -274,20 +255,20 @@
     </section>
 
     <!-- Screen 4: Codex CLI (OpenAI) -->
-    <section id="openai" class="model-detail-section codex" data-section="3">
+    <section id="openai" class="model-detail-section codex" data-section="2">
       <div class="model-detail-container">
         <div class="model-detail-left">
-          <div class="model-detail-visual codex-visual animate-section" :class="{ visible: visibleSections[3] }">
+          <div class="model-detail-visual codex-visual animate-section" :class="{ visible: visibleSections[2] }">
             <svg class="codex-icon" viewBox="0 0 24 24" width="200" height="200" fill="currentColor">
               <path clip-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z" fill-rule="evenodd"/>
             </svg>
           </div>
         </div>
         <div class="model-detail-right">
-          <div class="animate-section" :class="{ visible: visibleSections[3] }">
-            <div class="model-tag cli">命令行工具</div>
+          <div class="animate-section" :class="{ visible: visibleSections[2] }">
+            <div class="model-tag cli">命令行接入</div>
             <h2 class="model-detail-title">Codex CLI</h2>
-            <p class="model-detail-desc">Codex CLI 是一款在本地终端运行的编程助手，能够读取、修改并执行指定目录中的代码。</p>
+            <p class="model-detail-desc">为 Codex CLI 提供统一的模型入口和 API 配置，减少本地工具与不同供应商之间的切换成本。</p>
 
             <div class="code-blocks">
               <div class="code-block dark">
@@ -343,20 +324,20 @@ wire_api = "responses"</pre>
     </section>
 
     <!-- Screen 5: Grok -->
-    <section id="grok" class="model-detail-section grok" data-section="4">
+    <section id="grok" class="model-detail-section grok" data-section="3">
       <div class="model-detail-container">
         <div class="model-detail-left">
-          <div class="model-detail-visual grok-visual animate-section" :class="{ visible: visibleSections[4] }">
+          <div class="model-detail-visual grok-visual animate-section" :class="{ visible: visibleSections[3] }">
             <svg class="grok-icon" viewBox="0 0 24 24" width="200" height="200" fill="currentColor">
               <path d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/>
             </svg>
           </div>
         </div>
         <div class="model-detail-right">
-          <div class="animate-section" :class="{ visible: visibleSections[4] }">
-            <div class="model-tag openai">兼容 OpenAI</div>
+          <div class="animate-section" :class="{ visible: visibleSections[3] }">
+            <div class="model-tag openai">统一 API 接入</div>
             <h2 class="model-detail-title">Grok</h2>
-            <p class="model-detail-desc">同一个终端点即可调用 Grok——只需更换模型名。</p>
+            <p class="model-detail-desc">通过兼容 OpenAI 的调用方式接入 Grok，只需替换模型名，即可沿用现有客户端配置。</p>
 
             <div class="code-blocks">
               <div class="code-block dark">
@@ -384,10 +365,10 @@ wire_api = "responses"</pre>
     </section>
 
     <!-- Screen 6: Gemini CLI -->
-    <section id="gemini" class="model-detail-section gemini" data-section="5">
+    <section id="gemini" class="model-detail-section gemini" data-section="4">
       <div class="model-detail-container">
         <div class="model-detail-left">
-          <div class="model-detail-visual gemini-visual animate-section" :class="{ visible: visibleSections[5] }">
+          <div class="model-detail-visual gemini-visual animate-section" :class="{ visible: visibleSections[4] }">
             <svg class="gemini-icon" viewBox="0 0 24 24" width="200" height="200">
               <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF"/>
               <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-gradient-0)"/>
@@ -411,10 +392,10 @@ wire_api = "responses"</pre>
           </div>
         </div>
         <div class="model-detail-right">
-          <div class="animate-section" :class="{ visible: visibleSections[5] }">
-            <div class="model-tag multimodal">多模态 AI</div>
+          <div class="animate-section" :class="{ visible: visibleSections[4] }">
+            <div class="model-tag multimodal">多模态工作流</div>
             <h2 class="model-detail-title">Gemini CLI</h2>
-            <p class="model-detail-desc">在终端中使用 Gemini，快速接入多模态 AI。</p>
+            <p class="model-detail-desc">在同一个网关中使用 Gemini 的多模态能力，并集中查看调用与 Token 使用情况。</p>
 
             <div class="code-blocks">
               <div class="code-block dark">
@@ -468,18 +449,18 @@ GEMINI_API_KEY=sk-...</pre>
     </section>
 
     <!-- Screen 7: Features + Models + Footer -->
-    <section id="features" class="features-section" data-section="6">
+    <section id="features" class="features-section" data-section="5">
       <div class="section-container">
         <!-- Feature Cards -->
-        <div class="feature-cards animate-section" :class="{ visible: visibleSections[6] }">
+        <div class="feature-cards animate-section" :class="{ visible: visibleSections[5] }">
           <div class="feature-card">
             <div class="feature-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/>
               </svg>
             </div>
-            <h3>一键接入</h3>
-            <p>获取一个 API 密钥，即可接入所有已接入的 AI 模型，无需分别申请。</p>
+            <h3>统一模型入口</h3>
+            <p>一个 Base URL 与 API Key，连接多个主流模型，减少重复配置。</p>
           </div>
 
           <div class="feature-card">
@@ -489,8 +470,8 @@ GEMINI_API_KEY=sk-...</pre>
                 <circle cx="12" cy="12" r="9"/>
               </svg>
             </div>
-            <h3>稳定可靠</h3>
-            <p>智能调度多个上游账号，自动故障切换与负载均衡，告别频繁报错。</p>
+            <h3>清晰的用量管理</h3>
+            <p>按请求、Token、模型与成本查看调用明细，让使用情况始终可追踪。</p>
           </div>
 
           <div class="feature-card">
@@ -502,15 +483,19 @@ GEMINI_API_KEY=sk-...</pre>
                 <rect x="3" y="14" width="7" height="7" rx="1"/>
               </svg>
             </div>
-            <h3>用多少付多少</h3>
-            <p>按实际 Token 计费，百分百配上账单，支持主流支付方式，余额可视化。</p>
+            <h3>稳定的接入体验</h3>
+            <p>集中管理密钥与渠道，将模型调用从复杂配置中解放出来。</p>
           </div>
         </div>
 
         <!-- Models Marquee -->
-        <div class="models-section animate-section" :class="{ visible: visibleSections[6] }" style="animation-delay: 0.2s">
+        <div class="models-section animate-section" :class="{ visible: visibleSections[5] }" style="animation-delay: 0.2s">
           <div class="models-header">
-            <h2 class="models-title">已支持的 AI 模型</h2>
+            <div>
+              <p class="section-kicker">MODEL COLLECTION</p>
+              <h2 class="models-title">主流模型，一个统一入口</h2>
+              <p class="models-description">从熟悉的客户端开始，使用统一的 API 配置接入所需模型。</p>
+            </div>
             <router-link v-if="showModelPlazaEntry" to="/model-plaza" class="model-plaza-link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -537,8 +522,9 @@ GEMINI_API_KEY=sk-...</pre>
         </div>
 
         <!-- Footer Content -->
-        <div class="footer-content animate-section" :class="{ visible: visibleSections[6] }" style="animation-delay: 0.4s">
-          <h2 class="footer-slogan">One Gateway, Every Model — Seamlessly.</h2>
+        <div class="footer-content animate-section" :class="{ visible: visibleSections[5] }" style="animation-delay: 0.4s">
+          <h2 class="footer-slogan">一个入口，连接每一个模型。</h2>
+          <p class="footer-caption">从 API Key 到 Token 用量，保持清晰、统一、可控。</p>
           <div class="footer-links">
             <router-link to="/docs">文档</router-link>
             <span class="dot-separator">·</span>
@@ -556,27 +542,13 @@ GEMINI_API_KEY=sk-...</pre>
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useWindowSize } from '@vueuse/core'
 import { useAuthStore, useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
 import ParticleNetwork from '@/components/ParticleNetwork.vue'
-import HomeConsolePreview from '@/components/home/HomeConsolePreview.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
 const { t } = useI18n()
-const { width: viewportWidth, height: viewportHeight } = useWindowSize()
-const previewSizing = computed(() => {
-  if (viewportWidth.value < 1024) return {}
-  const availableHeight = Math.max(360, viewportHeight.value - (viewportHeight.value <= 800 ? 186 : 208))
-  const availableWidth = Math.min(viewportWidth.value, 1920) - 96
-  const scale = Math.max(0.5, Math.min(availableHeight / 904, availableWidth / 1500))
-  return {
-    '--preview-scale': String(scale),
-    '--preview-panel-height': (availableHeight / scale - 104) + 'px'
-  }
-})
-
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
@@ -612,7 +584,7 @@ const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dash
 const currentYear = computed(() => new Date().getFullYear())
 
 // Section Navigation (7 sections now)
-const sections = ['Hero', 'Dashboard', 'Claude', 'OpenAI', 'Grok', 'Gemini', 'Features']
+const sections = ['Hero', 'Claude', 'OpenAI', 'Grok', 'Gemini', 'Features']
 const currentSection = ref(0)
 const scrollContainer = ref<HTMLElement | null>(null)
 const isScrolled = ref(false)
@@ -719,31 +691,31 @@ onBeforeUnmount(() => {
   --bg: #0a0b0f;
   --bg-alt: #0f1419;
   --surface: #12141b;
-  --text: #e8ecf4;
-  --text-dim: #8a93a6;
+  --text: #f5f1e7;
+  --text-dim: #aaa292;
   --accent: #4da3ff;
   --accent-soft: rgba(77, 163, 255, 0.16);
-  --line: rgba(80, 140, 235, 0.28);
+  --line: rgba(201, 180, 119, 0.24);
   --glow: 0 0 24px rgba(77, 163, 255, 0.45);
 }
 
 /* ===== Global Container ===== */
 .model-gate-home {
-  --bg: #ffffff;
-  --bg-alt: #f7f8fa;
+  --bg: #fbfaf7;
+  --bg-alt: #f5f1e7;
   --surface: #ffffff;
-  --text: #172033;
-  --text-dim: #526176;
+  --text: #121316;
+  --text-dim: #746f65;
   --accent: #2563b4;
   --accent-soft: rgba(37, 99, 180, 0.1);
-  --line: rgba(71, 85, 105, 0.2);
+  --line: #e7e1d4;
   --glow: 0 0 24px rgba(37, 99, 180, 0.14);
   scroll-snap-type: y mandatory;
   overflow-y: scroll;
   height: 100vh;
   background: var(--bg-alt);
   color: var(--text);
-  font-family: 'Inter', 'Space Grotesk', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'Noto Sans SC', 'Avenir Next', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   position: relative;
 }
 
@@ -832,6 +804,8 @@ onBeforeUnmount(() => {
   font-size: 18px;
   font-weight: 600;
   color: var(--text);
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  letter-spacing: 0;
 }
 
 .nav-center {
@@ -999,7 +973,7 @@ onBeforeUnmount(() => {
 }
 
 .model-gate-home:not(.is-dark) .hero-section {
-  background: #FFFFFF;
+  background: var(--bg);
 }
 
 .particle-bg {
@@ -1035,7 +1009,7 @@ onBeforeUnmount(() => {
 
 .hero-label {
   font-size: 13px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 24px;
@@ -1043,7 +1017,7 @@ onBeforeUnmount(() => {
 }
 
 .model-gate-home:not(.is-dark) .hero-label {
-  color: #6B7280;
+  color: var(--mg-muted, #746f65);
 }
 
 .hero-title {
@@ -1052,23 +1026,39 @@ onBeforeUnmount(() => {
   line-height: 1;
   margin-bottom: 24px;
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   white-space: nowrap;
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
 }
 
 .model-gate-home:not(.is-dark) .hero-title {
-  color: #111827;
+  color: #121316;
 }
 
 .hero-subtitle {
-  font-size: clamp(16px, 2.5vw, 20px);
+  max-width: 660px;
+  margin-right: auto;
+  margin-left: auto;
+  font-size: clamp(17px, 2.5vw, 21px);
   color: var(--text-dim);
-  margin-bottom: 40px;
+  margin-bottom: 12px;
   line-height: 1.5;
 }
 
 .model-gate-home:not(.is-dark) .hero-subtitle {
-  color: #4B5563;
+  color: #4a4740;
+}
+
+.hero-support {
+  margin: 0 auto 40px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.model-gate-home:not(.is-dark) .hero-support {
+  color: #9c8344;
 }
 
 .hero-actions {
@@ -1123,36 +1113,6 @@ onBeforeUnmount(() => {
   transform: translateX(6px);
 }
 
-/* ===== Dashboard Section ===== */
-.model-gate-home .dashboard-section {
-  background: var(--bg-alt);
-  min-height: 100vh;
-  align-items: flex-start;
-}
-
-.dashboard-header {
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.dashboard-title {
-  font-size: clamp(20px, 2vw, 24px);
-  font-weight: 600;
-  margin-bottom: 2px;
-  color: var(--text);
-}
-
-.dashboard-subtitle {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.dashboard-section > .section-container {
-  max-width: 1920px;
-  min-width: 0;
-  padding: 72px clamp(12px, 1.5vw, 28px) 16px;
-}
-
 .model-gate-home:not(.is-dark) .top-nav.scrolled {
   background: rgba(255, 255, 255, 0.92);
   border-bottom-color: var(--line);
@@ -1175,7 +1135,7 @@ onBeforeUnmount(() => {
 
 .model-gate-home:not(.is-dark) .code-header,
 .model-gate-home:not(.is-dark) .code-header-simple {
-  background: #eef1f6;
+  background: var(--bg-alt);
   border-bottom-color: var(--line);
 }
 
@@ -1278,7 +1238,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   text-transform: uppercase;
   margin-bottom: 20px;
 }
@@ -1312,6 +1272,8 @@ onBeforeUnmount(() => {
   font-weight: 600;
   margin-bottom: 20px;
   color: var(--text);
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  letter-spacing: 0;
 }
 
 .model-detail-desc {
@@ -1426,15 +1388,15 @@ onBeforeUnmount(() => {
 }
 
 .feature-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(80, 140, 235, 0.16);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 32px;
   transition: all 0.3s ease;
 }
 
 .feature-card:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface);
   border-color: var(--accent-soft);
   transform: translateY(-4px);
 }
@@ -1492,12 +1454,30 @@ onBeforeUnmount(() => {
   gap: 24px;
   margin-bottom: 48px;
   flex-wrap: wrap;
+  text-align: center;
+}
+
+.section-kicker {
+  margin-bottom: 10px;
+  color: #9c8344;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .models-title {
   font-size: clamp(32px, 5vw, 40px);
   font-weight: 600;
   color: var(--text);
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  letter-spacing: 0;
+}
+
+.models-description {
+  margin-top: 10px;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .model-plaza-link {
@@ -1618,6 +1598,15 @@ onBeforeUnmount(() => {
   color: var(--text);
   margin-bottom: 32px;
   line-height: 1.3;
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  letter-spacing: 0;
+}
+
+.footer-caption {
+  margin: -16px 0 28px;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .footer-links {
@@ -1651,18 +1640,6 @@ onBeforeUnmount(() => {
   color: var(--text-dim);
   opacity: 0.7;
 }
-.console-preview-frame { width: 100%; min-width: 0; }
-@media (min-width: 1024px) {
-  .console-preview-frame :deep(.console-preview) { zoom: var(--preview-scale, 0.72); width: 100%; }
-}
-@media (min-width: 768px) and (max-width: 1023px) {
-  .console-preview-frame :deep(.console-preview) { zoom: 0.85; width: 100%; }
-}
-@media (min-width: 1024px) and (max-height: 800px) {
-  .dashboard-header { margin-bottom: 8px; }
-  .dashboard-title { font-size: 20px; margin-bottom: 2px; }
-  .dashboard-section > .section-container { padding-top: 70px; }
-}
 .model-gate-home:not(.is-dark) .model-icon-wrapper.grok {
   border-color: #8493ac;
   background: #e9edf4;
@@ -1690,8 +1667,5 @@ onBeforeUnmount(() => {
 @media (max-width: 968px) {
   .gemini .model-detail-container { gap: 16px; padding: 76px 20px 20px; }
   .gemini .model-detail-visual svg { width: 72px; height: 72px; }
-}
-@media (min-width: 1024px) {
-  .console-preview-frame { width: calc(100% - 32px); margin-inline: auto; }
 }
 </style>
