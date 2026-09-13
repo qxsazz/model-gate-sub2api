@@ -82,6 +82,20 @@ Production uses `deploy/docker-compose.production.override.yml` so the current
 production Compose file is not overwritten by CI. The override injects the
 target image digest only for the deployment command.
 
+## Upstream updates
+
+`upstream-check.yml` runs weekly and can also be started manually. It checks the
+latest release of `https://github.com/Wei-Shaw/sub2api`, using its `main`
+repository as the source and release tags such as `v0.2.4` as the upgrade
+snapshot. When the release is not already contained in `staging`, the workflow
+creates `upgrade/upstream-<version>` from `staging`, merges the release tag, and
+opens a pull request back to `staging`.
+
+An upstream merge conflict fails the workflow and requires manual resolution;
+the workflow never updates `main` or deploys production directly. The workflow
+requires repository Actions permissions for contents write and pull requests
+write so it can push the upgrade branch and open the pull request.
+
 ## Local validation
 
 ```bash
