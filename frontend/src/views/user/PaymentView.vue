@@ -1,12 +1,13 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div data-testid="payment-luxury-page" class="payment-luxury-page">
+      <div class="payment-page-inner mx-auto max-w-4xl space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
-        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+        <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="payment-tabs flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"
             class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
             :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
@@ -36,16 +37,16 @@
           <!-- Top-up Tab -->
           <template v-if="activeTab === 'recharge'">
             <!-- Recharge Account Card -->
-            <div class="card p-5">
-              <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
+            <div class="card payment-account-card p-5">
+              <p class="payment-eyebrow">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <p class="payment-balance-text mt-0.5 text-sm font-medium">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
-            <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
+            <div v-if="enabledMethods.length === 0" class="card payment-empty-state py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
-            <div class="card p-6">
+            <div class="card payment-panel p-6">
               <AmountInput
                 v-model="amount"
                 :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
@@ -54,14 +55,14 @@
               />
               <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
-            <div v-if="enabledMethods.length >= 1" class="card p-6">
+            <div v-if="enabledMethods.length >= 1" class="card payment-panel p-6">
               <PaymentMethodSelector
                 :methods="methodOptions"
                 :selected="selectedMethod"
                 @select="selectedMethod = $event"
               />
             </div>
-            <div v-if="validAmount > 0" class="card p-6">
+            <div v-if="validAmount > 0" class="card payment-panel payment-summary-panel p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
@@ -84,7 +85,7 @@
                 </p>
               </div>
             </div>
-            <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+            <button :class="['btn payment-submit-button w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
               <span v-if="submitting" class="flex items-center justify-center gap-2">
                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                 {{ t('common.processing') }}
@@ -97,7 +98,7 @@
           <template v-else-if="activeTab === 'subscription'">
             <!-- Subscription confirm (inline, replaces plan list) -->
             <template v-if="selectedPlan">
-              <div class="card p-5">
+              <div class="card payment-panel payment-plan-confirmation p-5">
                 <!-- Header: platform badge + plan name -->
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span :class="['rounded-md border px-2 py-0.5 text-xs font-medium', planBadgeClass]">
@@ -149,14 +150,14 @@
                   </div>
                 </div>
               </div>
-              <div v-if="enabledMethods.length >= 1" class="card p-6">
+              <div v-if="enabledMethods.length >= 1" class="card payment-panel p-6">
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
                   :selected="selectedMethod"
                   @select="selectedMethod = $event"
                 />
               </div>
-              <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
+              <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card payment-panel payment-summary-panel p-6">
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
@@ -172,7 +173,7 @@
                   </div>
                 </div>
               </div>
-              <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
+              <button :class="['btn payment-submit-button w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
                 <span v-if="submitting" class="flex items-center justify-center gap-2">
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
@@ -183,11 +184,11 @@
             </template>
             <!-- Plan list -->
             <template v-else>
-              <div v-if="checkout.plans.length === 0" class="card py-16 text-center">
+              <div v-if="checkout.plans.length === 0" class="card payment-empty-state py-16 text-center">
                 <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
               </div>
-              <div v-else :class="planGridClass">
+              <div v-else class="payment-plan-list" :class="planGridClass">
                 <SubscriptionPlanCard v-for="plan in checkout.plans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlan" />
               </div>
               <!-- Active subscriptions (compact, below plan list) -->
@@ -217,7 +218,7 @@
             </template>
           </template>
         </template>
-        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
+        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card payment-help-card p-4">
           <div class="flex flex-col items-center gap-3">
             <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
               class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
@@ -226,6 +227,7 @@
           </div>
         </div>
       </template>
+      </div>
     </div>
     <!-- Renewal Plan Selection Modal -->
     <Teleport to="body">
@@ -1165,3 +1167,166 @@ onMounted(async () => {
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
 </script>
+
+<style scoped>
+.payment-luxury-page {
+  --payment-ink: var(--mg-ink-950, #121316);
+  --payment-ink-soft: var(--mg-ink-700, #4a4740);
+  --payment-gold: var(--mg-gold-700, #9c8344);
+  --payment-gold-bright: var(--mg-gold-500, #c9b477);
+  --payment-pearl: var(--mg-pearl-50, #fbfaf7);
+  --payment-champagne: var(--mg-champagne-50, #f5f1e7);
+  --payment-line: var(--mg-line-warm, #e7e1d4);
+  --payment-surface: var(--mg-surface, #ffffff);
+  color: var(--payment-ink-soft);
+  font-family: 'Noto Sans SC', 'Avenir Next', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+.payment-page-inner {
+  position: relative;
+}
+
+.payment-luxury-page :deep(.card) {
+  border: 1px solid var(--payment-line);
+  border-radius: 0.625rem;
+  background: var(--payment-surface);
+  box-shadow: 0 12px 28px rgb(18 19 22 / 5%);
+}
+
+.payment-tabs {
+  border: 1px solid var(--payment-line);
+  background: var(--payment-champagne);
+}
+
+.payment-tabs button {
+  border-radius: 0.375rem;
+  color: var(--payment-ink-soft);
+}
+
+.payment-tabs button[class*='bg-white'],
+.payment-tabs button[class*='dark:bg-dark-700'] {
+  background: var(--payment-surface) !important;
+  color: var(--payment-ink) !important;
+  box-shadow: 0 4px 12px rgb(18 19 22 / 8%);
+}
+
+.payment-account-card {
+  position: relative;
+  overflow: hidden;
+  border-color: #2c2a25 !important;
+  background:
+    radial-gradient(circle at 92% 20%, rgb(201 180 119 / 18%), transparent 34%),
+    linear-gradient(135deg, #17181b 0%, #101114 70%);
+  color: #f5f1e7;
+  box-shadow: 0 16px 32px rgb(18 19 22 / 16%) !important;
+}
+
+.payment-account-card::after {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 0.75rem;
+  color: rgb(201 180 119 / 42%);
+  content: 'MODEL-GATE';
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  font-size: 0.75rem;
+  letter-spacing: 0;
+}
+
+.payment-account-card .payment-eyebrow {
+  color: #c9b477;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.payment-account-card p.text-gray-900,
+.payment-account-card p.dark\:text-white {
+  color: #f5f1e7 !important;
+}
+
+.payment-balance-text {
+  color: #dfcf9f !important;
+}
+
+.payment-panel,
+.payment-help-card {
+  border-color: var(--payment-line) !important;
+}
+
+.payment-summary-panel {
+  background: linear-gradient(135deg, var(--payment-surface), var(--payment-champagne));
+}
+
+.payment-luxury-page :deep(.payment-submit-button) {
+  min-height: 3rem;
+  border: 1px solid #101114 !important;
+  border-radius: 0.5rem !important;
+  background: linear-gradient(135deg, #24252a, #101114) !important;
+  color: #f5f1e7 !important;
+  box-shadow: 0 8px 18px rgb(18 19 22 / 16%) !important;
+}
+
+.payment-luxury-page :deep(.payment-submit-button:hover:not(:disabled)) {
+  background: linear-gradient(135deg, #3a3935, #17181b) !important;
+  box-shadow: 0 12px 24px rgb(18 19 22 / 20%) !important;
+  transform: translateY(-1px);
+}
+
+.payment-luxury-page :deep(.payment-submit-button:disabled) {
+  opacity: 0.45;
+}
+
+.payment-empty-state {
+  background: linear-gradient(135deg, var(--payment-surface), var(--payment-champagne));
+}
+
+.payment-plan-confirmation {
+  border-top: 2px solid var(--payment-gold-bright) !important;
+}
+
+.payment-plan-list :deep(> div) {
+  border-color: var(--payment-line) !important;
+  border-radius: 0.625rem !important;
+  background: var(--payment-surface) !important;
+  box-shadow: 0 10px 24px rgb(18 19 22 / 5%);
+}
+
+.payment-plan-list :deep(> div:hover) {
+  border-color: var(--payment-gold-bright) !important;
+  box-shadow: 0 14px 28px rgb(18 19 22 / 10%);
+}
+
+.payment-help-card :deep(.markdown-body) {
+  color: var(--payment-ink-soft);
+}
+
+.payment-help-card :deep(.markdown-body h1),
+.payment-help-card :deep(.markdown-body h2),
+.payment-help-card :deep(.markdown-body h3) {
+  border-color: var(--payment-line);
+  color: var(--payment-ink);
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+}
+
+.payment-help-card :deep(.markdown-body a) {
+  color: var(--payment-gold);
+}
+
+.dark .payment-luxury-page {
+  --payment-ink: #f5f1e7;
+  --payment-ink-soft: #d6cebd;
+  --payment-pearl: #111214;
+  --payment-champagne: #23221f;
+  --payment-line: #38352f;
+  --payment-surface: #18191d;
+}
+
+.dark .payment-luxury-page :deep(.card) {
+  box-shadow: 0 14px 28px rgb(0 0 0 / 18%);
+}
+
+@media (max-width: 640px) {
+  .payment-luxury-page :deep(.payment-submit-button) {
+    min-height: 2.875rem;
+  }
+}
+</style>

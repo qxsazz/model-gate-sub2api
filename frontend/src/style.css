@@ -776,3 +776,377 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* MODEL-GATE user console theme. Kept outside Tailwind layers so it can
+   override legacy utility combinations without affecting /admin routes. */
+.user-console-shell {
+  --mg-ink-950: #121316;
+  --mg-ink-900: #24252a;
+  --mg-ink-700: #4a4740;
+  --mg-gold-50: #fcfaf4;
+  --mg-gold-300: #dfcf9f;
+  --mg-gold-500: #c9b477;
+  --mg-gold-700: #9c8344;
+  --mg-pearl-50: #fbfaf7;
+  --mg-champagne-50: #f5f1e7;
+  --mg-line-warm: #e7e1d4;
+  --mg-muted: #746f65;
+  --mg-surface: #ffffff;
+  --mg-success: #52816d;
+  --mg-warning: #947535;
+  --mg-danger: #a75d56;
+  min-height: 100vh;
+  color: var(--mg-ink-900);
+  background: var(--mg-pearl-50);
+  font-family: 'Noto Sans SC', 'Avenir Next', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+.dark .user-console-shell {
+  --mg-ink-900: #f5f1e7;
+  --mg-ink-700: #d6cebd;
+  --mg-gold-50: #29261e;
+  --mg-gold-300: #927c46;
+  --mg-pearl-50: #111214;
+  --mg-champagne-50: #23221f;
+  --mg-line-warm: #38352f;
+  --mg-muted: #aaa292;
+  --mg-surface: #18191d;
+}
+
+.user-console-shell .app-background-decoration {
+  display: none;
+}
+
+.user-console-shell .user-console-main,
+.user-console-shell .user-console-content {
+  background: var(--mg-pearl-50);
+}
+
+.user-console-shell .user-dashboard-preview-note {
+  border: 1px solid var(--mg-gold-300);
+  border-radius: 6px;
+  background: var(--mg-gold-50);
+  color: var(--mg-ink-700);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.75rem;
+}
+
+.user-console-shell .user-console-content {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1680px;
+}
+
+.user-console-shell .sidebar {
+  color: #e9e3d5;
+  background: #101114;
+  border-color: #2c2a25;
+  box-shadow: 10px 0 30px rgb(18 19 22 / 8%);
+}
+
+.user-console-shell .sidebar-header {
+  height: 4.5rem;
+  min-height: 4.5rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  border-color: rgb(201 180 119 / 22%);
+}
+
+.user-console-shell .sidebar-logo {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+}
+
+.user-console-shell .sidebar-brand-title {
+  color: #f7f3e8 !important;
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.user-console-shell .sidebar-brand-title:hover {
+  color: #d7c487 !important;
+}
+
+.user-console-shell .sidebar-nav {
+  padding: 1.25rem 0.75rem;
+}
+
+.user-console-shell .sidebar-section-title {
+  color: #81765f !important;
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+}
+
+.user-console-shell .sidebar-brand > div > button,
+.user-console-shell .sidebar-brand > div > span {
+  color: #ac9b70 !important;
+  background: rgb(201 180 119 / 8%) !important;
+  border: 1px solid rgb(201 180 119 / 18%);
+  border-radius: 0.25rem !important;
+  font-family: 'DM Mono', Consolas, monospace;
+}
+
+.user-console-shell .sidebar-link {
+  margin-bottom: 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  color: #aaa79f !important;
+}
+
+.user-console-shell .sidebar-link:hover {
+  color: #f5f0e5 !important;
+  background: #1a1b1e !important;
+  border-color: rgb(201 180 119 / 14%);
+}
+
+.user-console-shell .sidebar-link-active {
+  color: #e1ce91 !important;
+  background: rgb(201 180 119 / 11%) !important;
+  border-color: rgb(201 180 119 / 26%);
+  box-shadow: inset 2px 0 0 var(--mg-gold-500);
+}
+
+.user-console-header {
+  background: color-mix(in srgb, var(--mg-pearl-50) 92%, transparent) !important;
+  border-color: var(--mg-line-warm) !important;
+  box-shadow: 0 1px 0 rgb(18 19 22 / 3%);
+}
+
+.user-console-eyebrow {
+  margin-bottom: 0.125rem;
+  color: var(--mg-gold-700);
+  font-family: 'DM Mono', Consolas, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.user-console-page-title {
+  color: var(--mg-ink-900) !important;
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.user-console-page-description {
+  margin-top: 0.125rem;
+  color: var(--mg-muted) !important;
+}
+
+.user-console-header a,
+.user-console-header button {
+  border-radius: 0.375rem !important;
+}
+
+.user-console-header .user-console-balance {
+  color: var(--mg-ink-900);
+  background: var(--mg-champagne-50) !important;
+  border: 1px solid var(--mg-line-warm);
+}
+
+.user-console-header .user-console-balance > svg,
+.user-console-header .user-console-balance > span:first-of-type {
+  color: var(--mg-gold-700) !important;
+}
+
+.user-console-header .user-console-avatar {
+  color: #e5cf8f;
+  background: #151619 !important;
+  border: 1px solid #8f7949;
+  box-shadow: none;
+}
+
+.user-console-shell .card,
+.user-console-shell .glass-card,
+.user-console-shell .table-scroll-container {
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 1px 2px rgb(18 19 22 / 4%) !important;
+}
+
+.user-console-shell .card-header,
+.user-console-shell .card-footer,
+.user-console-shell .card > .border-b,
+.user-console-shell .card > .border-t {
+  border-color: var(--mg-line-warm) !important;
+}
+
+.user-console-shell .btn {
+  border-radius: 0.375rem;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.user-console-shell .btn-primary {
+  color: #fbfaf7;
+  background: var(--mg-ink-950) !important;
+  border: 1px solid var(--mg-ink-950);
+  box-shadow: none !important;
+}
+
+.user-console-shell .btn-primary:hover {
+  color: #eadcae;
+  background: #25262a !important;
+  border-color: #25262a;
+}
+
+.user-console-shell .btn-secondary {
+  color: var(--mg-ink-900) !important;
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  box-shadow: none !important;
+}
+
+.user-console-shell .btn-secondary:hover {
+  color: var(--mg-gold-700) !important;
+  background: var(--mg-champagne-50) !important;
+  border-color: var(--mg-gold-500) !important;
+}
+
+.user-console-shell .btn:focus-visible,
+.user-console-shell .input:focus,
+.user-console-shell button:focus-visible,
+.user-console-shell a:focus-visible {
+  outline: 2px solid var(--mg-gold-500);
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+.user-console-shell .input {
+  color: var(--mg-ink-900);
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem;
+}
+
+.user-console-shell .input:focus {
+  border-color: var(--mg-gold-500) !important;
+}
+
+.user-console-shell .table-container,
+.user-console-shell .table-scroll-container {
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem !important;
+}
+
+.user-console-shell table thead,
+.user-console-shell .table th {
+  color: var(--mg-muted) !important;
+  background: var(--mg-champagne-50) !important;
+}
+
+.user-console-shell table th,
+.user-console-shell table td,
+.user-console-shell .table th,
+.user-console-shell .table td {
+  border-color: var(--mg-line-warm) !important;
+}
+
+.user-console-shell table tbody tr:hover {
+  background: color-mix(in srgb, var(--mg-champagne-50) 68%, transparent) !important;
+}
+
+.user-console-shell .badge {
+  border-radius: 0.25rem;
+}
+
+.user-console-shell .badge-primary {
+  color: #765f2c !important;
+  background: #f3ead1 !important;
+}
+
+.user-console-shell .tab {
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+}
+
+.user-console-shell .tab-active {
+  color: var(--mg-ink-900) !important;
+  background: transparent !important;
+  border-bottom-color: var(--mg-gold-500);
+  box-shadow: none;
+}
+
+.user-console-shell .code,
+.user-console-shell code,
+.user-console-shell .font-mono,
+.user-console-shell .stat-value {
+  font-family: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.user-console-shell .code {
+  color: #80682f !important;
+  background: var(--mg-champagne-50) !important;
+}
+
+.user-dashboard-stats > .card {
+  position: relative;
+  overflow: hidden;
+  border-top: 2px solid var(--mg-gold-500) !important;
+}
+
+.user-dashboard-recent h2,
+.user-dashboard-actions h2,
+.user-usage-view .card h2 {
+  color: var(--mg-ink-900) !important;
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+  letter-spacing: 0;
+}
+
+.user-dashboard-recent .dashboard-usage-row,
+.user-dashboard-actions .dashboard-quick-action {
+  background: var(--mg-pearl-50) !important;
+  border: 1px solid transparent;
+  border-radius: 0.375rem !important;
+}
+
+.user-dashboard-recent .dashboard-usage-row:hover,
+.user-dashboard-actions .dashboard-quick-action:hover {
+  background: var(--mg-champagne-50) !important;
+  border-color: var(--mg-line-warm);
+}
+
+.user-dashboard-recent .dashboard-usage-icon,
+.user-dashboard-actions .dashboard-action-icon {
+  color: var(--mg-gold-700) !important;
+  background: var(--mg-champagne-50) !important;
+  border: 1px solid var(--mg-line-warm);
+  border-radius: 0.375rem !important;
+}
+
+.user-dashboard-recent .dashboard-usage-icon svg,
+.user-dashboard-actions .dashboard-action-icon svg,
+.user-dashboard-recent .dashboard-section-link {
+  color: var(--mg-gold-700) !important;
+}
+
+.user-console-shell .table-page-layout {
+  height: calc(100vh - 4.5rem - 4rem) !important;
+}
+
+@media (max-width: 1023px) {
+  .user-console-shell .user-console-content {
+    max-width: none;
+  }
+
+  .user-console-shell .table-page-layout {
+    height: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-console-shell *,
+  .user-console-shell *::before,
+  .user-console-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

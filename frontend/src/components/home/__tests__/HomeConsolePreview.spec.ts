@@ -31,6 +31,7 @@ describe('HomeConsolePreview', () => {
     const wrapper = render()
     expect(wrapper.findAll('[role="tab"]').map(tab => tab.text())).toEqual(['仪表盘', 'API 密钥', '使用记录', '可用渠道'])
     expect(wrapper.text()).toContain('演示数据')
+    expect(wrapper.text()).not.toContain('dashboard.platformBreakdown')
     expect(getModelPlaza).not.toHaveBeenCalled()
     wrapper.unmount()
   })
