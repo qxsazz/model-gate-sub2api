@@ -618,6 +618,60 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), "data: [DONE]"))
 }
 
+func TestConfigureAntigravityGeminiThinking_EnablesSummariesAndTier(t *testing.T) {
+	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":768}}`)
+
+	configured, err := configureGeminiThinking(body, "gemini-3.8-flash-high")
+	require.NoError(t, err)
+	require.Equal(t, int64(768), gjson.GetBytes(configured, "generationConfig.maxOutputTokens").Int())
+	require.True(t, gjson.GetBytes(configured, "generationConfig.thinkingConfig.includeThoughts").Bool())
+	require.Equal(t, "high", gjson.GetBytes(configured, "generationConfig.thinkingConfig.thinkingLevel").String())
+}
+
+func TestConfigureAntigravityGeminiThinking_LeavesNonThinkingModelUntouched(t *testing.T) {
+	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`)
+
+	configured, err := configureGeminiThinking(body, "gemini-2.0-flash")
+	require.NoError(t, err)
+	require.Equal(t, body, configured)
+}
+
+func TestAntigravityCompatChatStreamMapsGeminiThoughtsToReasoningContent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, nil)
+	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
+	body := strings.Join([]string{
+		`data: {"response":{"responseId":"resp_thoughts","candidates":[{"content":{"parts":[{"text":"Initial goal is to produce valid JSON. ","thought":true,"thoughtSignature":"sig_1"}]}}],"usageMetadata":{"promptTokenCount":8,"thoughtsTokenCount":4}}}`,
+		"",
+		`data: {"response":{"responseId":"resp_thoughts","candidates":[{"content":{"parts":[{"text":"Calculate 17 * 19 before answering.","thought":true}]}}]}}`,
+		"",
+		`data: {"response":{"responseId":"resp_thoughts","candidates":[{"content":{"parts":[{"text":"{\"script\":\"17乘以19的结果是323。\"}"}]} ,"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":12,"thoughtsTokenCount":4}}}`,
+		"",
+	}, "\n")
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	result, err := svc.handleChatCompletionsStreamingFromAntigravity(
+		c,
+		resp,
+		time.Now(),
+		"gemini-3.8-flash-high",
+		false,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	stream := recorder.Body.String()
+	require.Contains(t, stream, `"reasoning_content":"Initial goal is to produce valid JSON. "`)
+	require.Contains(t, stream, `"reasoning_content":"Calculate 17 * 19 before answering."`)
+	require.NotContains(t, stream, `"content":"Initial goal is to produce valid JSON. "`)
+	require.NotContains(t, stream, `"content":"Calculate 17 * 19 before answering."`)
+	require.Contains(t, stream, `"content":"{\"script\":\"17乘以19的结果是323。\"}"`)
+}
+
 func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := newAntigravityCompatService(

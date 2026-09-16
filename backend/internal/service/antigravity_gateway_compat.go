@@ -266,6 +266,10 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
+		body, err = configureGeminiThinking(body, mappedModel)
+		if err != nil {
+			return nil, err
+		}
 		body, err = enableMixedGeminiToolInvocations(body)
 		if err != nil {
 			return nil, err
@@ -284,6 +288,78 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 	options := s.getClaudeTransformOptions(ctx)
 	options.EnableIdentityPatch = true
 	return antigravity.TransformClaudeToGeminiWithOptions(claudeRequest, projectID, mappedModel, options)
+}
+
+// configureGeminiThinking asks Gemini thinking models to return
+// thought summaries as parts marked with thought=true. The downstream
+// Antigravity stream transformer already maps those parts to Anthropic
+// thinking blocks, which the Chat Completions adapter exposes as
+// reasoning_content instead of mixing them into content.
+func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
+	model := strings.ToLower(strings.TrimSpace(mappedModel))
+	model = strings.TrimPrefix(model, "models/")
+	if !strings.HasPrefix(model, "gemini-3") && !antigravity.IsGeminiReasoningModel(model) {
+		return body, nil
+	}
+
+	var request map[string]any
+	if err := json.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+
+	generationConfig, _ := request["generationConfig"].(map[string]any)
+	if generationConfig == nil {
+		generationConfig = make(map[string]any)
+		request["generationConfig"] = generationConfig
+	}
+	thinkingConfig, _ := generationConfig["thinkingConfig"].(map[string]any)
+	if thinkingConfig == nil {
+		thinkingConfig = make(map[string]any)
+		generationConfig["thinkingConfig"] = thinkingConfig
+	}
+	thinkingConfig["includeThoughts"] = true
+
+	// Gemini 3 uses thinkingLevel rather than a token budget. Translate a
+	// compatibility client's Anthropic budget when no explicit model suffix
+	// supplies the level, and never send both mutually exclusive controls.
+	if strings.HasPrefix(model, "gemini-3") {
+		if _, hasLevel := thinkingConfig["thinkingLevel"]; !hasLevel {
+			level := geminiThinkingLevel(model)
+			if level == "" {
+				if budget, ok := asInt(thinkingConfig["thinkingBudget"]); ok {
+					level = geminiThinkingLevelForBudget(budget)
+				}
+			}
+			if level != "" {
+				thinkingConfig["thinkingLevel"] = level
+			}
+		}
+		delete(thinkingConfig, "thinkingBudget")
+	}
+
+	return json.Marshal(request)
+}
+
+func geminiThinkingLevel(model string) string {
+	for _, level := range []string{"minimal", "low", "medium", "high"} {
+		if strings.HasSuffix(model, "-"+level) {
+			return level
+		}
+	}
+	return ""
+}
+
+func geminiThinkingLevelForBudget(budget int) string {
+	switch {
+	case budget <= 1024:
+		return "minimal"
+	case budget <= 4096:
+		return "low"
+	case budget <= 16384:
+		return "medium"
+	default:
+		return "high"
+	}
 }
 
 func enableMixedGeminiToolInvocations(body []byte) ([]byte, error) {

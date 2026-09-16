@@ -92,6 +92,10 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 	if err != nil {
 		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
+	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel)
+	if err != nil {
+		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+	}
 	geminiReq = ensureGeminiFunctionCallThoughtSignatures(geminiReq)
 
 	proxyURL := ""
@@ -591,7 +595,8 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsStreamingResponseFrom
 	nextBlockIndex := 0
 	openBlockIndex := -1
 	openBlockType := ""
-	seenText := ""
+	seenTextByType := map[string]string{"thinking": "", "text": ""}
+	seenThoughtSignature := ""
 	openToolIndex := -1
 	openToolName := ""
 	seenToolJSON := ""
@@ -652,36 +657,55 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsStreamingResponseFrom
 										return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 									}
 								}
-								delta, newSeen := computeGeminiTextDelta(seenText, text)
-								seenText = newSeen
-								if delta == "" {
+								blockType := "text"
+								if isGeminiThoughtPart(part) {
+									blockType = "thinking"
+								}
+								delta, newSeen := computeGeminiTextDelta(seenTextByType[blockType], text)
+								seenTextByType[blockType] = newSeen
+								signatureDelta := ""
+								if blockType == "thinking" {
+									if signature, _ := part["thoughtSignature"].(string); signature != "" {
+										signatureDelta, seenThoughtSignature = computeGeminiTextDelta(seenThoughtSignature, signature)
+									}
+								}
+								if delta == "" && signatureDelta == "" {
 									continue
 								}
-								if openBlockType != "text" {
+								if openBlockType != blockType {
 									if closeOpenBlock() {
 										return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 									}
 									idx := nextBlockIndex
 									nextBlockIndex++
 									openBlockIndex = idx
-									openBlockType = "text"
+									openBlockType = blockType
+									contentBlock := &apicompat.AnthropicContentBlock{Type: blockType}
+									if blockType == "text" {
+										contentBlock.Text = ""
+									} else {
+										contentBlock.Thinking = ""
+									}
 									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-										Type:  "content_block_start",
-										Index: &idx,
-										ContentBlock: &apicompat.AnthropicContentBlock{
-											Type: "text",
-											Text: "",
-										},
+										Type:         "content_block_start",
+										Index:        &idx,
+										ContentBlock: contentBlock,
 									}) {
 										return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 									}
 								}
-								if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-									Type: "content_block_delta",
-									Delta: &apicompat.AnthropicDelta{
-										Type: "text_delta",
-										Text: delta,
-									},
+								if delta != "" {
+									anthropicDelta := &apicompat.AnthropicDelta{Type: "text_delta", Text: delta}
+									if blockType == "thinking" {
+										anthropicDelta = &apicompat.AnthropicDelta{Type: "thinking_delta", Thinking: delta}
+									}
+									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{Type: "content_block_delta", Delta: anthropicDelta}) {
+										return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
+									}
+								}
+								if signatureDelta != "" && emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
+									Type:  "content_block_delta",
+									Delta: &apicompat.AnthropicDelta{Type: "signature_delta", Signature: signatureDelta},
 								}) {
 									return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 								}
@@ -707,15 +731,19 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsStreamingResponseFrom
 									openToolIndex = idx
 									openToolName = name
 									sawToolUse = true
+									toolBlock := &apicompat.AnthropicContentBlock{
+										Type:  "tool_use",
+										ID:    "toolu_" + randomHex(8),
+										Name:  name,
+										Input: json.RawMessage(`{}`),
+									}
+									if signature, _ := part["thoughtSignature"].(string); signature != "" {
+										toolBlock.Signature = signature
+									}
 									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-										Type:  "content_block_start",
-										Index: &idx,
-										ContentBlock: &apicompat.AnthropicContentBlock{
-											Type:  "tool_use",
-											ID:    "toolu_" + randomHex(8),
-											Name:  name,
-											Input: json.RawMessage(`{}`),
-										},
+										Type:         "content_block_start",
+										Index:        &idx,
+										ContentBlock: toolBlock,
 									}) {
 										return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 									}
