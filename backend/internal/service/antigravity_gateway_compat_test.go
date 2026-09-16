@@ -621,7 +621,7 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 func TestConfigureAntigravityGeminiThinking_EnablesSummariesAndTier(t *testing.T) {
 	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":768}}`)
 
-	configured, err := configureAntigravityGeminiThinking(body, "gemini-3.8-flash-high")
+	configured, err := configureGeminiThinking(body, "gemini-3.8-flash-high")
 	require.NoError(t, err)
 	require.Equal(t, int64(768), gjson.GetBytes(configured, "generationConfig.maxOutputTokens").Int())
 	require.True(t, gjson.GetBytes(configured, "generationConfig.thinkingConfig.includeThoughts").Bool())
@@ -631,7 +631,7 @@ func TestConfigureAntigravityGeminiThinking_EnablesSummariesAndTier(t *testing.T
 func TestConfigureAntigravityGeminiThinking_LeavesNonThinkingModelUntouched(t *testing.T) {
 	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`)
 
-	configured, err := configureAntigravityGeminiThinking(body, "gemini-2.0-flash")
+	configured, err := configureGeminiThinking(body, "gemini-2.0-flash")
 	require.NoError(t, err)
 	require.Equal(t, body, configured)
 }
