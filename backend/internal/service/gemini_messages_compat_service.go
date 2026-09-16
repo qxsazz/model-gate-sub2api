@@ -606,6 +606,10 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
+	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel)
+	if err != nil {
+		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+	}
 	geminiReq = ensureGeminiFunctionCallThoughtSignatures(geminiReq)
 	originalClaudeBody := body
 
@@ -2141,7 +2145,8 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	nextBlockIndex := 0
 	openBlockIndex := -1
 	openBlockType := ""
-	seenText := ""
+	seenTextByType := map[string]string{"thinking": "", "text": ""}
+	seenThoughtSignature := ""
 	openToolIndex := -1
 	openToolID := ""
 	openToolName := ""
@@ -2207,29 +2212,42 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					seenToolJSON = ""
 				}
 
-				delta, newSeen := computeGeminiTextDelta(seenText, text)
-				seenText = newSeen
-				if delta == "" {
+				blockType := "text"
+				if isGeminiThoughtPart(part) {
+					blockType = "thinking"
+				}
+				delta, newSeen := computeGeminiTextDelta(seenTextByType[blockType], text)
+				seenTextByType[blockType] = newSeen
+				signatureDelta := ""
+				if blockType == "thinking" {
+					if signature, _ := part["thoughtSignature"].(string); signature != "" {
+						signatureDelta, seenThoughtSignature = computeGeminiTextDelta(seenThoughtSignature, signature)
+					}
+				}
+				if delta == "" && signatureDelta == "" {
 					continue
 				}
 
-				if openBlockType != "text" {
+				if openBlockType != blockType {
 					if openBlockIndex >= 0 {
 						writeSSE(c.Writer, "content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": openBlockIndex,
 						})
 					}
-					openBlockType = "text"
+					openBlockType = blockType
 					openBlockIndex = nextBlockIndex
 					nextBlockIndex++
+					contentBlock := map[string]any{"type": blockType}
+					if blockType == "thinking" {
+						contentBlock["thinking"] = ""
+					} else {
+						contentBlock["text"] = ""
+					}
 					writeSSE(c.Writer, "content_block_start", map[string]any{
-						"type":  "content_block_start",
-						"index": openBlockIndex,
-						"content_block": map[string]any{
-							"type": "text",
-							"text": "",
-						},
+						"type":          "content_block_start",
+						"index":         openBlockIndex,
+						"content_block": contentBlock,
 					})
 				}
 
@@ -2237,14 +2255,24 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
 				}
-				writeSSE(c.Writer, "content_block_delta", map[string]any{
-					"type":  "content_block_delta",
-					"index": openBlockIndex,
-					"delta": map[string]any{
-						"type": "text_delta",
-						"text": delta,
-					},
-				})
+				if delta != "" {
+					deltaBlock := map[string]any{"type": "text_delta", "text": delta}
+					if blockType == "thinking" {
+						deltaBlock = map[string]any{"type": "thinking_delta", "thinking": delta}
+					}
+					writeSSE(c.Writer, "content_block_delta", map[string]any{
+						"type":  "content_block_delta",
+						"index": openBlockIndex,
+						"delta": deltaBlock,
+					})
+				}
+				if signatureDelta != "" {
+					writeSSE(c.Writer, "content_block_delta", map[string]any{
+						"type":  "content_block_delta",
+						"index": openBlockIndex,
+						"delta": map[string]any{"type": "signature_delta", "signature": signatureDelta},
+					})
+				}
 				flusher.Flush()
 				continue
 			}
@@ -2284,15 +2312,19 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					nextBlockIndex++
 					sawToolUse = true
 
+					toolBlock := map[string]any{
+						"type":  "tool_use",
+						"id":    openToolID,
+						"name":  name,
+						"input": map[string]any{},
+					}
+					if signature, _ := part["thoughtSignature"].(string); signature != "" {
+						toolBlock["signature"] = signature
+					}
 					writeSSE(c.Writer, "content_block_start", map[string]any{
-						"type":  "content_block_start",
-						"index": openToolIndex,
-						"content_block": map[string]any{
-							"type":  "tool_use",
-							"id":    openToolID,
-							"name":  name,
-							"input": map[string]any{},
-						},
+						"type":          "content_block_start",
+						"index":         openToolIndex,
+						"content_block": toolBlock,
 					})
 				}
 
@@ -2442,7 +2474,8 @@ func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsag
 
 	var last map[string]any
 	var lastWithParts map[string]any
-	var collectedTextParts []string // Collect all text parts for aggregation
+	collectedText := map[string]string{"thinking": "", "text": ""}
+	thoughtSignature := ""
 	usage := &ClaudeUsage{}
 
 	for {
@@ -2454,7 +2487,7 @@ func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsag
 				switch payload {
 				case "", "[DONE]":
 					if payload == "[DONE]" {
-						return mergeCollectedTextParts(pickGeminiCollectResult(last, lastWithParts), collectedTextParts), usage, nil
+						return mergeCollectedGeminiTextParts(pickGeminiCollectResult(last, lastWithParts), collectedText, thoughtSignature), usage, nil
 					}
 				default:
 					var parsed map[string]any
@@ -2476,10 +2509,20 @@ func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsag
 						}
 						if parts := extractGeminiParts(parsed); len(parts) > 0 {
 							lastWithParts = parsed
-							// Collect text from each part for aggregation
+							// Aggregate thought summaries independently from final text so
+							// buffered OAuth responses retain Gemini's semantic boundary.
 							for _, part := range parts {
+								if isGeminiThoughtPart(part) {
+									if signature, _ := part["thoughtSignature"].(string); signature != "" {
+										thoughtSignature = signature
+									}
+								}
 								if text, ok := part["text"].(string); ok && text != "" {
-									collectedTextParts = append(collectedTextParts, text)
+									kind := "text"
+									if isGeminiThoughtPart(part) {
+										kind = "thinking"
+									}
+									_, collectedText[kind] = computeGeminiTextDelta(collectedText[kind], text)
 								}
 							}
 						}
@@ -2496,7 +2539,7 @@ func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsag
 		}
 	}
 
-	return mergeCollectedTextParts(pickGeminiCollectResult(last, lastWithParts), collectedTextParts), usage, nil
+	return mergeCollectedGeminiTextParts(pickGeminiCollectResult(last, lastWithParts), collectedText, thoughtSignature), usage, nil
 }
 
 func pickGeminiCollectResult(last map[string]any, lastWithParts map[string]any) map[string]any {
@@ -2509,16 +2552,12 @@ func pickGeminiCollectResult(last map[string]any, lastWithParts map[string]any) 
 	return map[string]any{}
 }
 
-// mergeCollectedTextParts merges all collected text chunks into the final response.
-// This fixes the issue where non-streaming responses only returned the last chunk
-// instead of the complete aggregated text.
-func mergeCollectedTextParts(response map[string]any, textParts []string) map[string]any {
-	if len(textParts) == 0 {
+// mergeCollectedGeminiTextParts merges buffered streaming chunks without
+// collapsing thought summaries into normal answer text.
+func mergeCollectedGeminiTextParts(response map[string]any, collected map[string]string, thoughtSignature string) map[string]any {
+	if collected["thinking"] == "" && collected["text"] == "" {
 		return response
 	}
-
-	// Join all text parts
-	mergedText := strings.Join(textParts, "")
 
 	// Deep copy response
 	result := make(map[string]any)
@@ -2552,32 +2591,27 @@ func mergeCollectedTextParts(response map[string]any, textParts []string) map[st
 		existingParts = []any{}
 	}
 
-	// Find and update first text part, or create new one
-	newParts := make([]any, 0, len(existingParts)+1)
-	textUpdated := false
-
+	newParts := make([]any, 0, len(existingParts)+2)
+	if collected["thinking"] != "" {
+		thoughtPart := map[string]any{"text": collected["thinking"], "thought": true}
+		if thoughtSignature != "" {
+			thoughtPart["thoughtSignature"] = thoughtSignature
+		}
+		newParts = append(newParts, thoughtPart)
+	}
+	if collected["text"] != "" {
+		newParts = append(newParts, map[string]any{"text": collected["text"]})
+	}
 	for _, p := range existingParts {
 		pm, ok := p.(map[string]any)
 		if !ok {
 			newParts = append(newParts, p)
 			continue
 		}
-		if _, hasText := pm["text"]; hasText && !textUpdated {
-			// Replace with merged text
-			newPart := make(map[string]any)
-			for k, v := range pm {
-				newPart[k] = v
-			}
-			newPart["text"] = mergedText
-			newParts = append(newParts, newPart)
-			textUpdated = true
-		} else {
-			newParts = append(newParts, pm)
+		if _, hasText := pm["text"]; hasText {
+			continue
 		}
-	}
-
-	if !textUpdated {
-		newParts = append([]any{map[string]any{"text": mergedText}}, newParts...)
+		newParts = append(newParts, pm)
 	}
 
 	content["parts"] = newParts
@@ -2901,10 +2935,21 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 							continue
 						}
 						if text, ok := pm["text"].(string); ok && text != "" {
-							contentBlocks = append(contentBlocks, map[string]any{
-								"type": "text",
-								"text": text,
-							})
+							if isGeminiThoughtPart(pm) {
+								block := map[string]any{
+									"type":     "thinking",
+									"thinking": text,
+								}
+								if signature, _ := pm["thoughtSignature"].(string); signature != "" {
+									block["signature"] = signature
+								}
+								contentBlocks = append(contentBlocks, block)
+							} else {
+								contentBlocks = append(contentBlocks, map[string]any{
+									"type": "text",
+									"text": text,
+								})
+							}
 						}
 						if inlineData, ok := pm["inlineData"].(map[string]any); includeInlineData && ok {
 							mimeType, _ := inlineData["mimeType"].(string)
@@ -2923,12 +2968,16 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 							}
 							args := fc["args"]
 							sawToolUse = true
-							contentBlocks = append(contentBlocks, map[string]any{
+							toolBlock := map[string]any{
 								"type":  "tool_use",
 								"id":    "toolu_" + randomHex(8),
 								"name":  name,
 								"input": args,
-							})
+							}
+							if signature, _ := pm["thoughtSignature"].(string); signature != "" {
+								toolBlock["signature"] = signature
+							}
+							contentBlocks = append(contentBlocks, toolBlock)
 						}
 					}
 				}
@@ -3228,6 +3277,11 @@ func extractGeminiParts(geminiResp map[string]any) []map[string]any {
 	return nil
 }
 
+func isGeminiThoughtPart(part map[string]any) bool {
+	thought, _ := part["thought"].(bool)
+	return thought
+}
+
 func computeGeminiTextDelta(seen, incoming string) (delta, newSeen string) {
 	incoming = strings.TrimSuffix(incoming, "\u0000")
 	if incoming == "" {
@@ -3388,6 +3442,19 @@ func convertClaudeMessagesToGeminiContents(messages any, toolUseIDToName map[str
 						if singleBlock || strings.TrimSpace(text) != "" {
 							parts = append(parts, map[string]any{"text": text})
 						}
+					}
+				case "thinking":
+					// Thought summaries are display metadata, not ordinary assistant
+					// text. Replay only signed Gemini thoughts; unsigned summaries do
+					// not carry the provider state needed for a safe round trip.
+					thinking, _ := bm["thinking"].(string)
+					signature, _ := bm["signature"].(string)
+					if thinking != "" && strings.TrimSpace(signature) != "" {
+						parts = append(parts, map[string]any{
+							"text":             thinking,
+							"thought":          true,
+							"thoughtSignature": signature,
+						})
 					}
 				case "tool_use":
 					id, _ := bm["id"].(string)
@@ -3753,6 +3820,16 @@ func convertClaudeGenerationConfig(req map[string]any) map[string]any {
 	}
 	if stopSeq, ok := req["stop_sequences"].([]any); ok && len(stopSeq) > 0 {
 		out["stopSequences"] = stopSeq
+	}
+	if thinking, ok := req["thinking"].(map[string]any); ok {
+		thinkingType, _ := thinking["type"].(string)
+		if strings.EqualFold(thinkingType, "enabled") {
+			thinkingConfig := map[string]any{"includeThoughts": true}
+			if budget, ok := asInt(thinking["budget_tokens"]); ok && budget > 0 {
+				thinkingConfig["thinkingBudget"] = budget
+			}
+			out["thinkingConfig"] = thinkingConfig
+		}
 	}
 	if len(out) == 0 {
 		return nil
