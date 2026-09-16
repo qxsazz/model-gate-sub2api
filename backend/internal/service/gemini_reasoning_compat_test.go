@@ -31,7 +31,8 @@ func TestGeminiReasoningNonStreamingProtocolMappings(t *testing.T) {
 	require.NoError(t, err)
 
 	claudeResp, _ := convertGeminiToClaudeMessage(geminiResp, "gemini-3-test", raw, false)
-	blocks := claudeResp["content"].([]any)
+	blocks, ok := claudeResp["content"].([]any)
+	require.True(t, ok)
 	require.Equal(t, map[string]any{
 		"type": "thinking", "thinking": "reasoning summary", "signature": "sig-1",
 	}, blocks[0])
@@ -103,8 +104,12 @@ func TestClaudeThinkingReplayRequiresGeminiSignature(t *testing.T) {
 
 	var request map[string]any
 	require.NoError(t, json.Unmarshal(converted, &request))
-	contents := request["contents"].([]any)
-	parts := contents[0].(map[string]any)["parts"].([]any)
+	contents, ok := request["contents"].([]any)
+	require.True(t, ok)
+	content, ok := contents[0].(map[string]any)
+	require.True(t, ok)
+	parts, ok := content["parts"].([]any)
+	require.True(t, ok)
 	require.Len(t, parts, 2)
 	require.Equal(t, map[string]any{
 		"text": "signed", "thought": true, "thoughtSignature": "sig-1",
@@ -121,7 +126,10 @@ func TestGeminiThinkingRequestConfigurationAcrossModelGenerations(t *testing.T) 
 	require.NoError(t, err)
 	var gemini3Req map[string]any
 	require.NoError(t, json.Unmarshal(gemini3, &gemini3Req))
-	gemini3Thinking := gemini3Req["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	gemini3Generation, ok := gemini3Req["generationConfig"].(map[string]any)
+	require.True(t, ok)
+	gemini3Thinking, ok := gemini3Generation["thinkingConfig"].(map[string]any)
+	require.True(t, ok)
 	require.Equal(t, true, gemini3Thinking["includeThoughts"])
 	require.Equal(t, "medium", gemini3Thinking["thinkingLevel"])
 	require.NotContains(t, gemini3Thinking, "thinkingBudget")
@@ -130,7 +138,10 @@ func TestGeminiThinkingRequestConfigurationAcrossModelGenerations(t *testing.T) 
 	require.NoError(t, err)
 	var gemini25Req map[string]any
 	require.NoError(t, json.Unmarshal(gemini25, &gemini25Req))
-	gemini25Thinking := gemini25Req["generationConfig"].(map[string]any)["thinkingConfig"].(map[string]any)
+	gemini25Generation, ok := gemini25Req["generationConfig"].(map[string]any)
+	require.True(t, ok)
+	gemini25Thinking, ok := gemini25Generation["thinkingConfig"].(map[string]any)
+	require.True(t, ok)
 	require.Equal(t, true, gemini25Thinking["includeThoughts"])
 	require.EqualValues(t, 8000, gemini25Thinking["thinkingBudget"])
 	require.NotContains(t, gemini25Thinking, "thinkingLevel")
