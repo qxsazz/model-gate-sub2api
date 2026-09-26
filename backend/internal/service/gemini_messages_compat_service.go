@@ -643,7 +643,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel)
+	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel, geminiThinkingLevelFromClaudeBody(body))
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}

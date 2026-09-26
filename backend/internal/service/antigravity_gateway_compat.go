@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 type antigravityCompatProtocol uint8
@@ -270,7 +271,7 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
-		body, err = configureGeminiThinking(body, mappedModel)
+		body, err = configureGeminiThinking(body, mappedModel, geminiThinkingLevelFromClaudeBody(claudeBody))
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +300,7 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 // Antigravity stream transformer already maps those parts to Anthropic
 // thinking blocks, which the Chat Completions adapter exposes as
 // reasoning_content instead of mixing them into content.
-func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
+func configureGeminiThinking(body []byte, mappedModel string, requestedLevels ...string) ([]byte, error) {
 	model := strings.ToLower(strings.TrimSpace(mappedModel))
 	model = strings.TrimPrefix(model, "models/")
 	if !strings.HasPrefix(model, "gemini-3") && !antigravity.IsGeminiReasoningModel(model) {
@@ -330,6 +331,14 @@ func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
 		if _, hasLevel := thinkingConfig["thinkingLevel"]; !hasLevel {
 			level := geminiThinkingLevel(model)
 			if level == "" {
+				for _, requestedLevel := range requestedLevels {
+					if normalized := normalizeGeminiThinkingLevel(requestedLevel); normalized != "" {
+						level = normalized
+						break
+					}
+				}
+			}
+			if level == "" {
 				if budget, ok := asInt(thinkingConfig["thinkingBudget"]); ok {
 					level = geminiThinkingLevelForBudget(budget)
 				}
@@ -342,6 +351,21 @@ func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
 	}
 
 	return json.Marshal(request)
+}
+
+func geminiThinkingLevelFromClaudeBody(body []byte) string {
+	return normalizeGeminiThinkingLevel(gjson.GetBytes(body, "output_config.effort").String())
+}
+
+func normalizeGeminiThinkingLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "minimal", "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(level))
+	case "max", "xhigh", "x-high":
+		return "high"
+	default:
+		return ""
+	}
 }
 
 func geminiThinkingLevel(model string) string {

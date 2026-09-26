@@ -91,7 +91,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 	if err != nil {
 		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel)
+	geminiReq, err = configureGeminiThinking(geminiReq, mappedModel, geminiThinkingLevelFromClaudeBody(claudeBody))
 	if err != nil {
 		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
