@@ -71,7 +71,7 @@ function quota(over: Partial<PlatformQuotaItem> & { platform: string }): Platfor
 
 function mountStats(stats: UserStatsType, platformQuotas: PlatformQuotaItem[] | null = null, isSimple = false) {
   return mount(UserDashboardStats, {
-    props: { stats, balance: 0, isSimple, platformQuotas },
+    props: { stats, balance: 0, isSimple, platformQuotas, showPlatformBreakdown: true },
     global: { stubs: { Icon: true } },
   })
 }
