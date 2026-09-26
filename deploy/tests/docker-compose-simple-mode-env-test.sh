@@ -27,7 +27,8 @@ for filename in (
         f"{path} must pass the override with an empty fallback exactly once"
     for value in (None, "", "true", "false"):
         env = dict(
-            os.environ, POSTGRES_PASSWORD="compose-test-password",
+            os.environ, SUB2API_IMAGE="sub2api:compose-test",
+            POSTGRES_PASSWORD="compose-test-password",
             DATABASE_HOST="postgres", DATABASE_PASSWORD="compose-test-password",
             REDIS_HOST="redis",
         )
