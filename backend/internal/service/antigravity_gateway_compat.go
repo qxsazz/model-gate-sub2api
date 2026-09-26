@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 type antigravityCompatProtocol uint8
@@ -212,7 +213,11 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "Invalid request body")
 	}
 
-	mappedModel := s.getMappedModel(account, request.originalModel)
+	mappedModel := s.getMappedModelForThinkingLevel(
+		account,
+		request.originalModel,
+		geminiThinkingLevelFromClaudeThinking(claudeRequest.Thinking),
+	)
 	if mappedModel == "" {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		message := fmt.Sprintf("model %s not in whitelist", request.originalModel)
@@ -266,7 +271,7 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
-		body, err = configureGeminiThinking(body, mappedModel)
+		body, err = configureGeminiThinking(body, mappedModel, geminiThinkingLevelFromClaudeBody(claudeBody))
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +300,7 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 // Antigravity stream transformer already maps those parts to Anthropic
 // thinking blocks, which the Chat Completions adapter exposes as
 // reasoning_content instead of mixing them into content.
-func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
+func configureGeminiThinking(body []byte, mappedModel string, requestedLevels ...string) ([]byte, error) {
 	model := strings.ToLower(strings.TrimSpace(mappedModel))
 	model = strings.TrimPrefix(model, "models/")
 	if !strings.HasPrefix(model, "gemini-3") && !antigravity.IsGeminiReasoningModel(model) {
@@ -326,6 +331,14 @@ func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
 		if _, hasLevel := thinkingConfig["thinkingLevel"]; !hasLevel {
 			level := geminiThinkingLevel(model)
 			if level == "" {
+				for _, requestedLevel := range requestedLevels {
+					if normalized := normalizeGeminiThinkingLevel(requestedLevel); normalized != "" {
+						level = normalized
+						break
+					}
+				}
+			}
+			if level == "" {
 				if budget, ok := asInt(thinkingConfig["thinkingBudget"]); ok {
 					level = geminiThinkingLevelForBudget(budget)
 				}
@@ -338,6 +351,21 @@ func configureGeminiThinking(body []byte, mappedModel string) ([]byte, error) {
 	}
 
 	return json.Marshal(request)
+}
+
+func geminiThinkingLevelFromClaudeBody(body []byte) string {
+	return normalizeGeminiThinkingLevel(gjson.GetBytes(body, "output_config.effort").String())
+}
+
+func normalizeGeminiThinkingLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "minimal", "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(level))
+	case "max", "xhigh", "x-high":
+		return "high"
+	default:
+		return ""
+	}
 }
 
 func geminiThinkingLevel(model string) string {
@@ -362,35 +390,72 @@ func geminiThinkingLevelForBudget(budget int) string {
 	}
 }
 
+// enableMixedGeminiToolInvocations reconciles Antigravity v1internal tool payloads.
+//
+// Antigravity's cloudcode-pa v1internal endpoint rejects mixing built-in tools
+// (googleSearch / codeExecution) with client functionDeclarations — even when
+// includeServerSideToolInvocations is set (issue #6464). Prefer client function
+// tools (Codex/agent workflows) and drop the incompatible built-ins.
 func enableMixedGeminiToolInvocations(body []byte) ([]byte, error) {
 	var request map[string]any
 	if err := json.Unmarshal(body, &request); err != nil {
 		return nil, err
 	}
 
-	var hasGoogleSearch, hasFunctionDeclarations bool
-	if tools, ok := request["tools"].([]any); ok {
-		for _, rawTool := range tools {
-			tool, ok := rawTool.(map[string]any)
-			if !ok {
-				continue
-			}
-			_, hasSearch := tool["googleSearch"]
-			declarations, hasFunctions := tool["functionDeclarations"].([]any)
-			hasGoogleSearch = hasGoogleSearch || hasSearch
-			hasFunctionDeclarations = hasFunctionDeclarations || hasFunctions && len(declarations) > 0
-		}
-	}
-	if !hasGoogleSearch || !hasFunctionDeclarations {
+	tools, ok := request["tools"].([]any)
+	if !ok || len(tools) == 0 {
 		return body, nil
 	}
 
-	toolConfig, _ := request["toolConfig"].(map[string]any)
-	if toolConfig == nil {
-		toolConfig = make(map[string]any)
-		request["toolConfig"] = toolConfig
+	hasFunctionDeclarations := false
+	for _, rawTool := range tools {
+		tool, ok := rawTool.(map[string]any)
+		if !ok {
+			continue
+		}
+		declarations, hasFunctions := tool["functionDeclarations"].([]any)
+		if hasFunctions && len(declarations) > 0 {
+			hasFunctionDeclarations = true
+			break
+		}
 	}
-	toolConfig["includeServerSideToolInvocations"] = true
+	if !hasFunctionDeclarations {
+		return body, nil
+	}
+
+	filtered := make([]any, 0, len(tools))
+	droppedBuiltin := false
+	for _, rawTool := range tools {
+		tool, ok := rawTool.(map[string]any)
+		if !ok {
+			filtered = append(filtered, rawTool)
+			continue
+		}
+		if _, hasSearch := tool["googleSearch"]; hasSearch {
+			delete(tool, "googleSearch")
+			droppedBuiltin = true
+		}
+		if _, hasCodeExecution := tool["codeExecution"]; hasCodeExecution {
+			delete(tool, "codeExecution")
+			droppedBuiltin = true
+		}
+		if len(tool) == 0 {
+			continue
+		}
+		filtered = append(filtered, tool)
+	}
+	if !droppedBuiltin {
+		return body, nil
+	}
+
+	request["tools"] = filtered
+	if toolConfig, ok := request["toolConfig"].(map[string]any); ok {
+		delete(toolConfig, "includeServerSideToolInvocations")
+		delete(toolConfig, "include_server_side_tool_invocations")
+		if len(toolConfig) == 0 {
+			delete(request, "toolConfig")
+		}
+	}
 	return json.Marshal(request)
 }
 
