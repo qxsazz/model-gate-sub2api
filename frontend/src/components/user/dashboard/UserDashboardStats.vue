@@ -241,13 +241,15 @@ interface FusedPlatformCard {
   quota?: PlatformQuotaItem
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   stats: UserStatsType
   balance: number
   isSimple: boolean
   platformQuotas?: PlatformQuotaItem[] | null
   showPlatformBreakdown?: boolean
-}>()
+}>(), {
+  showPlatformBreakdown: true,
+})
 const { t } = useI18n()
 
 const PLATFORM_LABELS: Record<string, string> = {
