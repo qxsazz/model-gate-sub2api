@@ -20,6 +20,13 @@ the same files. Record any case where the two behaviors cannot coexist as a
 specific decision before changing that behavior. Do not replace the fork with
 the official Docker image or copy only the backend directory.
 
+The fork imported official 0.2.8 code without recording the official release
+commit as an ancestor. Comparing that release commit with `origin/staging`
+identified the 86 fork-specific paths below. Record the already-imported 0.2.8
+commit as an ancestry-only merge with an unchanged tree before merging 0.2.10.
+This makes the 0.2.8 release the comparison base for Git's three-way merge;
+the ancestry commit changes no application files.
+
 The 0.2.8 official tag to deployed fork comparison changes 86 paths. The
 official 0.2.8 to 0.2.10 comparison changes 214 paths: 167 backend, 43
 frontend, and three Compose files. The following paths are changed on both
