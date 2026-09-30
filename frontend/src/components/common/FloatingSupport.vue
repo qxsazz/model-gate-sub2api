@@ -43,8 +43,9 @@ const widget = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const channels = computed(() => contactChannels.filter(c => c.value.trim()).sort((a, b) => Number(a.kind === 'qq-group') - Number(b.kind === 'qq-group')))
-const visible = computed(() => channels.value.length > 0 && !blocked.value && !route.path.startsWith('/admin') && route.path !== '/contact' && (
-  ['/home', '/login', '/register', '/email-verify'].includes(route.path) || route.meta.requiresAuth === true
+const publicSupportPaths = ['/home', '/login', '/register', '/email-verify', '/payment/qrcode', '/payment/result', '/payment/stripe', '/payment/airwallex']
+const visible = computed(() => channels.value.length > 0 && !blocked.value && !route.path.startsWith('/admin') && !['/contact', '/payment/stripe-popup'].includes(route.path) && (
+  publicSupportPaths.includes(route.path) || route.meta.requiresAuth === true
 ))
 let observer: MutationObserver | undefined
 let copyVersion = 0

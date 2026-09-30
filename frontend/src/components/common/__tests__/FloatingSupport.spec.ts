@@ -78,4 +78,14 @@ describe('floating support interaction', () => {
     document.body.style.overflow = ''; await nextTick(); await nextTick()
     expect(trigger()).not.toBeNull(); expect(panel()).toBeNull()
   })
+  it.each(['/payment/qrcode', '/payment/result', '/payment/stripe', '/payment/airwallex'])('shows support on public payment page %s', async path => {
+    route.path = path; route.fullPath = path; route.meta.requiresAuth = false
+    mountSupport(); await nextTick()
+    expect(trigger()).not.toBeNull()
+  })
+  it('does not overlay the dedicated payment popup window', async () => {
+    route.path = '/payment/stripe-popup'; route.fullPath = route.path; route.meta.requiresAuth = false
+    mountSupport(); await nextTick()
+    expect(document.querySelector('[data-testid="support-trigger"]')).toBeNull()
+  })
 })
