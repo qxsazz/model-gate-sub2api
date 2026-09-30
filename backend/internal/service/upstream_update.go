@@ -11,6 +11,7 @@ import (
 )
 
 // Update only after merging and verifying the corresponding upstream source.
+//
 //go:embed upstream_version.txt
 var upstreamBaseline string
 
