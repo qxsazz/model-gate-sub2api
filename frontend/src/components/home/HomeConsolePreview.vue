@@ -1,7 +1,7 @@
 <template>
   <div class="console-preview" :class="{ 'is-dark': isDark }" aria-label="控制台预览">
     <aside class="preview-sidebar">
-      <div class="preview-brand"><img :src="siteLogo || '/logo.svg'" alt="" /><strong>{{ siteName }}</strong></div>
+      <div class="preview-brand"><img :src="siteLogo || MG_BRAND.logo" alt="" /><strong>{{ siteName }}</strong></div>
       <div class="preview-tabs" role="tablist" aria-label="控制台预览选项卡" @keydown="navigateTabs">
         <button v-for="tab in tabs" :id="'preview-tab-' + tab.id" :key="tab.id" type="button" role="tab"
           :data-tab="tab.id" :aria-selected="currentTab === tab.id" :aria-controls="'preview-panel-' + tab.id"
@@ -81,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+import { MG_BRAND } from '@/brand/config'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'

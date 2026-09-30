@@ -40,6 +40,41 @@ Actions -> Deploy Production -> Run workflow
 - 部署脚本只更新应用容器，不主动重建 PostgreSQL 和 Redis。
 - 生产发布必须由人工在 GitHub Actions 中触发。
 
+### 1.1 MG 后台版本入口
+
+后台侧栏的版本入口显示当前运行的 MG 版本，并提供只读的上游稳定版提醒和发布说明链接。该入口不提供下载二进制、原地更新或原地回滚按钮。旧的上游更新检查缓存不会参与托管模式的版本查询。
+
+上游提醒查询 `Wei-Shaw/sub2api` 的 GitHub 正式 Release，排除草稿、预发布及带预发布后缀的版本。比较基线独立保存在 `backend/internal/service/upstream_version.txt`，当前为 `0.2.10`；MG 的 `-mg.*` 后缀不参与上游比较。只有合并并验证对应上游源码后，才更新该基线，不能因看到新版本提醒而直接修改它。
+
+检查由管理员的版本查询触发，不运行后台定时任务。成功结果缓存在应用进程内 6 小时；手动刷新和失败重试有 5 分钟冷却，单次上游请求最多等待 10 秒。并发查询等待并共享同一次检查结果，应用重启后缓存重新建立。
+
+首次检查失败时状态为 `unavailable`，表示结果未知，不显示“已是最新”。已有成功结果后检查失败则标记 `stale`，保留旧版本与上次成功检查时间，并说明结果已过期。浏览器到 MG API 的网络或 HTTP 错误也按此规则显示。
+
+“部署入口”打开本仓库的 [Deploy Production workflow](https://github.com/qxsazz/model-gate-sub2api/actions/workflows/deploy-production.yml)，打开链接本身不会执行部署。发布仍须按第 4、5 节完成 staging 验收及生产晋级。
+
+托管模式下，已通过管理员鉴权的以下请求返回 HTTP `409`，错误 reason 为 `DEPLOYMENT_MANAGED`：
+
+| 方法 | API | 行为 |
+|---|---|---|
+| `POST` | `/api/v1/admin/system/update` | 拒绝原地更新 |
+| `POST` | `/api/v1/admin/system/rollback` | 拒绝本地备份和指定版本回滚 |
+| `GET` | `/api/v1/admin/system/rollback-versions` | 不查询上游可回滚版本 |
+
+`GET /api/v1/admin/system/check-updates` 返回运行版本、`deployment_mode: "managed"` 和部署链接。顶层 `has_update` 为 `false`，`latest_version` 与 MG 运行版本相同；独立的 `upstream` 对象包含上游基线、最新稳定版、更新提示、状态、Release 链接和检查时间。上游有新版本不代表允许安装上游二进制。
+
+品牌配置的默认值与自定义规则见 [MG 品牌默认值](mg-brand-defaults.md)。
+
+### 1.2 收到上游更新提醒后
+
+1. 阅读正式 Release 说明，在升级分支合并对应上游源码。
+2. 检查 MG 二次开发的兼容性，包括品牌、界面、计费、权限及托管发布限制。
+3. 验证合并后的源码，更新 `backend/internal/service/upstream_version.txt` 为已验证的上游版本。
+4. 通过 CI 构建包含 MG 前后端的完整镜像，部署 staging 并验收。
+5. 完成进入 `main` 的 PR 审批与检查。
+6. 按第 5 节将已验收的 staging 镜像 digest 晋级生产。
+
+提醒本身不执行升级；原地更新和回滚接口仍返回 `409 DEPLOYMENT_MANAGED`。
+
 ## 2. 环境信息
 
 | 项目 | Staging | Production |
@@ -335,6 +370,8 @@ docker compose --project-name sub2api \
 ```
 
 当前脚本没有独立的人工回滚命令。人工回滚前必须先确认目标镜像的完整 digest，并由维护者执行和验证，不能直接把版本标签当作不可变回滚依据。
+
+人工回滚也沿 CI/CD 镜像流程处理，不使用后台原地回滚 API。若通过现有 `Deploy Production` workflow 晋级旧镜像，需先让 staging 运行目标旧镜像并重新验收，再填写该镜像成功 staging 构建对应的 `source_sha`；workflow 仍会校验 staging 当前 digest 与目标一致。回滚前必须确认旧应用兼容当前数据库结构，不能把镜像回滚视为数据库恢复。
 
 ## 9. 当前已知边界
 

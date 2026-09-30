@@ -83,6 +83,9 @@ func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 // PerformUpdate downloads and applies the update
 // POST /api/v1/admin/system/update
 func (h *SystemHandler) PerformUpdate(c *gin.Context) {
+	if h.rejectManagedMutation(c) {
+		return
+	}
 	operationID := buildSystemOperationID(c, "update")
 	payload := gin.H{"operation_id": operationID}
 	executeAdminIdempotentJSON(c, "admin.system.update", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
@@ -133,7 +136,7 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 func (h *SystemHandler) GetRollbackVersions(c *gin.Context) {
 	versions, err := h.updateSvc.ListRollbackVersions(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err.Error())
+		response.ErrorFrom(c, err)
 		return
 	}
 	response.Success(c, gin.H{
@@ -147,6 +150,9 @@ func (h *SystemHandler) GetRollbackVersions(c *gin.Context) {
 // installs that specific release (must be one of the recent rollback versions).
 // POST /api/v1/admin/system/rollback
 func (h *SystemHandler) Rollback(c *gin.Context) {
+	if h.rejectManagedMutation(c) {
+		return
+	}
 	var req struct {
 		Version string `json:"version"`
 	}
@@ -262,4 +268,13 @@ func buildSystemOperationID(c *gin.Context, operation string) string {
 		hash = hash[:24]
 	}
 	return "sysop-" + hash
+}
+
+// Reject before acquiring locks or replaying previously cached mutation responses.
+func (h *SystemHandler) rejectManagedMutation(c *gin.Context) bool {
+	if policy, ok := h.updateSvc.(interface{ IsManagedDeployment() bool }); ok && policy.IsManagedDeployment() {
+		response.ErrorFrom(c, service.ErrManagedDeployment)
+		return true
+	}
+	return false
 }

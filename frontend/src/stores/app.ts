@@ -1,3 +1,4 @@
+import { MG_BRAND, resolveSiteName } from '@/brand/config'
 /**
  * Application State Store
  * Manages global UI state including sidebar, loading indicators, and toast notifications
@@ -10,6 +11,7 @@ import { i18n } from '@/i18n'
 import {
   checkUpdates as checkUpdatesAPI,
   type VersionInfo,
+  type UpstreamUpdateInfo,
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
@@ -26,7 +28,7 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
+  const siteName = ref<string>(MG_BRAND.name)
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
@@ -43,6 +45,8 @@ export const useAppStore = defineStore('app', () => {
   const hasUpdate = ref<boolean>(false)
   const buildType = ref<string>('source')
   const releaseInfo = ref<ReleaseInfo | null>(null)
+  const upstreamInfo = ref<UpstreamUpdateInfo | null>(null)
+  let versionFetchedAt = 0
 
   // Auto-incrementing ID for toasts
   let toastIdCounter = 0
@@ -242,14 +246,16 @@ export const useAppStore = defineStore('app', () => {
    */
   async function fetchVersion(force = false): Promise<VersionInfo | null> {
     // Return cached data if available and not forcing refresh
-    if (versionLoaded.value && !force) {
+    const versionCacheTTL = upstreamInfo.value?.status === 'ok' ? 6 * 60 * 60 * 1000 : 5 * 60 * 1000
+    if (versionLoaded.value && !force && Date.now() - versionFetchedAt < versionCacheTTL) {
       return {
         current_version: currentVersion.value,
         latest_version: latestVersion.value,
         has_update: hasUpdate.value,
         build_type: buildType.value,
         release_info: releaseInfo.value || undefined,
-        cached: true
+        cached: true,
+        upstream: upstreamInfo.value || undefined
       }
     }
 
@@ -266,10 +272,18 @@ export const useAppStore = defineStore('app', () => {
       hasUpdate.value = data.has_update
       buildType.value = data.build_type || 'source'
       releaseInfo.value = data.release_info || null
+      upstreamInfo.value = data.upstream || null
+      versionFetchedAt = Date.now()
       versionLoaded.value = true
       return data
     } catch (error) {
       console.error('Failed to fetch version:', error)
+      const previous = upstreamInfo.value
+      upstreamInfo.value = previous?.checked_at
+        ? { ...previous, status: 'stale', attempted_at: new Date().toISOString() }
+        : { baseline_version: previous?.baseline_version || '', latest_version: '', has_update: false, status: 'unavailable', release_url: '', checked_at: '', attempted_at: new Date().toISOString() }
+      versionFetchedAt = Date.now()
+      versionLoaded.value = true
       return null
     } finally {
       versionLoading.value = false
@@ -294,7 +308,7 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
+    siteName.value = resolveSiteName(config.site_name)
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
     contactInfo.value = config.contact_info || ''
@@ -462,6 +476,7 @@ export const useAppStore = defineStore('app', () => {
     hasUpdate,
     buildType,
     releaseInfo,
+    upstreamInfo,
 
     // Computed
     hasActiveToasts,

@@ -19,6 +19,20 @@ export default {
 
   // Version Badge
   version: {
+    upstreamBaseline: 'Adapted upstream',
+    upstreamLatest: 'Latest upstream stable',
+    upstreamAvailable: 'New upstream release; MG adaptation pending',
+    upstreamCurrent: 'Latest upstream stable release is adapted',
+    upstreamUnavailable: 'Unable to check upstream releases',
+    upstreamStale: 'Check failed; showing last successful result',
+    upstreamChecking: 'Checking upstream releases',
+    upstreamCheckedAt: 'Last successful check:',
+    upstreamReleaseNotes: 'View upstream release notes',
+
+    managedDescription: 'MG deployment workflows manage upgrades and rollbacks with review, image verification and backups.',
+    deploymentEntry: 'Open MG deployment workflow',
+    repositoryEntry: 'View MG repository',
+
     currentVersion: 'Current Version',
     latestVersion: 'Latest Version',
     upToDate: "You're running the latest version.",
