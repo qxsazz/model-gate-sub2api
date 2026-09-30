@@ -51,35 +51,35 @@ func managedFields(t *testing.T, svc *UpdateService, force bool) map[string]any 
 	require.NoError(t, err)
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(encoded, &result))
-	require.Equal(t, "0.2.10-mg.2", result["current_version"])
+	require.Equal(t, "0.2.11-mg.1", result["current_version"])
 	require.Equal(t, false, result["has_update"])
 	require.Equal(t, "managed", result["deployment_mode"])
 	return result
 }
 func TestManagedUpstreamNotificationSeparatesBaselineAndCaches(t *testing.T) {
-	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.11"}}
-	svc := NewUpdateService(&updateServiceCacheStub{data: `{"current_version":"0.2.8","latest_version":"9.0.0","has_update":true}`}, client, "0.2.10-mg.2", "release")
+	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.12"}}
+	svc := NewUpdateService(&updateServiceCacheStub{data: `{"current_version":"0.2.8","latest_version":"9.0.0","has_update":true}`}, client, "0.2.11-mg.1", "release")
 	result := managedFields(t, svc, false)
 	upstream, ok := result["upstream"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "0.2.10", upstream["baseline_version"])
-	require.Equal(t, "0.2.11", upstream["latest_version"])
+	require.Equal(t, "0.2.11", upstream["baseline_version"])
+	require.Equal(t, "0.2.12", upstream["latest_version"])
 	require.Equal(t, true, upstream["has_update"])
 	require.Equal(t, "ok", upstream["status"])
-	require.Equal(t, "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.11", upstream["release_url"])
+	require.Equal(t, "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.12", upstream["release_url"])
 	require.Equal(t, 1, client.calls)
 	managedFields(t, svc, true)
 	require.Equal(t, 1, client.calls, "manual refresh respects cooldown")
 }
 func TestManagedUpstreamStableVersionValidation(t *testing.T) {
-	for _, release := range []*GitHubRelease{{TagName: "v0.2.10"}, {TagName: "v0.2.11-rc.1"}, {TagName: "v0.2.11", Draft: true}, {TagName: "broken"}} {
+	for _, release := range []*GitHubRelease{{TagName: "v0.2.11"}, {TagName: "v0.2.12-rc.1"}, {TagName: "v0.2.12", Draft: true}, {TagName: "broken"}} {
 		client := &upstreamCheckClient{release: release}
-		svc := NewUpdateService(nil, client, "0.2.10-mg.2", "release")
+		svc := NewUpdateService(nil, client, "0.2.11-mg.1", "release")
 		result := managedFields(t, svc, false)
 		upstream, ok := result["upstream"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, false, upstream["has_update"])
-		if release.TagName == "v0.2.10" {
+		if release.TagName == "v0.2.11" {
 			require.Equal(t, "ok", upstream["status"])
 		} else {
 			require.Equal(t, "unavailable", upstream["status"])
@@ -88,7 +88,7 @@ func TestManagedUpstreamStableVersionValidation(t *testing.T) {
 }
 func TestManagedUpstreamFailureIsUnknown(t *testing.T) {
 	client := &upstreamCheckClient{err: errors.New("GitHub unavailable")}
-	svc := NewUpdateService(nil, client, "0.2.10-mg.2", "release")
+	svc := NewUpdateService(nil, client, "0.2.11-mg.1", "release")
 	result := managedFields(t, svc, false)
 	upstream, ok := result["upstream"].(map[string]any)
 	require.True(t, ok)
@@ -97,7 +97,7 @@ func TestManagedUpstreamFailureIsUnknown(t *testing.T) {
 }
 
 func TestManagedUpdateMutationsAreBlockedBeforeIO(t *testing.T) {
-	svc := NewUpdateService(nil, &managedForbiddenGitHubClient{}, "0.2.10-mg.1", "release")
+	svc := NewUpdateService(nil, &managedForbiddenGitHubClient{}, "0.2.11-mg.1", "release")
 	for name, operation := range map[string]func() error{
 		"release assets":   func() error { return svc.applyReleaseAssets(context.Background(), nil) },
 		"update":           func() error { return svc.PerformUpdate(context.Background()) },
@@ -116,8 +116,8 @@ func TestManagedUpdateMutationsAreBlockedBeforeIO(t *testing.T) {
 }
 
 func TestManagedUpstreamFailureRetainsLastSuccessfulResult(t *testing.T) {
-	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.11", HTMLURL: "javascript:alert(1)"}}
-	svc := NewUpdateService(nil, client, "0.2.10-mg.2", "release")
+	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.12", HTMLURL: "javascript:alert(1)"}}
+	svc := NewUpdateService(nil, client, "0.2.11-mg.1", "release")
 	before := managedFields(t, svc, false)["upstream"].(map[string]any)
 	svc.upstream.lastAttempt = time.Now().Add(-6 * time.Minute)
 	client.err = errors.New("GitHub rate limited")
@@ -129,14 +129,14 @@ func TestManagedUpstreamFailureRetainsLastSuccessfulResult(t *testing.T) {
 	require.Equal(t, 2, client.calls)
 	managedFields(t, svc, false)
 	require.Equal(t, 2, client.calls)
-	require.Equal(t, "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.11", after["release_url"])
+	require.Equal(t, "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.12", after["release_url"])
 }
 func TestManagedUpstreamSixHourCacheExpires(t *testing.T) {
-	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.10"}}
-	svc := NewUpdateService(nil, client, "0.2.10-mg.2", "release")
+	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.11"}}
+	svc := NewUpdateService(nil, client, "0.2.11-mg.1", "release")
 	managedFields(t, svc, false)
 	svc.upstream.lastAttempt = time.Now().Add(-7 * time.Hour)
-	client.release = &GitHubRelease{TagName: "v0.2.11"}
+	client.release = &GitHubRelease{TagName: "v0.2.12"}
 	after := managedFields(t, svc, false)["upstream"].(map[string]any)
 	require.Equal(t, true, after["has_update"])
 	require.Equal(t, 2, client.calls)
@@ -155,8 +155,8 @@ func (c *blockingUpstreamClient) FetchLatestRelease(_ context.Context, _ string)
 	return c.release, nil
 }
 func TestManagedUpstreamConcurrentRequestsShareOneFetch(t *testing.T) {
-	client := &blockingUpstreamClient{upstreamCheckClient: upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.11"}}, started: make(chan struct{}), resume: make(chan struct{})}
-	svc := NewUpdateService(nil, client, "0.2.10-mg.2", "release")
+	client := &blockingUpstreamClient{upstreamCheckClient: upstreamCheckClient{release: &GitHubRelease{TagName: "v0.2.12"}}, started: make(chan struct{}), resume: make(chan struct{})}
+	svc := NewUpdateService(nil, client, "0.2.11-mg.1", "release")
 	done := make(chan *UpdateInfo, 1)
 	go func() { info, _ := svc.CheckUpdate(context.Background(), false); done <- info }()
 	<-client.started
