@@ -1,0 +1,544 @@
+/* MODEL-GATE admin theme, matched to the existing user palette.
+ * Only active while an /admin layout owns the body scope; includes Teleports.
+ * User theme and utility definitions remain unchanged.
+ */
+.admin-console-active {
+  --mg-ink-950: #121316;
+  --mg-ink-900: #24252a;
+  --mg-ink-700: #4a4740;
+  --mg-gold-50: #fcfaf4;
+  --mg-gold-300: #dfcf9f;
+  --mg-gold-500: #c9b477;
+  --mg-gold-700: #9c8344;
+  --mg-pearl-50: #fbfaf7;
+  --mg-champagne-50: #f5f1e7;
+  --mg-line-warm: #e7e1d4;
+  --mg-muted: #746f65;
+  --mg-surface: #ffffff;
+  --mg-success: #52816d;
+  --mg-warning: #947535;
+  --mg-danger: #a75d56;
+  min-height: 100vh;
+  color: var(--mg-ink-900);
+  background: var(--mg-pearl-50);
+  font-family: 'Noto Sans SC', 'Avenir Next', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+.dark .admin-console-active {
+  --mg-ink-900: #f5f1e7;
+  --mg-ink-700: #d6cebd;
+  --mg-gold-50: #29261e;
+  --mg-gold-300: #927c46;
+  --mg-pearl-50: #111214;
+  --mg-champagne-50: #23221f;
+  --mg-line-warm: #38352f;
+  --mg-muted: #aaa292;
+  --mg-surface: #18191d;
+}
+
+.admin-console-active .app-background-decoration {
+  display: none;
+}
+
+.admin-console-active .user-console-main,
+.admin-console-active .user-console-content {
+  background: var(--mg-pearl-50);
+}
+
+.admin-console-active .user-console-content {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1680px;
+}
+
+.admin-console-active .sidebar {
+  color: #e9e3d5;
+  background: #101114;
+  border-color: #2c2a25;
+  box-shadow: 10px 0 30px rgb(18 19 22 / 8%);
+}
+
+.admin-console-active .sidebar-header {
+  height: 4.5rem;
+  min-height: 4.5rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  border-color: rgb(201 180 119 / 22%);
+}
+
+.admin-console-active .sidebar-logo {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+}
+
+.admin-console-active .sidebar-brand-title {
+  color: #f7f3e8 !important;
+  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.admin-console-active .sidebar-brand-title:hover {
+  color: #d7c487 !important;
+}
+
+.admin-console-active .sidebar-nav {
+  padding: 1.25rem 0.75rem;
+}
+
+.admin-console-active .sidebar-section-title {
+  color: #81765f !important;
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+}
+
+.admin-console-active .sidebar-brand > div > button,
+.admin-console-active .sidebar-brand > div > span {
+  color: #ac9b70 !important;
+  background: rgb(201 180 119 / 8%) !important;
+  border: 1px solid rgb(201 180 119 / 18%);
+  border-radius: 0.25rem !important;
+  font-family: 'DM Mono', Consolas, monospace;
+}
+
+.admin-console-active .sidebar-link {
+  margin-bottom: 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  color: #aaa79f !important;
+}
+
+.admin-console-active .sidebar-link:hover {
+  color: #f5f0e5 !important;
+  background: #1a1b1e !important;
+  border-color: rgb(201 180 119 / 14%);
+}
+
+.admin-console-active .sidebar-link-active {
+  color: #e1ce91 !important;
+  background: rgb(201 180 119 / 11%) !important;
+  border-color: rgb(201 180 119 / 26%);
+  box-shadow: inset 2px 0 0 var(--mg-gold-500);
+}
+
+.admin-console-active .admin-console-header {
+  background: color-mix(in srgb, var(--mg-pearl-50) 92%, transparent) !important;
+  border-color: var(--mg-line-warm) !important;
+  box-shadow: 0 1px 0 rgb(18 19 22 / 3%);
+}
+
+.admin-console-active .admin-console-eyebrow {
+  margin-bottom: 0.125rem;
+  color: var(--mg-gold-700);
+  font-family: 'DM Mono', Consolas, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.admin-console-active .admin-console-page-title {
+  color: var(--mg-ink-900) !important;
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.admin-console-active .admin-console-page-description {
+  margin-top: 0.125rem;
+  color: var(--mg-muted) !important;
+}
+
+.admin-console-active .admin-console-header a,
+.admin-console-active .admin-console-header button {
+  border-radius: 0.375rem !important;
+}
+
+.admin-console-active .admin-console-header .user-console-balance {
+  color: var(--mg-ink-900);
+  background: var(--mg-champagne-50) !important;
+  border: 1px solid var(--mg-line-warm);
+}
+
+.admin-console-active .admin-console-header .user-console-balance > svg,
+.admin-console-active .admin-console-header .user-console-balance > span:first-of-type {
+  color: var(--mg-gold-700) !important;
+}
+
+.admin-console-active .admin-console-header .user-console-avatar {
+  color: #e5cf8f;
+  background: #151619 !important;
+  border: 1px solid #8f7949;
+  box-shadow: none;
+}
+
+.admin-console-active .card,
+.admin-console-active .glass-card,
+.admin-console-active .table-scroll-container {
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 1px 2px rgb(18 19 22 / 4%) !important;
+}
+
+.admin-console-active .card-header,
+.admin-console-active .card-footer,
+.admin-console-active .card > .border-b,
+.admin-console-active .card > .border-t {
+  border-color: var(--mg-line-warm) !important;
+}
+
+.admin-console-active .btn {
+  border-radius: 0.375rem;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.admin-console-active .btn-primary {
+  color: #fbfaf7;
+  background: var(--mg-ink-950) !important;
+  border: 1px solid var(--mg-ink-950);
+  box-shadow: none !important;
+}
+
+.admin-console-active .btn-primary:hover {
+  color: #eadcae;
+  background: #25262a !important;
+  border-color: #25262a;
+}
+
+.admin-console-active .btn-secondary {
+  color: var(--mg-ink-900) !important;
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  box-shadow: none !important;
+}
+
+.admin-console-active .btn-secondary:hover {
+  color: var(--mg-gold-700) !important;
+  background: var(--mg-champagne-50) !important;
+  border-color: var(--mg-gold-500) !important;
+}
+
+.admin-console-active .btn:focus-visible,
+.admin-console-active .input:focus,
+.admin-console-active button:focus-visible,
+.admin-console-active a:focus-visible {
+  outline: 2px solid var(--mg-gold-500);
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+.admin-console-active .input {
+  color: var(--mg-ink-900);
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem;
+}
+
+.admin-console-active .input:focus {
+  border-color: var(--mg-gold-500) !important;
+}
+
+/* Validation stays visible even when the field has the normal focus theme. */
+.admin-console-active .input.input-error,
+.admin-console-active .input.input-error:focus {
+  border-color: var(--mg-danger) !important;
+}
+
+.admin-console-active .input.input-error:focus {
+  outline: 2px solid var(--mg-danger) !important;
+  outline-offset: 2px;
+}
+
+.admin-console-active .table-container,
+.admin-console-active .table-scroll-container {
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.375rem !important;
+}
+
+.admin-console-active table thead,
+.admin-console-active .table th {
+  color: var(--mg-muted) !important;
+  background: var(--mg-champagne-50) !important;
+}
+
+.admin-console-active table th,
+.admin-console-active table td,
+.admin-console-active .table th,
+.admin-console-active .table td {
+  border-color: var(--mg-line-warm) !important;
+}
+
+.admin-console-active table tbody tr:hover {
+  background: color-mix(in srgb, var(--mg-champagne-50) 68%, transparent) !important;
+}
+
+.admin-console-active .badge {
+  border-radius: 0.25rem;
+}
+
+.admin-console-active .badge-primary {
+  color: #765f2c !important;
+  background: #f3ead1 !important;
+}
+
+.admin-console-active .tab {
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+}
+
+.admin-console-active .tab-active {
+  color: var(--mg-ink-900) !important;
+  background: transparent !important;
+  border-bottom-color: var(--mg-gold-500);
+  box-shadow: none;
+}
+
+.admin-console-active .code,
+.admin-console-active code,
+.admin-console-active .font-mono,
+.admin-console-active .stat-value {
+  font-family: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-console-active .code {
+  color: #80682f !important;
+  background: var(--mg-champagne-50) !important;
+}
+
+/* Keep management density and sticky-table geometry while sharing the brand. */
+.admin-console-active .sidebar-logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.375rem;
+}
+
+.admin-console-active .sidebar-header-collapsed .sidebar-logo {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.admin-console-active .sidebar-footer {
+  border-color: rgb(201 180 119 / 22%) !important;
+  color: #aaa79f;
+}
+
+.admin-console-active .table-page-layout {
+  height: calc(100vh - 4.5rem - 4rem) !important;
+}
+
+.admin-console-active :is(h2, .modal-title) {
+  color: var(--mg-ink-900);
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+}
+
+.admin-console-active :is(.stat-value, .font-mono, code, input[type='number']) {
+  font-family: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-console-active :is(.input-label, .select-value) {
+  color: var(--mg-ink-700);
+}
+
+/* Neutral surfaces only: status colors, destructive actions and chart series
+   retain their original meaning. These selectors also cover custom dialogs. */
+.admin-console-active .bg-white {
+  background-color: var(--mg-surface) !important;
+}
+
+.admin-console-active :is(.bg-gray-50, .bg-gray-100) {
+  background-color: var(--mg-champagne-50) !important;
+}
+
+.admin-console-active :is(.text-gray-900, .text-gray-800) {
+  color: var(--mg-ink-900) !important;
+}
+
+.admin-console-active :is(.text-gray-700, .text-gray-600) {
+  color: var(--mg-ink-700) !important;
+}
+
+.admin-console-active :is(.text-gray-500, .text-gray-400) {
+  color: var(--mg-muted) !important;
+}
+
+.admin-console-active :is(.border-gray-100, .border-gray-200, .divide-gray-200 > :not([hidden]) ~ :not([hidden])) {
+  border-color: var(--mg-line-warm) !important;
+}
+
+.admin-console-active :is(.text-primary-600, .text-primary-700, .text-primary-500) {
+  color: var(--mg-gold-700) !important;
+}
+
+.admin-console-active :is(.bg-primary-50, .bg-primary-100) {
+  background-color: var(--mg-gold-50) !important;
+}
+
+.admin-console-active :is(.select-trigger, .select-dropdown-portal, .dropdown, .action-menu-content) {
+  color: var(--mg-ink-900);
+  background: var(--mg-surface) !important;
+  border: 1px solid var(--mg-line-warm) !important;
+  border-radius: 0.375rem !important;
+}
+
+.admin-console-active :is(.select-dropdown-portal, .dropdown, .action-menu-content) {
+  box-shadow: 0 12px 32px rgb(18 19 22 / 12%);
+}
+
+.admin-console-active :is(.select-trigger-open, .select-trigger:focus-visible) {
+  border-color: var(--mg-gold-500) !important;
+  box-shadow: 0 0 0 2px rgb(201 180 119 / 20%);
+}
+
+.admin-console-active .select-trigger-error {
+  border-color: var(--mg-danger) !important;
+}
+
+.admin-console-active .select-search {
+  border-color: var(--mg-line-warm);
+}
+
+.admin-console-active .select-search-input {
+  color: var(--mg-ink-900);
+  background: var(--mg-surface);
+}
+
+.admin-console-active :is(.select-option-selected, .select-option-focused) {
+  color: var(--mg-gold-700) !important;
+  background: var(--mg-gold-50) !important;
+}
+
+.admin-console-active :is(.select-option:not(.select-option-disabled):hover, .dropdown-item:hover) {
+  background: var(--mg-champagne-50);
+}
+
+.admin-console-active .modal-overlay {
+  background: rgb(18 19 22 / 55%);
+}
+
+.admin-console-active .modal-content {
+  color: var(--mg-ink-900);
+  background: var(--mg-surface);
+  border: 1px solid var(--mg-line-warm);
+  border-radius: 0.5rem;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 22%);
+}
+
+.admin-console-active :is(.modal-header, .modal-footer) {
+  border-color: var(--mg-line-warm);
+  background: var(--mg-pearl-50);
+}
+
+.admin-console-active .btn-ghost:hover {
+  color: var(--mg-gold-700);
+  background: var(--mg-champagne-50);
+}
+
+.admin-console-active input:is([type='checkbox'], [type='radio']) {
+  accent-color: var(--mg-gold-700);
+  color: var(--mg-gold-700);
+}
+
+.admin-console-active .admin-dashboard-view .card {
+  border-top: 2px solid var(--mg-gold-500);
+}
+
+.admin-console-active .admin-dashboard-view .card > .flex > .rounded-lg {
+  background: var(--mg-champagne-50) !important;
+  border: 1px solid var(--mg-line-warm);
+  border-radius: 0.375rem;
+}
+
+.admin-console-active .admin-dashboard-view .card > .flex > .rounded-lg svg {
+  color: var(--mg-gold-700) !important;
+}
+
+.dark .admin-console-active {
+  --mg-gold-700: #d7c487;
+}
+
+.dark .admin-console-active .badge-primary {
+  color: #e1ce91 !important;
+  background: #383023 !important;
+}
+
+/* Sidebar text must keep its light-on-ink contrast above neutral utility rules. */
+.admin-console-active .sidebar .sidebar-brand-title {
+  color: #f7f3e8 !important;
+}
+
+.admin-console-active .sidebar .sidebar-brand-title:hover {
+  color: #d7c487 !important;
+}
+
+.admin-console-active .driver-popover.theme-tour-popover {
+  color: var(--mg-ink-900) !important;
+  background: var(--mg-surface) !important;
+  border-color: var(--mg-line-warm) !important;
+  border-radius: 0.5rem !important;
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif !important;
+}
+
+.admin-console-active .driver-popover .driver-popover-title-text {
+  color: var(--mg-ink-900) !important;
+  font-family: 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+}
+
+.admin-console-active .driver-popover .driver-popover-description {
+  color: var(--mg-ink-700) !important;
+}
+
+.admin-console-active .driver-popover .driver-popover-footer {
+  background: var(--mg-pearl-50) !important;
+  border-color: var(--mg-line-warm) !important;
+}
+
+.admin-console-active .driver-active-element {
+  outline-color: rgb(201 180 119 / 35%) !important;
+}
+
+/* DataTable paints sticky cells independently; match their surfaces as well. */
+.admin-console-active table .sticky-header-cell {
+  background-color: var(--mg-champagne-50) !important;
+}
+
+.admin-console-active table tbody .sticky-col {
+  background-color: var(--mg-surface) !important;
+}
+
+.admin-console-active table tbody tr:hover .sticky-col {
+  background-color: var(--mg-champagne-50) !important;
+}
+
+.admin-console-active [class~='bg-primary-50/40'],
+.admin-console-active [class~='bg-primary-50/40'] .sticky-col {
+  background-color: var(--mg-gold-50) !important;
+}
+
+.admin-console-active button[aria-current='page'] {
+  color: var(--mg-gold-700) !important;
+  background-color: var(--mg-gold-50) !important;
+  border-color: var(--mg-gold-500) !important;
+}
+
+@media (max-width: 1023px) {
+  .admin-console-active .table-page-layout {
+    height: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-console-active *,
+  .admin-console-active *::before,
+  .admin-console-active *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
