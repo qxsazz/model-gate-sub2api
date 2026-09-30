@@ -1,5 +1,11 @@
 export default {
   contact: {
+    floatingTrigger: 'Contact support',
+    floatingTitle: 'Contact MG support',
+    floatingIntro: 'Choose a channel for account, top-up, or usage questions.',
+    floatingCopy: 'Copy',
+    fullPage: 'View all contact channels',
+    close: 'Close support panel',
     title: 'Contact us',
     eyebrow: 'CONTACT',
     intro: 'Choose a channel for community discussions, feedback, or support.',
