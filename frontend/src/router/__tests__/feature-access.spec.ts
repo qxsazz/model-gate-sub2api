@@ -115,9 +115,28 @@ describe('feature route guard', () => {
     authStore.isAuthenticated = true
     authStore.isAdmin = false
     authStore.isSimpleMode = false
+    appStore.backendModeEnabled = false
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
     appStore.fetchPublicSettings.mockReset()
+  })
+
+  it('allows anonymous contact access in backend mode', async () => {
+    appStore.backendModeEnabled = true
+    appStore.publicSettingsLoaded = true
+    authStore.isAuthenticated = false
+    const { navigation, next } = runGuard({ requiresAuth: false }, '/contact')
+    await navigation
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('keeps other public pages restricted in backend mode', async () => {
+    appStore.backendModeEnabled = true
+    appStore.publicSettingsLoaded = true
+    authStore.isAuthenticated = false
+    const { navigation, next } = runGuard({ requiresAuth: false }, '/home')
+    await navigation
+    expect(next).toHaveBeenCalledWith('/login')
   })
 
   it('waits for the first public-settings request before deciding payment access', async () => {

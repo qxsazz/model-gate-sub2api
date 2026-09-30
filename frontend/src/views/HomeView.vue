@@ -27,6 +27,9 @@
           <span class="min-w-0 truncate text-base font-semibold">{{ siteName }}</span>
         </div>
         <div class="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          <router-link to="/contact" class="px-2.5 py-2 text-sm text-gray-500 hover:text-gray-900 dark:text-dark-400 dark:hover:text-white">
+            {{ t('contact.title') }}
+          </router-link>
           <a
             v-if="docUrl"
             :href="docUrl"
@@ -530,7 +533,7 @@ GEMINI_API_KEY=sk-...</pre>
             <span class="dot-separator">·</span>
             <a href="#">状态</a>
             <span class="dot-separator">·</span>
-            <a href="#">联系</a>
+            <router-link to="/contact">联系</router-link>
           </div>
           <div class="footer-copyright">&copy; {{ currentYear }} MODEL-GATE</div>
         </div>
