@@ -23,7 +23,7 @@
       >
         <img
           v-if="settingsLoaded"
-          :src="siteLogo || '/model-gate-mg-luxury.svg'"
+          :src="siteLogo || MG_BRAND.logo"
           alt="Logo"
           class="h-full w-full object-contain"
         />
@@ -37,7 +37,7 @@
           {{ displaySiteName }}
         </router-link>
         <!-- Keep version details in the admin console only. -->
-        <VersionBadge v-if="!isUserConsole" :version="siteVersion" />
+        <VersionBadge v-if="!isUserConsole" />
       </div>
     </div>
 
@@ -200,6 +200,7 @@
 </template>
 
 <script setup lang="ts">
+import { MG_BRAND, resolveSiteName } from '@/brand/config'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -275,9 +276,8 @@ const groupExpandOverrides = ref<Map<string, boolean>>(new Map())
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
-const displaySiteName = computed(() => (isUserConsole.value ? 'Model-Gate' : siteName.value || 'Sub2API'))
+const displaySiteName = computed(() => resolveSiteName(siteName.value))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 // SVG Icon Components

@@ -12,7 +12,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
         </button>
         <RouterLink to="/home" class="docs-brand" aria-label="返回 Model-Gate 首页">
-          <img src="/logo.svg" alt="" />
+          <img :src="MG_BRAND.logo" alt="" />
           <span>MODEL-GATE <b>DOCS</b></span>
         </RouterLink>
       </div>
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import { MG_BRAND } from '@/brand/config'
 defineProps<{ isDark: boolean }>()
 defineEmits<{ 'open-menu': []; 'toggle-theme': [] }>()
 </script>

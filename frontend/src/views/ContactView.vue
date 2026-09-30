@@ -58,6 +58,8 @@
 </template>
 
 <script setup lang="ts">
+import { resolveSiteName } from '@/brand/config'
+
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -71,7 +73,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const { copyToClipboard } = useClipboard()
 const channels = computed(() => contactChannels.filter(channel => channel.value.trim()))
-const siteName = computed(() => appStore.siteName === 'Sub2API' ? 'MODEL-GATE' : appStore.siteName || 'MODEL-GATE')
+const siteName = computed(() => resolveSiteName(appStore.siteName))
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const consolePath = computed(() => !authStore.isAuthenticated ? '/login' : authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
 const isDark = ref(document.documentElement.classList.contains('dark'))
