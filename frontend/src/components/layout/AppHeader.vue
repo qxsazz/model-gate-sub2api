@@ -1,11 +1,10 @@
 <template>
   <header
     class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50"
-    :class="{ 'user-console-header': isUserConsole }"
+    :class="{ 'user-console-header': isUserConsole, 'admin-console-header': !isUserConsole }"
   >
     <div
-      class="flex items-center justify-between gap-2 px-2 sm:px-4 md:px-6"
-      :class="isUserConsole ? 'h-[72px]' : 'h-16'"
+      class="flex h-[72px] items-center justify-between gap-2 px-2 sm:px-4 md:px-6"
     >
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex shrink-0 items-center gap-2 sm:gap-4">
@@ -23,14 +22,14 @@
           </p>
           <h1
             class="text-lg font-semibold text-gray-900 dark:text-white"
-            :class="{ 'user-console-page-title': isUserConsole }"
+              :class="{ 'user-console-page-title': isUserConsole, 'admin-console-page-title': !isUserConsole }"
           >
             {{ pageTitle }}
           </h1>
           <p
             v-if="pageDescription"
             class="text-xs text-gray-500 dark:text-dark-400"
-            :class="{ 'user-console-page-description': isUserConsole }"
+            :class="{ 'user-console-page-description': isUserConsole, 'admin-console-page-description': !isUserConsole }"
           >
             {{ pageDescription }}
           </p>
