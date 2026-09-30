@@ -40,6 +40,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/contact',
+    name: 'Contact',
+    component: () => import('@/views/ContactView.vue'),
+    meta: { requiresAuth: false, title: 'Contact', titleKey: 'contact.title' }
+  },
+  {
     path: '/docs',
     name: 'Docs',
     component: () => import('@/views/docs/DocsView.vue'),
