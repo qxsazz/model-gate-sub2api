@@ -1,5 +1,11 @@
 export default {
   contact: {
+    floatingTrigger: '联系客服',
+    floatingTitle: '联系 MG 客服',
+    floatingIntro: '账号、充值或使用问题，选择下方渠道联系。',
+    floatingCopy: '复制',
+    fullPage: '查看完整联系页面',
+    close: '关闭联系面板',
     title: '联系我们',
     eyebrow: 'CONTACT · 联系',
     intro: '选择适合您的联系方式，进行使用交流、问题反馈或咨询。',
