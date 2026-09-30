@@ -23,7 +23,7 @@
       >
         <img
           v-if="settingsLoaded"
-          :src="siteLogo || (isUserConsole ? '/model-gate-mg-luxury.svg' : '/logo.svg')"
+          :src="siteLogo || '/model-gate-mg-luxury.svg'"
           alt="Logo"
           class="h-full w-full object-contain"
         />

@@ -1,7 +1,7 @@
 <template>
   <div
     class="min-h-screen bg-gray-50 dark:bg-dark-950"
-    :class="{ 'user-console-shell': isUserConsole }"
+    :class="{ 'user-console-shell': isUserConsole, 'admin-console-shell': !isUserConsole }"
   >
     <!-- Background Decoration -->
     <div class="app-background-decoration pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
@@ -27,12 +27,14 @@
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
+import '@/styles/admin-console.css'
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useAdminConsoleTheme } from '@/composables/useAdminConsoleTheme'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 
@@ -42,6 +44,7 @@ const route = useRoute()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 const isUserConsole = computed(() => !route.path.startsWith('/admin'))
+useAdminConsoleTheme(computed(() => !isUserConsole.value))
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
