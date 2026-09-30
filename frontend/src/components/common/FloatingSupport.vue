@@ -3,10 +3,9 @@
     <div v-if="visible" ref="widget" class="floating-support" :class="{ 'support-payment-route': route.path.startsWith('/purchase') || route.path.startsWith('/payment') }">
       <section v-if="open" id="mg-support-panel" ref="panel" class="support-panel" role="dialog" aria-labelledby="mg-support-title" data-testid="support-panel">
         <header class="support-heading">
-          <div><p class="support-eyebrow">SUPPORT · MG</p><h2 id="mg-support-title">{{ t('contact.floatingTitle') }}</h2></div>
+          <h2 id="mg-support-title">{{ t('contact.floatingTitle') }}</h2>
           <button type="button" class="support-close" :aria-label="t('contact.close')" @click="close(true)"><Icon name="x" size="md" /></button>
         </header>
-        <p class="support-description">{{ t('contact.floatingIntro') }}</p>
         <div class="support-channels">
           <div v-for="channel in channels" :key="channel.id" class="support-channel">
             <div class="support-channel-details"><span class="support-label">{{ t(channel.labelKey) }}</span><span class="support-value">{{ channel.value }}</span></div>
@@ -120,25 +119,24 @@ onBeforeUnmount(() => {
   .support-trigger-label { transition:none; }
 }
 .support-monogram { color:var(--support-gold); font:500 16px Georgia,serif; border-right:1px solid var(--support-line); padding-right:10px; }
-.support-panel { position:absolute; bottom:calc(100% + 14px); right:0; width:360px; max-width:calc(100vw - 48px); max-height:calc(100dvh - var(--support-bottom) - 160px); overflow-y:auto; overscroll-behavior:contain; padding:20px 24px 0; background:var(--support-surface); border:1px solid var(--support-line); border-radius:14px; box-shadow:0 16px 48px rgb(18 19 22 / 16%); }
-.support-heading { display:flex; align-items:start; justify-content:space-between; gap:12px; position:sticky; top:0; background:var(--support-surface); z-index:1; padding-bottom:6px; }
-.support-eyebrow { color:var(--support-gold); font:11px 'DM Mono',Consolas,monospace; margin-bottom:10px; }
-.support-heading h2 { font:500 21px/1.5 'Noto Serif SC','Songti SC',Georgia,serif; }
-.support-close { display:grid; place-items:center; min-width:36px; min-height:36px; border-radius:6px; color:var(--support-muted); }
-.support-description { color:var(--support-muted); font-size:12px; line-height:1.8; margin:10px 0 16px; }
-.support-channel { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--support-line); }
+.support-panel { position:absolute; bottom:calc(100% + 10px); right:0; width:300px; max-width:calc(100vw - 48px); max-height:min(360px, calc(100dvh - var(--support-bottom) - 160px)); overflow-y:auto; overscroll-behavior:contain; padding:14px 16px 0; background:var(--support-surface); border:1px solid var(--support-line); border-radius:12px; box-shadow:0 12px 32px rgb(18 19 22 / 12%); }
+.support-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--support-surface); z-index:1; padding-bottom:8px; }
+.support-heading h2 { font:500 17px/1.4 'Noto Serif SC','Songti SC',Georgia,serif; }
+.support-close { display:grid; place-items:center; min-width:32px; min-height:32px; border-radius:6px; color:var(--support-muted); }
+.support-channel { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-top:1px solid var(--support-line); }
 .support-channel-details { min-width:0; }
-.support-label { display:block; color:var(--support-muted); font-size:12px; line-height:1.6; }
-.support-value { display:block; user-select:text; font:500 15px/1.6 'DM Mono',Consolas,monospace; overflow-wrap:anywhere; }
-.support-copy { display:flex; align-items:center; gap:5px; flex-shrink:0; padding:8px 11px; border:1px solid var(--support-line); border-radius:999px; font-size:12px; }
-.support-feedback { min-height:18px; color:var(--support-gold); font-size:12px; line-height:1.6; margin:6px 0 12px; }
-.support-complete { display:flex; align-items:center; justify-content:space-between; gap:10px; border-top:1px solid var(--support-line); padding:16px 0; color:var(--support-gold); font-size:12px; }
+.support-label { display:block; color:var(--support-muted); font-size:11.5px; line-height:1.4; }
+.support-value { display:block; user-select:text; font:500 13.5px/1.5 'DM Mono',Consolas,monospace; overflow-wrap:anywhere; }
+.support-copy { display:flex; align-items:center; gap:4px; flex-shrink:0; padding:6px 8px; border:1px solid var(--support-line); border-radius:999px; font-size:12px; }
+.support-feedback { color:var(--support-gold); font-size:12px; line-height:1.6; margin:6px 0; }
+.support-feedback:empty { margin:0; height:0; }
+.support-complete { display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid var(--support-line); padding:10px 0; color:var(--support-gold); font-size:12px; }
 .support-trigger:hover, .support-copy:hover, .support-close:hover { color:var(--support-gold); background:var(--support-soft); }
 .floating-support button:focus-visible, .floating-support a:focus-visible { outline:2px solid var(--support-gold); outline-offset:3px; }
 @media(max-width:640px) {
   .floating-support { right:16px; --support-bottom:calc(16px + env(safe-area-inset-bottom, 0px) + var(--support-bottom-offset, 0px)); }
   .floating-support.support-payment-route { --support-bottom-offset:80px; }
-  .support-panel { width:340px; max-width:calc(100vw - 32px); padding:18px 20px 0; }
+  .support-panel { width:280px; max-width:calc(100vw - 32px); max-height:min(340px, 48dvh, calc(100dvh - var(--support-bottom) - 160px)); padding:12px 14px 0; }
   .support-trigger { min-height:46px; padding:0 14px; }
   .support-copy, .support-close { min-height:44px; }
 }
