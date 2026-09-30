@@ -25,7 +25,7 @@ describe('user console luxury theme contract', () => {
   })
 
   it('uses the Model-Gate brand and hides the version in the user console', () => {
-    expect(sidebarSource).toContain("isUserConsole.value ? 'Model-Gate'")
+    expect(sidebarSource).toContain("resolveSiteName(siteName.value)")
     expect(sidebarSource).toContain('<VersionBadge v-if="!isUserConsole"')
     expect(sidebarSource).toContain('{{ displaySiteName }}')
   })

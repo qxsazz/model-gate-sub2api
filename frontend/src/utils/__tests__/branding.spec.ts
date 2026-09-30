@@ -19,4 +19,10 @@ describe('updateFavicon', () => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
     expect(link?.getAttribute('href')).toBe('/logo.svg')
   })
+
+  it('restores the MG favicon when the uploaded logo is cleared', () => {
+    updateFavicon('https://example.com/custom-logo.png')
+    updateFavicon('')
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe('/model-gate-mg-luxury.svg')
+  })
 })

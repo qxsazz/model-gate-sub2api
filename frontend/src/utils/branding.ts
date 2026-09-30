@@ -1,7 +1,8 @@
+import { MG_BRAND } from '@/brand/config'
 import { sanitizeUrl } from '@/utils/url'
 
 export function updateFavicon(logoUrl: string): void {
-  const sanitizedLogoUrl = sanitizeUrl(logoUrl, {
+  const sanitizedLogoUrl = sanitizeUrl(logoUrl.trim() ? logoUrl : MG_BRAND.logo, {
     allowRelative: true,
     allowDataUrl: true,
   })

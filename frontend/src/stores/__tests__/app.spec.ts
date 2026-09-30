@@ -76,6 +76,19 @@ vi.mock('@/api/auth', () => ({
 }))
 
 describe('useAppStore', () => {
+  it('uses MG for blank settings and preserves configured names and logos', async () => {
+    setActivePinia(createPinia())
+    const store = useAppStore()
+    expect(store.siteName).toBe('MODEL-GATE')
+    vi.mocked(getPublicSettings).mockResolvedValue(createPublicSettings({ site_name: '   ', site_logo: '' }))
+    await store.fetchPublicSettings(true)
+    expect(store.siteName).toBe('MODEL-GATE')
+    vi.mocked(getPublicSettings).mockResolvedValue(createPublicSettings({ site_name: 'Sub2API', site_logo: '/uploads/custom.svg' }))
+    await store.fetchPublicSettings(true)
+    expect(store.siteName).toBe('Sub2API')
+    expect(store.siteLogo).toBe('/uploads/custom.svg')
+  })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()

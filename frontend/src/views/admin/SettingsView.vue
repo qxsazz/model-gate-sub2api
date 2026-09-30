@@ -8967,6 +8967,7 @@
 </template>
 
 <script setup lang="ts">
+import { MG_BRAND } from '@/brand/config'
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -9779,7 +9780,7 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
-  site_name: "Sub2API",
+  site_name: MG_BRAND.name,
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",

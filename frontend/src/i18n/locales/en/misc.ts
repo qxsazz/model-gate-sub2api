@@ -19,6 +19,10 @@ export default {
 
   // Version Badge
   version: {
+    managedDescription: 'MG deployment workflows manage upgrades and rollbacks with review, image verification and backups.',
+    deploymentEntry: 'Open MG deployment workflow',
+    repositoryEntry: 'View MG repository',
+
     currentVersion: 'Current Version',
     latestVersion: 'Latest Version',
     upToDate: "You're running the latest version.",

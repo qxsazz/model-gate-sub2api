@@ -12,6 +12,8 @@ export interface ReleaseInfo {
 }
 
 export interface VersionInfo {
+  deployment_mode?: 'managed'
+  deployment_url?: string
   current_version: string
   latest_version: string
   has_update: boolean

@@ -19,6 +19,10 @@ export default {
 
   // Version Badge
   version: {
+    managedDescription: '由 MG 发布流程管理升级与回滚，保留审核、镜像验证和备份。',
+    deploymentEntry: '进入 MG 发布工作流',
+    repositoryEntry: '查看 MG 仓库',
+
     currentVersion: '当前版本',
     latestVersion: '最新版本',
     upToDate: '已是最新版本',
