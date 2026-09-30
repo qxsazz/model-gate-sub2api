@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { checkUpdates } from '@/api/admin/system'
 import { getPublicSettings } from '@/api/auth'
 import type { PublicSettings } from '@/types'
 
@@ -76,6 +77,24 @@ vi.mock('@/api/auth', () => ({
 }))
 
 describe('useAppStore', () => {
+  it('marks failed browser refreshes stale while preserving the last success', async () => {
+    const store = useAppStore()
+    vi.mocked(checkUpdates).mockResolvedValueOnce({ current_version: '0.2.10-mg.2', latest_version: '0.2.10-mg.2', has_update: false, cached: false, build_type: 'release', upstream: { baseline_version: '0.2.10', latest_version: '0.2.11', has_update: true, status: 'ok', checked_at: '2026-09-30T00:00:00Z', attempted_at: '', release_url: 'https://github.com/Wei-Shaw/sub2api/releases/tag/v0.2.11' } })
+    await store.fetchVersion(true)
+    vi.mocked(checkUpdates).mockRejectedValueOnce(new Error('network unavailable'))
+    await store.fetchVersion(true)
+    expect(store.upstreamInfo?.status).toBe('stale')
+    expect(store.upstreamInfo?.latest_version).toBe('0.2.11')
+    expect(store.upstreamInfo?.checked_at).toBe('2026-09-30T00:00:00Z')
+  })
+  it('marks the first failed browser check unavailable', async () => {
+    const store = useAppStore()
+    vi.mocked(checkUpdates).mockRejectedValueOnce(new Error('network unavailable'))
+    await store.fetchVersion(true)
+    expect(store.upstreamInfo?.status).toBe('unavailable')
+    expect(store.upstreamInfo?.latest_version).toBe('')
+  })
+
   it('uses MG for blank settings and preserves configured names and logos', async () => {
     setActivePinia(createPinia())
     const store = useAppStore()

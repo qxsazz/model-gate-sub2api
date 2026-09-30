@@ -19,6 +19,16 @@ export default {
 
   // Version Badge
   version: {
+    upstreamBaseline: '已适配上游',
+    upstreamLatest: '上游最新稳定版',
+    upstreamAvailable: '上游有新版本，待 MG 适配',
+    upstreamCurrent: '已适配上游最新稳定版',
+    upstreamUnavailable: '暂时无法检查上游版本',
+    upstreamStale: '检查失败，显示上次成功结果',
+    upstreamChecking: '正在检查上游版本',
+    upstreamCheckedAt: '上次成功检查：',
+    upstreamReleaseNotes: '查看上游更新说明',
+
     managedDescription: '由 MG 发布流程管理升级与回滚，保留审核、镜像验证和备份。',
     deploymentEntry: '进入 MG 发布工作流',
     repositoryEntry: '查看 MG 仓库',

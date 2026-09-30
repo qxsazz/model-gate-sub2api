@@ -11,7 +11,18 @@ export interface ReleaseInfo {
   html_url: string
 }
 
+export interface UpstreamUpdateInfo {
+  baseline_version: string
+  latest_version: string
+  has_update: boolean
+  status: 'ok' | 'stale' | 'unavailable' | 'checking'
+  release_url: string
+  checked_at: string
+  attempted_at: string
+}
+
 export interface VersionInfo {
+  upstream?: UpstreamUpdateInfo
   deployment_mode?: 'managed'
   deployment_url?: string
   current_version: string

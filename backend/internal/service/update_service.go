@@ -62,6 +62,7 @@ type GitHubReleaseClient interface {
 
 // UpdateService handles software updates
 type UpdateService struct {
+	upstream upstreamUpdateState
 	// Legacy algorithms are exercised by package tests only. Constructors always use managed deployment.
 	allowInPlaceUpdates bool
 	cache               UpdateCache
@@ -82,15 +83,16 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 
 // UpdateInfo contains update information
 type UpdateInfo struct {
-	DeploymentMode string       `json:"deployment_mode,omitempty"`
-	DeploymentURL  string       `json:"deployment_url,omitempty"`
-	CurrentVersion string       `json:"current_version"`
-	LatestVersion  string       `json:"latest_version"`
-	HasUpdate      bool         `json:"has_update"`
-	ReleaseInfo    *ReleaseInfo `json:"release_info,omitempty"`
-	Cached         bool         `json:"cached"`
-	Warning        string       `json:"warning,omitempty"`
-	BuildType      string       `json:"build_type"` // "source" or "release"
+	Upstream       *UpstreamUpdateInfo `json:"upstream,omitempty"`
+	DeploymentMode string              `json:"deployment_mode,omitempty"`
+	DeploymentURL  string              `json:"deployment_url,omitempty"`
+	CurrentVersion string              `json:"current_version"`
+	LatestVersion  string              `json:"latest_version"`
+	HasUpdate      bool                `json:"has_update"`
+	ReleaseInfo    *ReleaseInfo        `json:"release_info,omitempty"`
+	Cached         bool                `json:"cached"`
+	Warning        string              `json:"warning,omitempty"`
+	BuildType      string              `json:"build_type"` // "source" or "release"
 }
 
 // ReleaseInfo contains GitHub release details
@@ -137,10 +139,11 @@ type GitHubAsset struct {
 // IsManagedDeployment reports the MG deployment policy.
 func (s *UpdateService) IsManagedDeployment() bool { return !s.allowInPlaceUpdates }
 
-// CheckUpdate returns the running version without consulting upstream in managed mode.
+// CheckUpdate keeps the running MG version separate from read-only upstream notices.
 func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
 	if s.IsManagedDeployment() {
-		return &UpdateInfo{CurrentVersion: s.currentVersion, LatestVersion: s.currentVersion, BuildType: s.buildType, DeploymentMode: "managed", DeploymentURL: ManagedDeploymentURL}, nil
+		upstream := s.checkUpstream(ctx, force)
+		return &UpdateInfo{CurrentVersion: s.currentVersion, LatestVersion: s.currentVersion, BuildType: s.buildType, DeploymentMode: "managed", DeploymentURL: ManagedDeploymentURL, Upstream: &upstream}, nil
 	}
 	// Try cache first
 	if !force {
