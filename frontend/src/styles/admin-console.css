@@ -242,6 +242,17 @@
   border-color: var(--mg-gold-500) !important;
 }
 
+/* Validation stays visible even when the field has the normal focus theme. */
+.admin-console-active .input.input-error,
+.admin-console-active .input.input-error:focus {
+  border-color: var(--mg-danger) !important;
+}
+
+.admin-console-active .input.input-error:focus {
+  outline: 2px solid var(--mg-danger) !important;
+  outline-offset: 2px;
+}
+
 .admin-console-active .table-container,
 .admin-console-active .table-scroll-container {
   border-color: var(--mg-line-warm) !important;
