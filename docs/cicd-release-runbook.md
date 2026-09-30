@@ -40,6 +40,24 @@ Actions -> Deploy Production -> Run workflow
 - 部署脚本只更新应用容器，不主动重建 PostgreSQL 和 Redis。
 - 生产发布必须由人工在 GitHub Actions 中触发。
 
+### 1.1 MG 后台版本入口
+
+后台侧栏的版本入口显示当前运行版本，刷新只重新查询运行版本。该入口不检测上游最新版本，也不提供下载二进制、原地更新或原地回滚按钮。旧的上游更新检查缓存不会参与托管模式的版本查询。
+
+“部署入口”打开本仓库的 [Deploy Production workflow](https://github.com/qxsazz/model-gate-sub2api/actions/workflows/deploy-production.yml)，打开链接本身不会执行部署。发布仍须按第 4、5 节完成 staging 验收及生产晋级。
+
+托管模式下，已通过管理员鉴权的以下请求返回 HTTP `409`，错误 reason 为 `DEPLOYMENT_MANAGED`：
+
+| 方法 | API | 行为 |
+|---|---|---|
+| `POST` | `/api/v1/admin/system/update` | 拒绝原地更新 |
+| `POST` | `/api/v1/admin/system/rollback` | 拒绝本地备份和指定版本回滚 |
+| `GET` | `/api/v1/admin/system/rollback-versions` | 不查询上游可回滚版本 |
+
+`GET /api/v1/admin/system/check-updates` 返回运行版本、`deployment_mode: "managed"` 和部署链接；`has_update` 为 `false`，`latest_version` 与运行版本相同。这表示部署由 CI/CD 托管，不代表上游没有新版本。
+
+品牌配置的默认值与自定义规则见 [MG 品牌默认值](mg-brand-defaults.md)。
+
 ## 2. 环境信息
 
 | 项目 | Staging | Production |
@@ -335,6 +353,8 @@ docker compose --project-name sub2api \
 ```
 
 当前脚本没有独立的人工回滚命令。人工回滚前必须先确认目标镜像的完整 digest，并由维护者执行和验证，不能直接把版本标签当作不可变回滚依据。
+
+人工回滚也沿 CI/CD 镜像流程处理，不使用后台原地回滚 API。若通过现有 `Deploy Production` workflow 晋级旧镜像，需先让 staging 运行目标旧镜像并重新验收，再填写该镜像成功 staging 构建对应的 `source_sha`；workflow 仍会校验 staging 当前 digest 与目标一致。回滚前必须确认旧应用兼容当前数据库结构，不能把镜像回滚视为数据库恢复。
 
 ## 9. 当前已知边界
 
