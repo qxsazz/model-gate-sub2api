@@ -16,10 +16,10 @@
         <p class="support-feedback" role="status" aria-live="polite">{{ feedback }}</p>
         <router-link to="/contact" class="support-complete" @click="close(false)">{{ t('contact.fullPage') }}<Icon name="arrowRight" size="sm" /></router-link>
       </section>
-      <button ref="trigger" type="button" class="support-trigger" data-testid="support-trigger" :aria-expanded="open" aria-controls="mg-support-panel" @click="toggle">
+      <button ref="trigger" type="button" class="support-trigger" data-testid="support-trigger" :aria-label="t('contact.floatingTrigger')" :aria-expanded="open" aria-controls="mg-support-panel" @click="toggle">
         <span class="support-monogram" aria-hidden="true">MG</span>
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M20 17v2a2 2 0 0 1-2 2h-3"/><rect x="3" y="11" width="4" height="7" rx="2"/><rect x="17" y="11" width="4" height="7" rx="2"/></svg>
-        <span>{{ t('contact.floatingTrigger') }}</span>
+        <span class="support-trigger-label" aria-hidden="true">{{ t('contact.floatingTrigger') }}</span>
       </button>
     </div>
   </Teleport>
@@ -109,7 +109,16 @@ onBeforeUnmount(() => {
 }
 .dark .floating-support { --support-surface:#18191d; --support-ink:#f5f1e7; --support-muted:#aaa292; --support-line:#38352f; --support-gold:#d7c487; --support-soft:#23221f; }
 .modal-open .floating-support { display:none; }
-.support-trigger { display:flex; align-items:center; gap:10px; min-height:50px; padding:0 18px; border:1px solid var(--support-line); border-radius:999px; background:var(--support-surface); color:var(--support-ink); box-shadow:0 6px 24px rgb(18 19 22 / 12%); font-size:13px; font-weight:500; }
+.support-trigger { display:flex; align-items:center; gap:0; min-height:50px; padding:0 18px; border:1px solid var(--support-line); border-radius:999px; background:var(--support-surface); color:var(--support-ink); box-shadow:0 6px 24px rgb(18 19 22 / 12%); font-size:13px; font-weight:500; }
+.support-trigger > svg { flex-shrink:0; margin-left:10px; }
+.support-trigger-label { overflow:hidden; max-width:0; opacity:0; margin-left:0; white-space:nowrap; transition:max-width 180ms ease, opacity 180ms ease, margin-left 180ms ease; }
+.support-trigger:focus-visible .support-trigger-label { max-width:12em; opacity:1; margin-left:10px; }
+@media(hover:hover) and (pointer:fine) {
+  .support-trigger:hover .support-trigger-label { max-width:12em; opacity:1; margin-left:10px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .support-trigger-label { transition:none; }
+}
 .support-monogram { color:var(--support-gold); font:500 16px Georgia,serif; border-right:1px solid var(--support-line); padding-right:10px; }
 .support-panel { position:absolute; bottom:calc(100% + 14px); right:0; width:360px; max-width:calc(100vw - 48px); max-height:calc(100dvh - var(--support-bottom) - 160px); overflow-y:auto; overscroll-behavior:contain; padding:20px 24px 0; background:var(--support-surface); border:1px solid var(--support-line); border-radius:14px; box-shadow:0 16px 48px rgb(18 19 22 / 16%); }
 .support-heading { display:flex; align-items:start; justify-content:space-between; gap:12px; position:sticky; top:0; background:var(--support-surface); z-index:1; padding-bottom:6px; }
