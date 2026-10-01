@@ -29,6 +29,8 @@ func (h *UserHandler) GetVIP(c *gin.Context) {
 		return
 	}
 	if c.Param("id") == "" {
+		data.Rules.Groups = nil
+		data.Rules.ExchangeRates = nil
 		for i := range data.Overrides {
 			data.Overrides[i].Reason = ""
 		}
