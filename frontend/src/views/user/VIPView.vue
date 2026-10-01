@@ -10,17 +10,10 @@
       <template v-else-if="state">
         <p v-if="!state.enabled" class="status-note">会员规则尚未启用，当前按原有价格与权限使用。</p>
         <section class="membership">
-          <div class="member-card" :class="'level-' + state.badge_level" :data-material="materialName(state.badge_level)">
-            <div class="member-top"><span class="eyebrow">MODEL-GATE PRIVATE MEMBER</span><span class="eyebrow">MEMBER SERIES</span></div>
-            <div class="member-body"><div class="mark-window"><img class="member-mark" src="/mg-vip-monogram.jpg" alt="MODEL-GATE MG" width="112" height="112" /></div><div><p class="eyebrow">CURRENT PRIVILEGE</p><h2>{{ levelName(state.badge_level) }}</h2><span class="vip-tag">VIP {{ state.badge_level }}</span></div></div>
-            <div class="card-benefits"><div><span>邀请返利</span><strong>{{ state.rebate_percent }}%</strong></div><div><span>同时请求上限</span><strong>{{ state.concurrency }}</strong></div></div>
-            <footer class="member-owner"><div><span>MEMBER</span><strong :title="accountName">{{ accountName }}</strong></div><div><span>SERIAL</span><strong>UID {{ authStore.user?.id ?? '—' }}</strong></div></footer>
-          </div>
+          <VIPMembershipCard class="member-card" :level="state.badge_level" :name="levelName(state.badge_level)" :threshold-label="ownerThreshold" :benefits="ownerBenefits" :owner-name="accountName" :owner-id="authStore.user?.id" />
           <div class="member-overview">
             <div class="recharge-heading"><div><p class="muted">累计有效充值</p><strong class="total">${{ money(state.total) }}</strong></div><router-link to="/purchase" class="btn btn-primary"><Icon name="creditCard" size="sm" />去充值</router-link></div>
-            <p v-if="manualPrivilege" class="status-note">包含管理员授予的权益，成长进度仍按累计有效充值计算。</p>
-            <div class="progress-label"><span>{{ state.next ? '距 VIP ' + state.next.level + ' 还需 $' + money(Math.max(0, state.next.threshold - state.total)) : '已达到最高充值等级' }}</span><span>{{ Math.round(progress) }}%</span></div>
-            <progress :value="progress" max="100" aria-label="会员成长进度" />
+            <div class="member-progress"><div class="progress-label"><span>{{ state.next ? '距 VIP ' + state.next.level + ' 还需 $' + money(Math.max(0, state.next.threshold - state.total)) : '已达到最高充值等级' }}</span><span>{{ Math.round(progress) }}%</span></div><progress :value="progress" max="100" aria-label="会员成长进度" /></div>
             <div class="overview-stats">
               <div><span>邀请返利</span><strong>{{ state.rebate_percent }}%</strong></div>
               <div><span>每分钟请求上限</span><strong>{{ state.rpm ? state.rpm + ' RPM' : '沿用原有限流规则' }}</strong></div>
@@ -29,8 +22,8 @@
               <div><span>可领取奖励</span><strong>{{ membership ? availableRewards : '—' }}</strong></div>
               <div><span>成长门槛</span><strong>${{ money(state.rules.access_threshold) }} 起</strong></div>
             </div>
-            <router-link v-if="exclusiveAccess" to="/keys" class="text-link">管理专属分组 API Key <Icon name="arrowRight" size="sm" /></router-link>
           </div>
+          <div v-if="manualPrivilege || exclusiveAccess" class="membership-followup"><p v-if="manualPrivilege" class="status-note">包含管理员授予的权益，成长进度仍按累计有效充值计算。</p><router-link v-if="exclusiveAccess" to="/keys" class="text-link">管理专属分组 API Key <Icon name="arrowRight" size="sm" /></router-link></div>
         </section>
         <section class="honors">
           <div class="section-title"><div><p class="eyebrow">PRIVATE CIRCLE</p><h2>VIP 荣誉席位</h2><p class="muted">按当前有效等级排列 · 会员名称已脱敏</p></div><span class="eyebrow">TOP 10</span></div>
@@ -47,11 +40,8 @@
         <section v-if="tab === 'benefits'" id="panel-benefits" role="tabpanel" aria-labelledby="tab-benefits">
           <div class="section-title"><div><p class="eyebrow">MEMBERSHIP</p><h2>等级权益</h2><p class="muted">累计有效充值，逐级开启更多权益</p></div></div>
           <div class="tier-grid">
-            <article class="tier-card level-0" :class="{ current: state.tier.level === 0 }" :data-material="materialName(0)"><div class="tier-top"><div class="tier-mark-window"><img class="tier-mark" src="/mg-vip-monogram.jpg" alt="MODEL-GATE MG" width="42" height="42" loading="lazy" /></div><span v-if="state.tier.level === 0" class="current-label">当前等级</span></div><span class="vip-tag">VIP 0</span><h3>普通会员</h3><strong class="threshold">注册即享</strong><ul><li>累计充值成长记录</li><li>原有分组与基础权益</li><li>邀请返利 0%</li></ul></article>
-            <article v-for="tier in state.rules.tiers" :key="tier.level" class="tier-card" :class="['level-' + tier.level, { current: state.tier.level === tier.level }]" :data-material="materialName(tier.level)">
-              <div class="tier-top"><div class="tier-mark-window"><img class="tier-mark" src="/mg-vip-monogram.jpg" alt="MODEL-GATE MG" width="42" height="42" loading="lazy" /></div><span v-if="state.tier.level === tier.level" class="current-label">当前等级</span></div><span class="vip-tag">VIP {{ tier.level }}</span><h3>{{ levelName(tier.level) }}</h3><strong class="threshold">${{ money(tier.threshold) }} 起</strong>
-              <ul><li>{{ discountText(tier.level) }}</li><li>{{ tier.threshold >= state.rules.access_threshold ? '开放 VIP 专属分组' : '专属分组按独立门槛开放' }}</li><li>同时请求 {{ tier.concurrency }} · 邀请返利 {{ tier.rebate_percent }}%</li><li>累充里程碑奖励 ${{ money(tier.threshold * 0.01) }}</li></ul>
-            </article>
+            <VIPMembershipCard class="tier-card" :class="{ current: state.tier.level === 0 }" :level="0" name="普通会员" threshold-label="注册即享 · 无充值门槛" :benefits="['普通分组维持原价', '原有并发额度 · 邀请返利 0%', '累计充值成长记录']" :current="state.tier.level === 0" />
+            <VIPMembershipCard v-for="tier in state.rules.tiers" :key="tier.level" class="tier-card" :class="{ current: state.tier.level === tier.level }" :level="tier.level" :name="levelName(tier.level)" :threshold-label="'累计有效充值 $' + money(tier.threshold) + ' 起'" :benefits="tierBenefits(tier)" :current="state.tier.level === tier.level" />
           </div>
           <p class="fine-print">倍率为绝对值减免，部分分组维持原价。专属分组独立定价；人工授权与定价优先。请求仍受渠道自身容量与限额约束。</p>
         </section>
@@ -91,12 +81,12 @@
 import { ref, computed, onMounted } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
 import { useAuthStore } from '@/stores/auth'
-import { getVIP, getVIPMembership, claimVIPReward, type VIPSnapshot, type VIPMembership, type VIPReward } from '@/api/vip'
+import { getVIP, getVIPMembership, claimVIPReward, type VIPSnapshot, type VIPMembership, type VIPReward, type VIPTier } from '@/api/vip'
 const state = ref<VIPSnapshot | null>(null)
 const authStore = useAuthStore()
 const accountName = computed(() => authStore.user?.username?.trim() || authStore.user?.email || '当前会员')
-const materialName = (level: number) => ['pearl', 'bronze', 'silver', 'gold', 'platinum', 'black-diamond'][level] || 'pearl'
 const membership = ref<VIPMembership | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -115,8 +105,27 @@ const progress = computed(() => { const s = state.value; if (!s) return 0; if (!
 function discountText(level: number) {
   const cuts = membership.value?.discount_summaries[level] || []
   if (!cuts.length) return membership.value ? '普通分组按现行规则计价' : '普通分组成长优惠'
-  return `普通分组减免 ${rate(cuts[0])}${cuts.length > 1 ? ' · 部分减免 ' + rate(cuts[cuts.length - 1]) : ''}`
+  return `普通分组最高减免 ${rate(cuts[0])}`
 }
+function tierBenefits(tier: VIPTier) {
+  const reward = membership.value?.rewards.find(item => item.level === tier.level)
+  const rewardAmount = reward?.status === 'claimed' || reward?.status === 'revoked' ? tier.threshold * .01 : reward?.amount ?? tier.threshold * .01
+  return [discountText(tier.level), `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`, `${tier.threshold >= (state.value?.rules.access_threshold ?? Infinity) ? 'VIP 专属分组' : '专属分组按门槛开放'} · 本档奖励 $${money(rewardAmount)}`]
+}
+const ownerThreshold = computed(() => {
+  const s = state.value
+  if (!s) return ''
+  if (s.badge_level !== s.tier.level) return `充值成长等级 VIP ${s.tier.level}`
+  return s.tier.level ? `累计有效充值 $${money(s.tier.threshold)} 起` : '注册即享 · 无充值门槛'
+})
+const ownerBenefits = computed(() => {
+  const s = state.value
+  if (!s) return []
+  const reward = membership.value?.rewards.find(item => item.level === s.tier.level)
+  const access = exclusiveAccess.value ? '专属分组' : '分组待解锁'
+  const rewardText = reward ? `${access} · 奖励 $${money(reward.amount)}` : '累计充值成长记录'
+  return [discountText(s.tier.level), `${s.concurrency} 并发 · 邀请返利 ${s.rebate_percent}%`, rewardText]
+})
 const statusLabel = (status: VIPReward['status']) => ({ locked: '未达标', available: '可领取', claimed: '已领取', revoked: '已追回' }[status])
 const sourceLabel = (source: string) => ({ payment: '在线充值', payment_refund: '在线退款', admin_balance: '后台调整', opening: '初始确认记录' }[source] || source)
 async function loadMembership() {
@@ -135,45 +144,71 @@ async function claim(level: number) {
 onMounted(load)
 </script>
 <style scoped>
-.vip-page{max-width:1440px;margin:auto;color:var(--mg-ink-900,#24252a)}
-h1,h2,h3{font-family:'Noto Serif SC',SimSun,serif;letter-spacing:0;font-weight:600}h1{font-size:26px}h2{font-size:22px}h3{font-size:18px}
-.vip-heading,.section-title{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.eyebrow{font:500 11px 'DM Mono',Consolas,monospace;color:var(--mg-gold-700,#927640);letter-spacing:0}.muted,.fine-print{font-size:13px;color:var(--mg-muted,#746f65);line-height:1.8}.section-title .muted{margin-top:8px}
-.membership{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);border-block:1px solid var(--mg-line-warm,#e7e1d4);margin-bottom:40px}
-.member-card{background:#101114;color:#e0cf9e;padding:28px;min-height:360px;display:flex;flex-direction:column}.member-card .eyebrow{color:#b6a475}.member-top{display:flex;justify-content:space-between;gap:12px}.member-body{display:flex;align-items:center;gap:28px;flex:1;padding:38px 0}.member-body h2{font-size:36px;margin:8px 0 12px}.diamond{width:54px;height:54px;flex-shrink:0;border:1px solid currentColor;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;margin:12px}.diamond :deep(svg){transform:rotate(-45deg)}.member-body .diamond{width:80px;height:80px}
-.card-benefits{display:flex;gap:28px;padding:0 0 24px 12px}.card-benefits>div{padding-right:28px;border-right:1px solid #555044}.card-benefits span{font-size:12px;display:block}.card-benefits strong{display:block;font:500 24px 'DM Mono',monospace;margin-top:8px}.member-card footer{border-top:1px solid #555044;padding-top:18px;display:flex;justify-content:space-between;gap:12px;font:500 10px 'DM Mono',monospace}
-.member-overview{padding:28px 32px;background:var(--mg-surface,#fff)}.recharge-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.total{font:500 42px 'DM Mono',Consolas,monospace;display:block;margin-top:8px}.progress-label{display:flex;justify-content:space-between;gap:16px;margin-top:28px;font-size:13px}.overview-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:24px 0 16px}.overview-stats>div{padding:16px 12px;border-top:1px solid var(--mg-line-warm,#e7e1d4)}.overview-stats span{display:block;font-size:12px;color:var(--mg-muted,#746f65)}.overview-stats strong{display:block;margin-top:8px;font:500 15px 'DM Mono',monospace;overflow-wrap:anywhere}
-progress{width:100%;height:5px;display:block;margin-top:14px;appearance:none;border:none;background:#e7e1d4}progress::-webkit-progress-bar{background:#e7e1d4}progress::-webkit-progress-value{background:#aa8c47}progress::-moz-progress-bar{background:#aa8c47}.text-link{display:inline-flex;gap:8px;align-items:center;color:var(--mg-gold-700,#765f2c);font-size:13px}
-.honors{margin-bottom:40px}.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-block:1px solid var(--mg-line-warm,#e7e1d4);background:var(--mg-gold-50,#fcfaf4)}.podium article{padding:24px;border-right:1px solid var(--mg-line-warm,#e7e1d4);min-height:180px}.podium article:last-child{border:0}.rank{font:500 26px 'DM Mono',monospace;color:var(--mg-gold-700,#927640)}.rank span{font-size:11px}.podium h3{margin:24px 0 12px;overflow-wrap:anywhere}.seat-list{list-style:none;padding:0}.seat-list li{display:flex;align-items:center;gap:24px;padding:18px 8px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4)}.seat-list .rank{font-size:18px}.seat-list strong{font-size:14px;overflow-wrap:anywhere}
-.vip-tabs{display:flex;gap:28px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);margin-bottom:28px}.vip-tabs button{font-size:15px;padding:14px 0;border-bottom:2px solid transparent;color:var(--mg-muted,#746f65);white-space:nowrap}.vip-tabs button.active{color:var(--mg-ink-900,#24252a);border-color:#aa8c47}.tier-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.tier-card{border:1px solid var(--tier-color,#afbbc0);border-radius:6px;padding:24px;min-height:330px;color:var(--tier-color,#66747b);background:var(--mg-surface,#fff)}.tier-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:18px}.tier-card h3{font-size:25px;margin:16px 0}.threshold{font:500 20px 'DM Mono',monospace}.tier-card ul{list-style:none;padding:0;margin-top:22px;font-size:13px;line-height:1.9;color:var(--mg-muted,#746f65)}.tier-card li{margin-top:7px}.tier-card li::before{content:'−';margin-right:8px}.tier-card.current{outline:1px solid #aa8c47;outline-offset:2px}.current-label{font-size:11px;font-weight:600}.vip-tag{display:inline-block;font:500 11px 'DM Mono',monospace;border:1px solid currentColor;border-radius:3px;padding:5px 8px;color:var(--tier-color,inherit)}
-.level-0{--tier-color:#7d8586}.level-1{--tier-color:#ab7955}.level-2{--tier-color:#7a8d98}.level-3{--tier-color:#aa8b3e}.level-4{--tier-color:#538286}.level-5{--tier-color:#ceb573}.tier-card.level-5{background:#101114}.tier-card.level-5 ul{color:#d0c6b0}.fine-print{font-size:12px;margin-top:20px}.reward-row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,2fr) auto;align-items:center;gap:24px;border:1px solid var(--mg-line-warm,#e7e1d4);border-radius:6px;padding:20px 24px;margin-bottom:12px;background:var(--mg-surface,#fff)}.reward-description{display:flex;align-items:center;gap:24px}.reward-description .diamond{width:40px;height:40px;color:#a38b58}.reward-description p{margin-top:6px}.reward-amount strong{display:block;font:500 25px 'DM Mono',monospace}.reward-amount span{display:block;margin-top:4px}.reward-status{font-size:12px;color:var(--mg-muted,#746f65);border:1px solid var(--mg-line-warm,#e7e1d4);padding:8px 12px;border-radius:4px}.status-note{padding:12px 16px;margin:16px 0;border-left:2px solid #aa8c47;background:var(--mg-gold-50,#fcfaf4);font-size:13px;line-height:1.8}.status-note button{margin-left:12px}.empty{padding:32px 0;color:var(--mg-muted,#746f65);font-size:13px}.table-overflow{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:14px 12px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);text-align:left}td:last-child{font-family:'DM Mono',monospace}
-:global(.dark) .member-overview,:global(.dark) .tier-card:not(.level-5),:global(.dark) .reward-row{background:#191a1d}:global(.dark) .podium,:global(.dark) .status-note{background:#20201e}
-@media(min-width:1600px){.tier-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:1100px){.membership{grid-template-columns:1fr}.member-card{min-height:300px}.tier-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.vip-heading{align-items:flex-start}h1{font-size:23px}.member-card,.member-overview{padding:22px}.member-body{gap:20px}.member-body h2{font-size:30px}.member-body .diamond{width:60px;height:60px}.total{font-size:30px}.overview-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.podium{grid-template-columns:1fr}.podium article{min-height:130px;border-right:0;border-bottom:1px solid var(--mg-line-warm,#e7e1d4)}.podium h3{margin-top:14px}.seat-list li{gap:14px;flex-wrap:wrap}.tier-grid{grid-template-columns:1fr}.tier-card{min-height:310px}.reward-row{grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px}.reward-description{grid-column:1/-1;gap:16px}.reward-description h3{font-size:16px}.reward-amount strong{font-size:22px}.vip-tabs{gap:24px}.member-top,.member-card footer{flex-wrap:wrap}.section-title{align-items:flex-start}}
-/* Material colors stay local to membership cards, including in dark mode. */
-.level-0{--card-surface:#eff0ed;--card-ink:#4d5651;--card-body:#59635d;--card-line:#aeb7b1}
-.level-1{--card-surface:#322725;--card-ink:#e8c19a;--card-body:#e0cfc1;--card-line:#90745d}
-.level-2{--card-surface:#e5ecef;--card-ink:#374f5d;--card-body:#4b626d;--card-line:#9eb0ba}
-.level-3{--card-surface:#f1e6c5;--card-ink:#67501d;--card-body:#6c5b32;--card-line:#b99d55}
-.level-4{--card-surface:#203638;--card-ink:#c6dfdc;--card-body:#c2d3d1;--card-line:#90b1ac}
-.level-5{--card-surface:#0b0c10;--card-ink:#e2c37c;--card-body:#d6c7a6;--card-line:#b69a59}
-.membership{grid-template-columns:minmax(0,4fr) minmax(0,6fr);align-items:start;margin-bottom:28px;border:0;gap:24px}
-.member-card{min-width:0;width:100%;min-height:270px;aspect-ratio:1.72;padding:20px;border:1px solid var(--card-line);border-radius:6px;background:var(--card-surface);color:var(--card-ink);overflow:hidden;position:relative}
-.member-card .eyebrow{color:var(--card-body);font-size:9px}.member-top{gap:8px}.member-body{gap:18px;padding:16px 0;min-height:100px}.member-body h2{font-size:28px;margin:6px 0 8px}
-.member-card .vip-tag{color:var(--card-ink)}
-.mark-window,.tier-mark-window{position:relative;overflow:hidden;flex-shrink:0;width:90px;height:90px;background:#0b0c10;border-radius:3px}
-.member-mark,.tier-mark{position:absolute;width:160%;height:160%;max-width:none;left:-30%;top:-20%;object-fit:cover}
-.tier-mark-window{width:42px;height:42px}.level-0 .mark-window,.level-0 .tier-mark-window,.level-2 .mark-window,.level-2 .tier-mark-window{filter:grayscale(1)}.level-1 .mark-window,.level-1 .tier-mark-window{filter:sepia(.35) saturate(.65)}.level-4 .mark-window,.level-4 .tier-mark-window{filter:grayscale(.75)}
-.card-benefits{gap:24px;padding:0 0 14px}.card-benefits>div{border-color:var(--card-line);padding-right:24px}.card-benefits span{font-size:11px}.card-benefits strong{font-size:18px;margin-top:4px}
-.member-card footer.member-owner{display:grid;grid-template-columns:minmax(0,1fr) auto;border-color:var(--card-line);padding-top:12px;gap:16px}.member-owner>div{min-width:0}.member-owner>div:last-child{text-align:right}.member-owner span{display:block;font:500 9px 'DM Mono',monospace;color:var(--card-body)}.member-owner strong{display:block;margin-top:4px;font:500 12px 'DM Mono',monospace;color:var(--card-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.member-card.level-0,.tier-card.level-0{background-image:repeating-linear-gradient(120deg,transparent 0 22px,#aeb7b11a 22px 23px)}
-.member-card.level-2,.tier-card.level-2{background-image:repeating-linear-gradient(0deg,transparent 0 3px,#ffffff40 3px 4px)}
-.member-card.level-3{background-image:linear-gradient(115deg,transparent 38%,#ffffff35 39%,transparent 41%)}
-.member-card.level-4{border-top-width:3px}.member-card.level-5{border:3px double var(--card-line);background-image:linear-gradient(135deg,transparent 60%,#b69a5914 60%,transparent 84%)}
-.member-overview{padding:12px 0;background:transparent}.total{font-size:34px;margin-top:4px}.progress-label{margin-top:18px;font-size:12px}.overview-stats{margin:16px 0 10px}.overview-stats>div{padding:12px 10px}.overview-stats strong{font-size:13px;margin-top:5px}.overview-stats span{font-size:11px}
-.tier-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.tier-card{padding:18px;min-height:252px;background:var(--card-surface);color:var(--card-ink);border-color:var(--card-line);position:relative;overflow:hidden}.tier-card .vip-tag{color:var(--card-ink)}.tier-top{margin-bottom:10px;min-height:42px}.tier-card h3{font-size:21px;margin:10px 0 8px}.threshold{font-size:18px}.tier-card ul{font-size:12px;line-height:1.75;margin-top:12px;color:var(--card-body)}.tier-card li{margin-top:4px}.tier-card.level-5 ul{color:var(--card-body)}.tier-card.level-1{border-top-width:3px}.tier-card.level-3{border-top:3px solid #b99d55}.tier-card.level-4{border-right:4px solid #90b1ac}.tier-card.level-5{border:3px double var(--card-line)}.tier-card.current{outline-offset:2px}.current-label{color:var(--card-ink)}
-.podium article{min-height:140px;padding:18px 22px}.podium h3{margin:14px 0 10px}.seat-list li{padding:13px 8px}.honors{margin-bottom:28px}
-.membership-rules{display:grid;grid-template-columns:160px minmax(0,1fr);gap:28px;border-top:1px solid var(--mg-line-warm,#e7e1d4);margin-top:32px;padding:24px 0}.membership-rules h2{font-size:20px;margin-top:6px}.membership-rules ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;padding-left:16px;list-style:disc;color:var(--mg-muted,#746f65);font-size:12px;line-height:1.8}.membership-rules li{padding-left:3px;overflow-wrap:anywhere}
-:global(.dark) .member-overview{background:transparent}:global(.dark) .tier-card[data-material]{background-color:var(--card-surface)}
-@media(max-width:1100px){.membership{grid-template-columns:1fr}.member-card{max-width:560px;width:100%;min-height:270px}.tier-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.member-card{padding:18px;min-height:255px;aspect-ratio:auto}.member-overview{padding:0}.member-body{gap:16px;padding:14px 0}.member-body h2{font-size:26px}.mark-window{width:80px;height:80px}.member-card .eyebrow{font-size:8px}.total{font-size:30px}.tier-grid{grid-template-columns:1fr}.tier-card{min-height:242px;padding:18px}.membership-rules{grid-template-columns:1fr;gap:16px;margin-top:24px}.membership-rules ul{grid-template-columns:1fr;gap:8px}.member-owner strong{font-size:11px}}
+.vip-page{max-width:1440px;margin:auto;color:var(--mg-ink-900,#24252a);letter-spacing:0}
+h1,h2,h3{font-family:'Noto Serif SC',SimSun,serif;font-weight:600;letter-spacing:0}
+h1{font-size:26px}h2{font-size:22px}h3{font-size:18px}
+.vip-heading,.section-title{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.eyebrow{font:500 11px 'DM Mono',Consolas,monospace;color:var(--mg-gold-700,#927640)}
+.muted,.fine-print{font-size:13px;color:var(--mg-muted,#746f65);line-height:1.8}
+.section-title .muted{margin-top:8px}
+/* The summary shares the card's column width and aspect-ratio geometry. */
+.membership{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,6fr);align-items:start;gap:24px;margin-bottom:28px;container-type:inline-size;--vip-aspect-ratio:1.72;--member-card-height:calc((100cqi - 24px)*.4/var(--vip-aspect-ratio))}
+.member-overview{height:var(--member-card-height);padding:0;display:flex;flex-direction:column;justify-content:space-between}
+.membership-followup{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:16px;flex-wrap:wrap;margin-top:-12px}
+.membership-followup .status-note{flex:1;margin:0}
+.recharge-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.recharge-heading .muted{line-height:20px}
+.total{font:500 34px/1.2 'DM Mono',Consolas,monospace;display:block;margin-top:4px}
+.progress-label{display:flex;justify-content:space-between;gap:16px;font-size:12px;line-height:18px}
+.overview-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0}
+.overview-stats>div{padding:8px 10px;border-top:1px solid var(--mg-line-warm,#e7e1d4)}
+.overview-stats>div:nth-child(n+4){padding-bottom:0}
+.overview-stats span{display:block;font-size:11px;line-height:16px;color:var(--mg-muted,#746f65)}
+.overview-stats strong{display:block;margin-top:5px;font:500 13px/18px 'DM Mono',monospace;overflow-wrap:anywhere}
+progress{width:100%;height:5px;display:block;margin-top:8px;appearance:none;border:none;background:#e7e1d4}
+progress::-webkit-progress-bar{background:#e7e1d4}progress::-webkit-progress-value{background:#aa8c47}progress::-moz-progress-bar{background:#aa8c47}
+.text-link{display:inline-flex;gap:8px;align-items:center;color:var(--mg-gold-700,#765f2c);font-size:13px}
+.honors{margin-bottom:28px}
+.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-block:1px solid var(--mg-line-warm,#e7e1d4);background:var(--mg-gold-50,#fcfaf4)}
+.podium article{padding:18px 22px;border-right:1px solid var(--mg-line-warm,#e7e1d4);min-height:140px}
+.podium article:last-child{border:0}
+.rank{font:500 26px 'DM Mono',monospace;color:var(--mg-gold-700,#927640)}.rank span{font-size:11px}
+.podium h3{margin:14px 0 10px;overflow-wrap:anywhere}
+.seat-list{list-style:none;padding:0}.seat-list li{display:flex;align-items:center;gap:24px;padding:13px 8px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4)}
+.seat-list .rank{font-size:18px}.seat-list strong{font-size:14px;overflow-wrap:anywhere}
+.vip-tag{display:inline-block;font:500 11px 'DM Mono',monospace;border:1px solid currentColor;border-radius:3px;padding:5px 8px;color:var(--tier-color,inherit)}
+.level-0{--tier-color:#7a8d98}.level-1{--tier-color:#ab7955}.level-2{--tier-color:#7d8586}.level-3{--tier-color:#aa8b3e}.level-4{--tier-color:#538286}.level-5{--tier-color:#ceb573}
+.vip-tabs{display:flex;gap:28px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);margin-bottom:28px}
+.vip-tabs button{font-size:15px;padding:14px 0;border-bottom:2px solid transparent;color:var(--mg-muted,#746f65);white-space:nowrap}
+.vip-tabs button.active{color:var(--mg-ink-900,#24252a);border-color:#aa8c47}
+.tier-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tier-card.current{outline:1px solid #aa8c47;outline-offset:3px}
+.fine-print{font-size:12px;margin-top:20px}
+.reward-row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,2fr) auto;align-items:center;gap:24px;border:1px solid var(--mg-line-warm,#e7e1d4);border-radius:6px;padding:20px 24px;margin-bottom:12px;background:var(--mg-surface,#fff)}
+.reward-description{display:flex;align-items:center;gap:24px}
+.diamond{flex-shrink:0;border:1px solid currentColor;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;margin:12px}
+.diamond :deep(svg){transform:rotate(-45deg)}
+.reward-description .diamond{width:40px;height:40px;color:#a38b58}
+.reward-description p{margin-top:6px}
+.reward-amount strong{display:block;font:500 25px 'DM Mono',monospace}
+.reward-amount span{display:block;margin-top:4px}
+.reward-status{font-size:12px;color:var(--mg-muted,#746f65);border:1px solid var(--mg-line-warm,#e7e1d4);padding:8px 12px;border-radius:4px}
+.status-note{padding:12px 16px;margin:16px 0;border-left:2px solid #aa8c47;background:var(--mg-gold-50,#fcfaf4);font-size:13px;line-height:1.8}
+.status-note button{margin-left:12px}.empty{padding:32px 0;color:var(--mg-muted,#746f65);font-size:13px}
+.table-overflow{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:14px 12px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);text-align:left}td:last-child{font-family:'DM Mono',monospace}
+.membership-rules{display:grid;grid-template-columns:160px minmax(0,1fr);gap:28px;border-top:1px solid var(--mg-line-warm,#e7e1d4);margin-top:32px;padding:24px 0}
+.membership-rules h2{font-size:20px;margin-top:6px}
+.membership-rules ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;padding-left:16px;list-style:disc;color:var(--mg-muted,#746f65);font-size:12px;line-height:1.8}
+.membership-rules li{padding-left:3px;overflow-wrap:anywhere}
+:global(.dark) .reward-row{background:#191a1d}:global(.dark) .podium,:global(.dark) .status-note{background:#20201e}
+@media(min-width:1800px){.tier-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1240px){.membership{grid-template-columns:1fr}.member-card{max-width:560px}.member-overview{height:auto;padding:0;gap:18px}.total{margin-top:4px}}
+@media(max-width:760px){.tier-grid{grid-template-columns:1fr}}
+@media(max-width:640px){
+ .vip-heading{align-items:flex-start}h1{font-size:23px}.member-overview{padding:0}.total{font-size:30px}.overview-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .overview-stats>div:nth-child(n+4){padding-bottom:8px}.overview-stats>div:nth-child(n+5){padding-bottom:0}
+ .podium{grid-template-columns:1fr}.podium article{min-height:130px;border-right:0;border-bottom:1px solid var(--mg-line-warm,#e7e1d4)}.seat-list li{gap:14px;flex-wrap:wrap}
+ .reward-row{grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px}.reward-description{grid-column:1/-1;gap:16px}.reward-description h3{font-size:16px}.reward-amount strong{font-size:22px}
+ .vip-tabs{gap:24px}.section-title{align-items:flex-start}.membership-rules{grid-template-columns:1fr;gap:16px;margin-top:24px}.membership-rules ul{grid-template-columns:1fr;gap:8px}
+}
 </style>
