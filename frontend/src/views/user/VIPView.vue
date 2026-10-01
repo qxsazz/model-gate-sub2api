@@ -51,9 +51,8 @@
           <p v-if="claimMessage" class="status-note" role="status">{{ claimMessage }}</p>
           <p v-if="membershipError" class="status-note" role="alert">{{ membershipError }}</p>
           <div v-for="reward in membership?.rewards || []" :key="reward.level" class="reward-row">
-            <div class="reward-description"><div class="diamond"><Icon :name="reward.status === 'available' ? 'gift' : reward.status === 'claimed' ? 'check' : 'lock'" size="lg" /></div><div><h3>VIP {{ reward.level }} {{ levelName(reward.level) }}</h3><p class="muted">累计有效充值达到 ${{ money(reward.threshold) }}</p></div></div>
-            <div class="reward-amount"><strong>${{ money(reward.amount) }}</strong><span class="muted">余额奖励</span></div>
-            <button v-if="reward.status === 'available'" class="btn btn-primary" :data-claim="reward.level" :disabled="claiming !== null" @click="claim(reward.level)"><Icon name="gift" size="sm" />{{ claiming === reward.level ? '领取中…' : '领取奖励' }}</button><span v-else class="reward-status">{{ statusLabel(reward.status) }}</span>
+            <div class="reward-description"><div class="diamond"><Icon :name="reward.status === 'available' ? 'gift' : reward.status === 'claimed' ? 'check' : 'lock'" size="sm" /></div><div><h3>VIP {{ reward.level }} {{ levelName(reward.level) }}</h3><p class="muted">累计充值满 ${{ money(reward.threshold) }}</p></div></div>
+            <div class="reward-actions"><div class="reward-amount"><strong>${{ money(reward.amount) }}</strong><span class="muted">余额奖励</span></div><button v-if="reward.status === 'available'" class="btn btn-primary" :data-claim="reward.level" :disabled="claiming !== null" @click="claim(reward.level)"><Icon name="gift" size="sm" />{{ claiming === reward.level ? '领取中…' : '领取奖励' }}</button><span v-else class="reward-status">{{ statusLabel(reward.status) }}</span></div>
           </div>
           <p class="fine-print">奖励不计入累计充值，不产生邀请返利。退款或后台退费跌破门槛时追回对应奖励，领取记录保留，再次达标不重复发放。</p>
         </section>
@@ -181,18 +180,22 @@ progress::-webkit-progress-bar{background:#e7e1d4}progress::-webkit-progress-val
 .vip-tabs{display:flex;gap:28px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);margin-bottom:28px}
 .vip-tabs button{font-size:15px;padding:14px 0;border-bottom:2px solid transparent;color:var(--mg-muted,#746f65);white-space:nowrap}
 .vip-tabs button.active{color:var(--mg-ink-900,#24252a);border-color:#aa8c47}
-.tier-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tier-grid{display:grid;grid-template-columns:repeat(2,minmax(0,calc((100% - 24px)*.4)));gap:24px}
 .tier-card.current{outline:1px solid #aa8c47;outline-offset:3px}
 .fine-print{font-size:12px;margin-top:20px}
-.reward-row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,2fr) auto;align-items:center;gap:24px;border:1px solid var(--mg-line-warm,#e7e1d4);border-radius:6px;padding:20px 24px;margin-bottom:12px;background:var(--mg-surface,#fff)}
-.reward-description{display:flex;align-items:center;gap:24px}
+.reward-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;width:calc((100% - 24px)*.8 + 24px);max-width:100%;border:1px solid var(--mg-line-warm,#e7e1d4);border-radius:6px;padding:12px 16px;margin-bottom:8px;background:var(--mg-surface,#fff)}
+.reward-description{display:flex;align-items:center;gap:12px;min-width:0}
+.reward-description h3{font-size:14px;line-height:20px}
 .diamond{flex-shrink:0;border:1px solid currentColor;transform:rotate(45deg);display:flex;align-items:center;justify-content:center;margin:12px}
 .diamond :deep(svg){transform:rotate(-45deg)}
-.reward-description .diamond{width:40px;height:40px;color:#a38b58}
-.reward-description p{margin-top:6px}
-.reward-amount strong{display:block;font:500 25px 'DM Mono',monospace}
-.reward-amount span{display:block;margin-top:4px}
-.reward-status{font-size:12px;color:var(--mg-muted,#746f65);border:1px solid var(--mg-line-warm,#e7e1d4);padding:8px 12px;border-radius:4px}
+.reward-description .diamond{width:24px;height:24px;margin:5px;color:#a38b58}
+.reward-description p{margin-top:2px;font-size:11px;line-height:16px}
+.reward-actions{display:flex;align-items:center;justify-self:end;gap:10px}
+.reward-amount{min-width:72px;text-align:right}
+.reward-amount strong{display:block;font:500 20px/24px 'DM Mono',monospace}
+.reward-amount span{display:block;margin-top:2px;font-size:11px;line-height:16px}
+.reward-status{font-size:11px;color:var(--mg-muted,#746f65);border:1px solid var(--mg-line-warm,#e7e1d4);padding:6px 10px;border-radius:4px;width:94px;text-align:center}
+.reward-row .btn{justify-self:end;min-height:36px;width:94px;padding:6px 10px;font-size:12px;gap:6px;white-space:nowrap}
 .status-note{padding:12px 16px;margin:16px 0;border-left:2px solid #aa8c47;background:var(--mg-gold-50,#fcfaf4);font-size:13px;line-height:1.8}
 .status-note button{margin-left:12px}.empty{padding:32px 0;color:var(--mg-muted,#746f65);font-size:13px}
 .table-overflow{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:14px 12px;border-bottom:1px solid var(--mg-line-warm,#e7e1d4);text-align:left}td:last-child{font-family:'DM Mono',monospace}
@@ -201,14 +204,14 @@ progress::-webkit-progress-bar{background:#e7e1d4}progress::-webkit-progress-val
 .membership-rules ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;padding-left:16px;list-style:disc;color:var(--mg-muted,#746f65);font-size:12px;line-height:1.8}
 .membership-rules li{padding-left:3px;overflow-wrap:anywhere}
 :global(.dark) .reward-row{background:#191a1d}:global(.dark) .podium,:global(.dark) .status-note{background:#20201e}
-@media(min-width:1800px){.tier-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1240px){.tier-grid{grid-template-columns:minmax(0,min(100%,560px))}}
+@media(max-width:1240px){.reward-row{width:100%;max-width:560px}}
 @media(max-width:1240px){.membership{grid-template-columns:1fr}.member-card{max-width:560px}.member-overview{height:auto;padding:0;gap:18px}.total{margin-top:4px}}
-@media(max-width:760px){.tier-grid{grid-template-columns:1fr}}
 @media(max-width:640px){
  .vip-heading{align-items:flex-start}h1{font-size:23px}.member-overview{padding:0}.total{font-size:30px}.overview-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
  .overview-stats>div:nth-child(n+4){padding-bottom:8px}.overview-stats>div:nth-child(n+5){padding-bottom:0}
  .podium{grid-template-columns:1fr}.podium article{min-height:130px;border-right:0;border-bottom:1px solid var(--mg-line-warm,#e7e1d4)}.seat-list li{gap:14px;flex-wrap:wrap}
- .reward-row{grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px}.reward-description{grid-column:1/-1;gap:16px}.reward-description h3{font-size:16px}.reward-amount strong{font-size:22px}
+ .reward-row{gap:8px;padding:10px}.reward-description{gap:8px}.reward-description h3{font-size:13px}.reward-description .diamond{display:none}.reward-amount{min-width:62px}.reward-amount strong{font-size:17px;line-height:22px}.reward-actions{gap:8px}.reward-row .btn{width:86px;padding:6px 8px;font-size:11px}.reward-status{width:86px}
  .vip-tabs{gap:24px}.section-title{align-items:flex-start}.membership-rules{grid-template-columns:1fr;gap:16px;margin-top:24px}.membership-rules ul{grid-template-columns:1fr;gap:8px}
 }
 </style>

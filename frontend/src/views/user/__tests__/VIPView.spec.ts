@@ -17,6 +17,8 @@ describe('VIP center', () => {
   expect(wrapper.text()).toContain('17***')
   await wrapper.get('[data-tab="rewards"]').trigger('click')
   expect(wrapper.text()).toContain('$1.00')
+  expect(wrapper.get('.reward-actions').get('.reward-amount').text()).toContain('$1.00')
+  expect(wrapper.get('.reward-actions').get('[data-claim="1"]').text()).toContain('领取奖励')
   claimMock.mockResolvedValue({amount:1})
   await wrapper.get('[data-claim="1"]').trigger('click'); await flushPromises()
   expect(claimMock).toHaveBeenCalledWith(1)
