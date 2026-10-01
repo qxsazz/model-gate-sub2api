@@ -374,6 +374,9 @@ func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, invit
 	}
 
 	rebateRatePercent := s.resolveRebateRatePercent(ctx, inviterSummary)
+	if fixed, ok := ctx.Value(vipRebateSnapshotContextKey{}).(float64); ok {
+		rebateRatePercent = fixed
+	}
 	rebate := roundTo(baseRechargeAmount*(rebateRatePercent/100), 8)
 	if rebate <= 0 {
 		return 0, nil
@@ -419,6 +422,19 @@ func (s *AffiliateService) resolveRebateRatePercent(ctx context.Context, inviter
 			return s.globalRebateRatePercent(ctx)
 		}
 		return clampAffiliateRebateRate(v)
+	}
+	if inviter != nil {
+		if vip, ok := s.repo.(interface {
+			VIPRebatePercent(context.Context, int64) (float64, bool, error)
+		}); ok {
+			rate, enabled, err := vip.VIPRebatePercent(ctx, inviter.UserID)
+			if err != nil {
+				return 0
+			}
+			if enabled {
+				return rate
+			}
+		}
 	}
 	return s.globalRebateRatePercent(ctx)
 }

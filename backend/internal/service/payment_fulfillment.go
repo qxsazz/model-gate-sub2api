@@ -661,6 +661,13 @@ func (s *PaymentService) hasAuditLog(ctx context.Context, orderID int64, action 
 
 func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *dbent.PaymentOrder) error {
 	baseAmount := affiliateRebateBaseAmount(o)
+	if o != nil {
+		if value, ok := o.ProviderSnapshot["vip_principal_usd"]; ok {
+			if principal, ok := value.(float64); ok {
+				baseAmount = principal
+			}
+		}
+	}
 	if o == nil || baseAmount <= 0 {
 		return nil
 	}
@@ -678,6 +685,11 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 	defer func() { _ = tx.Rollback() }()
 
 	txCtx := dbent.NewTxContext(ctx, tx)
+	if value, ok := o.ProviderSnapshot["vip_rebate_percent"]; ok {
+		if rate, ok := value.(float64); ok {
+			txCtx = context.WithValue(txCtx, vipRebateSnapshotContextKey{}, rate)
+		}
+	}
 	claimed, err := s.tryClaimAffiliateRebateAudit(txCtx, tx.Client(), o.ID, baseAmount)
 	if err != nil {
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{

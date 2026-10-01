@@ -45,6 +45,21 @@ func (r *userGroupRateResolver) Resolve(ctx context.Context, userID, groupID int
 	if r == nil || userID <= 0 || groupID <= 0 {
 		return groupDefaultMultiplier
 	}
+	if vip, ok := r.repo.(interface {
+		VIPEffectiveRate(context.Context, int64, int64) (*float64, bool, error)
+	}); ok {
+		rate, active, err := vip.VIPEffectiveRate(ctx, userID, groupID)
+		if active && err == nil {
+			if rate != nil {
+				return *rate
+			}
+			return groupDefaultMultiplier
+		}
+		if err != nil {
+			logger.LegacyPrintf(r.logComponent, "VIP rate unavailable: %v", err)
+			return groupDefaultMultiplier
+		}
+	}
 
 	key := fmt.Sprintf("%d:%d", userID, groupID)
 	if r.cache != nil {

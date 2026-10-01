@@ -584,6 +584,12 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 }
 
 func (s *adminServiceImpl) tryAccrueAffiliateRebateForAdminRecharge(ctx context.Context, userID int64, operation string, amount float64) {
+	if repo, ok := s.userRepo.(VIPRepository); ok {
+		rules, err := repo.VIPRules(ctx)
+		if err != nil || rules.Enabled {
+			return
+		}
+	}
 	if operation != "add" || amount <= 0 || s.settingService == nil || s.affiliateService == nil {
 		return
 	}

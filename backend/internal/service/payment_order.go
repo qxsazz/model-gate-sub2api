@@ -171,6 +171,26 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, err
 	}
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
+	if repo, ok := s.userRepo.(VIPRepository); ok && req.OrderType == "balance" {
+		rules, configErr := repo.VIPRules(ctx)
+		if configErr != nil {
+			return nil, fmt.Errorf("load VIP payment snapshot: %w", configErr)
+		}
+		currency := payment.DefaultPaymentCurrency
+		if sel != nil {
+			currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+		}
+		if fx, exists := rules.ExchangeRates[currency]; exists {
+			if providerSnapshot == nil {
+				providerSnapshot = map[string]any{}
+			}
+			providerSnapshot["vip_principal_usd"] = limitAmount * fx
+			providerSnapshot["vip_fx"] = fx
+			providerSnapshot["vip_currency"] = currency
+		} else if rules.Enabled {
+			return nil, fmt.Errorf("VIP exchange rate is not configured for %s", currency)
+		}
+	}
 	selectedInstanceID := ""
 	selectedProviderKey := ""
 	if sel != nil {
