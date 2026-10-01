@@ -942,11 +942,13 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 // 并发的计费扣款不会被旧快照覆盖。
 func (r *userRepository) AdjustBalance(ctx context.Context, id int64, delta float64) (service.BalanceChange, error) {
 	const updateSQL = `
-	 WITH changed AS (
-		UPDATE users
-		SET balance = balance + $1, updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance + $1 >= 0
-		RETURNING id,balance - $1 AS old_balance, balance AS new_balance
+	 WITH previous AS (
+ SELECT id,balance FROM users WHERE id=$2 AND deleted_at IS NULL FOR UPDATE
+ ), changed AS (
+		UPDATE users AS u
+		SET balance = previous.balance + $1, updated_at = NOW()
+		FROM previous WHERE u.id=previous.id AND previous.balance + $1 >= 0
+		RETURNING u.id,previous.balance AS old_balance,u.balance AS new_balance
  ), recorded AS (
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason)
  SELECT id,'admin_balance',gen_random_uuid()::text,$1,'Backend balance adjustment' FROM changed WHERE $1<>0
@@ -983,12 +985,12 @@ func (r *userRepository) SetBalance(ctx context.Context, id int64, value float64
 	 WITH changed AS (
 		UPDATE users AS u
 		SET balance = $1, updated_at = NOW()
-		FROM (SELECT id, balance FROM users WHERE id = $2 AND deleted_at IS NULL) AS prev
+		FROM (SELECT id, balance FROM users WHERE id = $2 AND deleted_at IS NULL FOR UPDATE) AS prev
 		WHERE u.id = prev.id AND u.deleted_at IS NULL
 		RETURNING u.id,prev.balance AS old_balance,u.balance AS new_balance
  ), recorded AS (
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason)
- SELECT id,'admin_balance',gen_random_uuid()::text,new_balance-old_balance,'Backend balance set' FROM changed WHERE new_balance<>old_balance
+ SELECT id,'admin_balance',gen_random_uuid()::text,$1-old_balance,'Backend balance set' FROM changed WHERE $1<>old_balance
  RETURNING id)
  SELECT old_balance,new_balance FROM changed
 	`

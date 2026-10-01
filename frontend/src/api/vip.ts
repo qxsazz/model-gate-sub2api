@@ -6,6 +6,10 @@ export interface VIPRules { enabled: boolean; currency: string; access_threshold
 export interface VIPOverride { benefit: string; value: number; expires_at: string | null; reason: string }
 export interface VIPGroup { id: number; name: string; platform: string; exclusive: boolean; subscription: string; base_rate: number; rate: number; granted: boolean; participating: boolean }
 export interface VIPSnapshot { enabled: boolean; total: number; tier: VIPTier; badge_level: number; concurrency: number; rpm: number; rebate_percent: number; next: VIPTier | null; rules: VIPRules; groups: VIPGroup[]; ledger: { id: number; source: string; amount: number; reason: string; created_at: string }[]; overrides: VIPOverride[] }
+export interface VIPReward { level: number; threshold: number; amount: number; status: 'locked' | 'available' | 'claimed' | 'revoked' }
+export interface VIPMembership { rewards: VIPReward[]; seats: { name: string; level: number }[]; debt: number; claimed: number; discount_summaries: Record<number, number[]> }
+export async function getVIPMembership(): Promise<VIPMembership> { const { data } = await apiClient.get<VIPMembership>('/user/vip/membership'); return data }
+export async function claimVIPReward(level: number): Promise<{amount: number}> { const { data } = await apiClient.post<{amount: number}>(`/user/vip/rewards/${level}/claim`); return data }
 export async function getVIP(userId?: number): Promise<VIPSnapshot> {
  const { data } = await apiClient.get<VIPSnapshot>(userId ? `/admin/vip/users/${userId}` : '/user/vip'); return data
 }

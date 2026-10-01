@@ -8,6 +8,38 @@ import (
 	"strconv"
 )
 
+func (h *UserHandler) GetVIPMembership(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthenticated")
+		return
+	}
+	data, err := h.userService.GetVIPMembership(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, data)
+}
+func (h *UserHandler) ClaimVIPReward(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthenticated")
+		return
+	}
+	level, err := strconv.Atoi(c.Param("level"))
+	if err != nil {
+		response.BadRequest(c, "Invalid milestone")
+		return
+	}
+	amount, err := h.userService.ClaimVIPReward(c.Request.Context(), subject.UserID, level)
+	if err != nil {
+		response.BadRequest(c, "奖励暂不可领取，请刷新会员中心确认资格。")
+		return
+	}
+	response.Success(c, map[string]float64{"amount": amount})
+}
+
 func (h *UserHandler) GetVIP(c *gin.Context) {
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {

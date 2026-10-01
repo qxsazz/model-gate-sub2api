@@ -39,3 +39,11 @@ badge implements the approved Model-Gate dark/champagne style, not copied assets
 
 Production remains disabled until an explicit production release and configuration
 review. This PR targets staging; merging to main is a separate action.
+
+## VIP 奖励与展示更新
+
+新增迁移 `242_vip_rewards.sql`：每档按门槛的 1% 一次性手动领取（当前 $1/$3/$6/$15/$30）。领取与余额入账原子完成，奖励不计入成长额、不产生邀请佣金。退款或后台退费跌破历史领取门槛时追回；余额不足记债务，由后续入账抵扣，永不重置领取资格。
+
+用户新增 `/user/vip/membership`（奖励状态、脱敏荣誉席位、优惠摘要）和 `/user/vip/rewards/:level/claim`（本人领取）。荣誉席位不暴露充值金额、ID 或原始身份。旧有人工分组授权与独立倍率继续保留。
+
+SQL 冒烟：在 BEGIN/ROLLBACK 内依次执行迁移和 `internal/repository/testdata/vip_reward_smoke.sql`，不得将测试脚本直接用于生产。
