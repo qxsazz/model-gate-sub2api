@@ -168,7 +168,11 @@ func (r *userGroupRateResolver) ResolveStrict(ctx context.Context, userID, group
 			userGroupRateCacheFallbackTotal.Add(1)
 			return 0, ErrVIPRateUnavailable.WithCause(err)
 		}
-		entry = value.(strictRateCacheEntry)
+		var valid bool
+		entry, valid = value.(strictRateCacheEntry)
+		if !valid {
+			return 0, ErrVIPRateUnavailable
+		}
 	}
 	manual := entry.manual
 	if manual != nil {
