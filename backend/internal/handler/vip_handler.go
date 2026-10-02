@@ -1,6 +1,7 @@
 package handler
 
 import (
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -22,6 +23,7 @@ func (h *UserHandler) GetVIPMembership(c *gin.Context) {
 	response.Success(c, data)
 }
 func (h *UserHandler) ClaimVIPReward(c *gin.Context) {
+	middleware.SetAuditAction(c, "user.vip.rewards.claim.create")
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "Unauthenticated")
@@ -29,14 +31,29 @@ func (h *UserHandler) ClaimVIPReward(c *gin.Context) {
 	}
 	level, err := strconv.Atoi(c.Param("level"))
 	if err != nil {
-		response.BadRequest(c, "Invalid milestone")
+		middleware.SetAuditExtra(c, map[string]any{"result": "rejected", "error_code": "VIP_REWARD_INVALID_LEVEL"})
+		response.ErrorFrom(c, service.ErrVIPRewardInvalidLevel)
 		return
 	}
+	middleware.SetAuditExtra(c, map[string]any{"reward_level": level})
 	amount, err := h.userService.ClaimVIPReward(c.Request.Context(), subject.UserID, level)
 	if err != nil {
-		response.BadRequest(c, "奖励暂不可领取，请刷新会员中心确认资格。")
+		if infraerrors.Reason(err) == "" {
+			err = service.ErrVIPRewardUnavailable.WithCause(err)
+		}
+		result := "rejected"
+		if infraerrors.Code(err) >= 500 {
+			result = "failed"
+		}
+		middleware.SetAuditExtra(c, map[string]any{"result": result, "error_code": infraerrors.Reason(err)})
+		response.ErrorFrom(c, err)
 		return
 	}
+	result := "credited"
+	if amount == 0 {
+		result = "already_claimed"
+	}
+	middleware.SetAuditExtra(c, map[string]any{"result": result, "reward_amount": amount})
 	response.Success(c, map[string]float64{"amount": amount})
 }
 

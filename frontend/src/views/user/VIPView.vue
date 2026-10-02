@@ -138,7 +138,7 @@ async function load() {
 async function claim(level: number) {
   if (claiming.value !== null) return
   claiming.value = level; claimMessage.value = ''
-  try { const result = await claimVIPReward(level); claimMessage.value = result.amount > 0 ? `奖励 $${money(result.amount)} 已入账。` : '该档奖励已领取，请勿重复领取。'; await load(); await authStore.refreshUser().catch(() => undefined) } catch { claimMessage.value = '领取失败，请刷新确认资格后重试。' } finally { claiming.value = null }
+  try { const result = await claimVIPReward(level); claimMessage.value = result.amount > 0 ? `奖励 $${money(result.amount)} 已入账。` : '该档奖励已领取，请勿重复领取。'; await load(); await authStore.refreshUser().catch(() => undefined) } catch (failure) { const detail = failure as {reason?: string; message?: string}; const known = typeof detail?.reason === 'string' && detail.reason.startsWith('VIP_REWARD_'); claimMessage.value = known && typeof detail.message === 'string' ? detail.message : '领取失败，请稍后重试。'; if (known) await load() } finally { claiming.value = null }
 }
 onMounted(load)
 </script>

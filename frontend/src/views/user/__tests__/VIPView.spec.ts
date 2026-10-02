@@ -22,6 +22,9 @@ describe('VIP center', () => {
   claimMock.mockResolvedValue({amount:1})
   await wrapper.get('[data-claim="1"]').trigger('click'); await flushPromises()
   expect(claimMock).toHaveBeenCalledWith(1)
+  claimMock.mockRejectedValueOnce({reason:'VIP_REWARD_THRESHOLD_NOT_REACHED',message:'累计有效充值未达到该档奖励门槛。'})
+  await wrapper.get('[data-claim="1"]').trigger('click'); await flushPromises()
+  expect(wrapper.get('[role="status"]').text()).toContain('累计有效充值未达到')
  })
  it('does not display zero recharge when the request fails', async () => {
   getMock.mockRejectedValue(new Error('network'))

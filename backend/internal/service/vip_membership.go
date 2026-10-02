@@ -3,7 +3,18 @@ package service
 import (
 	"context"
 	"fmt"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"net/http"
 	"strings"
+)
+
+var (
+	ErrVIPRewardAccountUnavailable = infraerrors.New(http.StatusForbidden, "VIP_REWARD_ACCOUNT_UNAVAILABLE", "账号已停用或不可用，无法领取奖励。")
+	ErrVIPRewardDisabled           = infraerrors.New(http.StatusConflict, "VIP_REWARD_DISABLED", "VIP 权益尚未启用，暂不能领取奖励。")
+	ErrVIPRewardInvalidLevel       = infraerrors.New(http.StatusBadRequest, "VIP_REWARD_INVALID_LEVEL", "奖励档位无效，请刷新会员中心。")
+	ErrVIPRewardThreshold          = infraerrors.New(http.StatusBadRequest, "VIP_REWARD_THRESHOLD_NOT_REACHED", "累计有效充值未达到该档奖励门槛。")
+	ErrVIPRewardConfig             = infraerrors.New(http.StatusInternalServerError, "VIP_REWARD_CONFIG_INVALID", "奖励配置异常，请联系管理员。")
+	ErrVIPRewardUnavailable        = infraerrors.New(http.StatusInternalServerError, "VIP_REWARD_UNAVAILABLE", "奖励服务暂时不可用，请稍后重试。")
 )
 
 type VIPReward struct {
@@ -50,11 +61,11 @@ func (s *UserService) GetVIPMembership(ctx context.Context, id int64) (*VIPMembe
 }
 func (s *UserService) ClaimVIPReward(ctx context.Context, id int64, level int) (float64, error) {
 	if level < 1 || level > 5 {
-		return 0, fmt.Errorf("invalid milestone")
+		return 0, ErrVIPRewardInvalidLevel
 	}
 	r, ok := s.userRepo.(VIPMembershipRepository)
 	if !ok {
-		return 0, fmt.Errorf("VIP membership unavailable")
+		return 0, ErrVIPRewardUnavailable
 	}
 	amount, err := r.VIPClaimReward(ctx, id, level)
 	if err == nil {

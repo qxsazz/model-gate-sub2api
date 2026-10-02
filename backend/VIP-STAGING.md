@@ -47,3 +47,11 @@ review. This PR targets staging; merging to main is a separate action.
 用户新增 `/user/vip/membership`（奖励状态、脱敏荣誉席位、优惠摘要）和 `/user/vip/rewards/:level/claim`（本人领取）。荣誉席位不暴露充值金额、ID 或原始身份。旧有人工分组授权与独立倍率继续保留。
 
 SQL 冒烟：在 BEGIN/ROLLBACK 内依次执行迁移和 `internal/repository/testdata/vip_reward_smoke.sql`，不得将测试脚本直接用于生产。
+
+## 管理员本人领奖与错误审计
+
+新增迁移 `243_vip_admin_reward_claim.sql`，不改写已发布的迁移 242。正常管理员与普通用户按相同累计有效充值门槛领取本人奖励；停用、删除账号仍被拒绝。唯一领取记录、退款追回及债务抵扣规则不变，不补发旧的失败请求。
+
+领奖操作日志保留原动作 `user.vip.rewards.claim.create`，额外记录 `reward_level`、`result`、成功时的 `reward_amount` 或失败时的 `error_code`。重复领取为成功幂等响应，记录 `already_claimed` 与金额 0。未达门槛为 400，账号不可用为 403，VIP 未启用为 409，数据库／配置异常为 500；错误原因可供前端显示，内部 SQL 信息不返回客户端、不加入审计附加信息。
+
+在事务回滚内执行迁移 243 与 `internal/repository/testdata/vip_admin_reward_smoke.sql` 验证管理员资格，执行原奖励冒烟脚本验证普通用户回归。生产发布仍须另行确认。

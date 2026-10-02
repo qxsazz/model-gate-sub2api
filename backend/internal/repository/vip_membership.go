@@ -2,25 +2,54 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 	"sort"
 )
 
+func vipRewardError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var dbErr *pq.Error
+	if errors.As(err, &dbErr) && dbErr.Code == "P0001" {
+		switch dbErr.Message {
+		case "User unavailable":
+			return service.ErrVIPRewardAccountUnavailable.WithCause(err)
+		case "VIP disabled":
+			return service.ErrVIPRewardDisabled.WithCause(err)
+		case "Invalid milestone":
+			return service.ErrVIPRewardInvalidLevel.WithCause(err)
+		case "Milestone not reached":
+			return service.ErrVIPRewardThreshold.WithCause(err)
+		case "Invalid reward":
+			return service.ErrVIPRewardConfig.WithCause(err)
+		}
+	}
+	return service.ErrVIPRewardUnavailable.WithCause(err)
+}
+
 func (r *userRepository) VIPClaimReward(ctx context.Context, id int64, level int) (float64, error) {
 	rows, err := r.sql.QueryContext(ctx, `SELECT vip_claim_reward($1,$2)`, id, level)
 	if err != nil {
-		return 0, err
+		return 0, vipRewardError(err)
 	}
 	defer func() { _ = rows.Close() }()
 	var amount float64
-	if rows.Next() {
-		err = rows.Scan(&amount)
+	if !rows.Next() {
+		if err = rows.Err(); err != nil {
+			return 0, vipRewardError(err)
+		}
+		return 0, vipRewardError(sql.ErrNoRows)
 	}
+	err = rows.Scan(&amount)
 	if err != nil {
-		return 0, err
+		return 0, vipRewardError(err)
 	}
-	return amount, rows.Err()
+	return amount, vipRewardError(rows.Err())
 }
 func (r *userRepository) VIPMembership(ctx context.Context, id int64) (*service.VIPMembership, error) {
 	snapshot, err := r.VIPSnapshot(ctx, id)
