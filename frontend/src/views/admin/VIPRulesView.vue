@@ -29,7 +29,7 @@
               <label v-for="(_, currency) in rules.exchange_rates" :key="currency" class="vip-field">{{ currency }} → USD<input v-model.number="rules.exchange_rates[currency]" type="number" min="0.000001" step="0.000001" class="input" :disabled="busy" /></label>
               <div class="vip-field"><label for="vip-new-currency">新增币种</label><div class="flex gap-2"><input id="vip-new-currency" v-model="newCurrency" maxlength="3" class="input min-w-0" :disabled="busy" /><button type="button" class="btn btn-secondary" :disabled="busy" @click="addCurrency">添加</button></div></div>
             </div>
-            <p class="vip-note">换算值须按实际支付口径确认。未配置的支付币种在启用 VIP 后不能创建充值订单；老订单不自动回填。</p>
+            <p class="vip-note">换算仅用于累计充值成长，不包含余额加赠。新订单保存下单时的换算值；未配置币种在启用 VIP 后无法创建余额充值订单，历史订单不自动回填。</p>
           </section>
           <section class="vip-section">
             <h2>等级阶梯</h2>

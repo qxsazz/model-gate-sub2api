@@ -30,7 +30,7 @@ type VIPRules struct {
 }
 
 func DefaultVIPRules() VIPRules {
-	return VIPRules{Currency: "USD", ExchangeRates: map[string]float64{"USD": 1}, AccessThreshold: 100, Groups: []VIPGroupRule{}, Tiers: []VIPTier{
+	return VIPRules{Currency: "USD", ExchangeRates: map[string]float64{"USD": 1, "CNY": 1}, AccessThreshold: 100, Groups: []VIPGroupRule{}, Tiers: []VIPTier{
 		{1, 100, 8, 0, 2}, {2, 300, 12, 0, 4}, {3, 600, 16, 0, 6}, {4, 1500, 20, 0, 8}, {5, 3000, 30, 0, 10},
 	}}
 }

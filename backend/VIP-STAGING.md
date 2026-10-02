@@ -40,6 +40,12 @@ badge implements the approved Model-Gate dark/champagne style, not copied assets
 Production remains disabled until an explicit production release and configuration
 review. This PR targets staging; merging to main is a separate action.
 
+## CNY 成长换算
+
+用户确认平台成长换算为 1 CNY = 1 USD 成长额，不作为市场汇率报价。新增迁移 244 仅在未配置 CNY 时补入 1，保留人工汇率和 VIP 启用状态。支付快照使用加赠及手续费前的本金，以十进制计算并按成长流水的八位精度保存。例如本金 100、余额加赠 5% 时，余额到账 105，成长增加 100。
+
+迁移不修改历史订单或余额。旧订单没有 `vip_principal_usd` 快照，不会自动产生历史成长记录。若以后回填，应按订单核对本金与退款并保留订单关联，避免重复计入；仅用 `opening` 汇总初始记录不会自动补齐原订单的退款关联。生产实际配置在该版本经发布和迁移后才生效。
+
 ## VIP 奖励与展示更新
 
 新增迁移 `242_vip_rewards.sql`：每档按门槛的 1% 一次性手动领取（当前 $1/$3/$6/$15/$30）。领取与余额入账原子完成，奖励不计入成长额、不产生邀请佣金。退款或后台退费跌破历史领取门槛时追回；余额不足记债务，由后续入账抵扣，永不重置领取资格。

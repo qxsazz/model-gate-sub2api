@@ -136,7 +136,7 @@ function article(
     title,
     description,
     source,
-    updatedAt: ['service', 'security', 'faq', 'http-errors', 'network', 'records', 'account-issues'].includes(slug) ? '2026-10-02' : '2026-10-01',
+    updatedAt: ['service', 'security', 'faq', 'http-errors', 'network', 'records', 'account-issues', 'recharge'].includes(slug) ? '2026-10-02' : '2026-10-01',
     status,
     collapsedHeadings: optionalSections[slug] || [],
   }
