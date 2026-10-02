@@ -22,6 +22,7 @@
             <h2>功能与计量</h2>
             <div class="vip-fields">
               <label class="vip-field">自动权益<span class="flex h-10 items-center gap-2"><input v-model="rules.enabled" type="checkbox" :disabled="busy" />启用自动权益</span></label>
+              <label class="vip-field">充值加赠<span class="flex h-10 items-center gap-2"><input v-model="rules.recharge_bonus_enabled" type="checkbox" :disabled="busy" />按充值成长等级加赠</span></label>
               <label class="vip-field">专属组门槛<input v-model.number="rules.access_threshold" type="number" min="100" class="input" :disabled="busy" /></label>
               <label class="vip-field">计量单位<input :value="rules.currency" readonly class="input" /></label>
             </div>
@@ -34,16 +35,18 @@
           <section class="vip-section">
             <h2>等级阶梯</h2>
             <div class="vip-table-wrap"><table class="vip-table">
-              <thead><tr><th>等级</th><th>累计充值</th><th>并发目标</th><th>RPM 目标</th><th>邀请返利 %</th></tr></thead>
+              <thead><tr><th>等级</th><th>累计充值</th><th>并发目标</th><th>RPM 目标</th><th>邀请返利 %</th><th>充值加赠 %</th></tr></thead>
               <tbody><tr v-for="tier in rules.tiers" :key="tier.level">
                 <td class="whitespace-nowrap font-medium">VIP {{ tier.level }}</td>
                 <td><input v-model.number="tier.threshold" :data-threshold="tier.level" :aria-label="`VIP ${tier.level} 累计充值门槛`" type="number" :readonly="tier.level === 1" min="100" class="input" :disabled="busy" /></td>
                 <td><input v-model.number="tier.concurrency" :aria-label="`VIP ${tier.level} 并发目标`" type="number" min="1" max="1000" class="input" :disabled="busy" /></td>
                 <td><input v-model.number="tier.rpm" :aria-label="`VIP ${tier.level} RPM 目标`" type="number" min="0" max="1000" class="input" :disabled="busy" /></td>
                 <td><input v-model.number="tier.rebate_percent" :aria-label="`VIP ${tier.level} 邀请返利百分比`" type="number" min="0" max="10" class="input" :disabled="busy" /></td>
+                <td><input v-model.number="tier.recharge_bonus_percent" :aria-label="`VIP ${tier.level} 充值加赠百分比`" type="number" min="0" max="5" step="0.1" class="input" :disabled="busy" /></td>
               </tr></tbody>
             </table></div>
             <p class="vip-note">并发不会降低原基础额度。RPM 为 0 时沿用原有限流；当前不限流基础不被自动改为有限额度。</p>
+            <p class="vip-note">充值加赠最高 5%，普通会员为 0%；按下单时的充值成长等级计算，不按人工身份标识计算。关闭此选项或 VIP 时，充值沿用原支付设置，旧订单不重算。</p>
           </section>
         </div>
         <div id="vip-panel-groups" v-show="activeTab === 'groups'" role="tabpanel" aria-labelledby="vip-tab-groups">
@@ -53,7 +56,7 @@
               <td class="font-medium">{{ group.name }}</td><td class="whitespace-nowrap text-gray-500">{{ excluded(group) ? '私人 / 订阅 / 测试' : group.is_exclusive ? '专属' : '公开' }} · {{ group.rate_multiplier }}</td>
               <td><input v-model="rule(group.id).access" type="checkbox" :aria-label="`${group.name} VIP 准入`" :disabled="busy || !group.is_exclusive || excluded(group)" /></td>
               <td><input v-model.number="rule(group.id).floor" :aria-label="`${group.name} 倍率下限`" type="number" min="0" :max="group.rate_multiplier" step="0.001" :disabled="busy || group.is_exclusive || excluded(group)" class="input" /></td>
-              <td v-for="n in 5" :key="n"><input v-model.number="rule(group.id).discounts[n - 1]" :data-discount="`${group.id}-${n}`" :aria-label="`${group.name} VIP ${n} 减免`" type="number" min="0" max="0.1" step="0.001" :disabled="busy || group.is_exclusive || excluded(group)" class="input" /></td>
+              <td v-for="n in 5" :key="n"><input v-model.number="rule(group.id).discounts[n - 1]" :data-discount="`${group.id}-${n}`" :aria-label="`${group.name} VIP ${n} 减免`" type="number" min="0" max="0.075" step="0.001" :disabled="busy || group.is_exclusive || excluded(group)" class="input" /></td>
             </tr><tr v-if="!groups.length"><td colspan="9" class="text-center text-gray-500">暂无分组</td></tr></tbody>
           </table></div>
         </div>
@@ -81,7 +84,7 @@
                 <label class="vip-field">原因<input v-model="override.reason" class="input" :disabled="busy" /></label>
                 <button type="submit" class="btn btn-primary" :disabled="busy || !userMatches">保存覆盖</button>
               </form>
-              <p class="vip-note">访问资格 1 为授予候选 VIP 组、0 为禁用自动资格；等级标识 0～5；减免 0～0.1；返利 0～10。已有人工组授权和定制价格仍由原入口管理。</p>
+              <p class="vip-note">访问资格 1 为授予候选 VIP 组、0 为禁用自动资格；等级标识 0～5；减免 0～0.075；返利 0～10。已有人工组授权和定制价格仍由原入口管理。</p>
             </section>
             <section class="vip-section"><details><summary class="cursor-pointer text-sm font-medium">历史充值初始确认</summary>
               <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="requestOpening">

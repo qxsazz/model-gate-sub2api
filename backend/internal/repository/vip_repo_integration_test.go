@@ -31,7 +31,7 @@ func TestVIPRepositoryGrowthPermissionsAndManualPrices(t *testing.T) {
 	}
 	rules := service.DefaultVIPRules()
 	rules.Enabled = true
-	rules.Groups = []service.VIPGroupRule{{GroupID: ordinary, Floor: .2, Discounts: []float64{.02, .04, .06, .08, .1}}, {GroupID: exclusive, Access: true, Discounts: []float64{0, 0, 0, 0, 0}}, {GroupID: private, Private: true, Discounts: []float64{0, 0, 0, 0, 0}}}
+	rules.Groups = []service.VIPGroupRule{{GroupID: ordinary, Floor: .2, Discounts: []float64{.02, .04, .06, .075, .075}}, {GroupID: exclusive, Access: true, Discounts: []float64{0, 0, 0, 0, 0}}, {GroupID: private, Private: true, Discounts: []float64{0, 0, 0, 0, 0}}}
 	require.NoError(t, repo.VIPSaveRules(ctx, user, rules))
 	require.NoError(t, repo.VIPInitialCredit(ctx, user, user, 100, "fixture opening"))
 	require.NoError(t, repo.VIPInitialCredit(ctx, user, user, 100, "fixture duplicate"))

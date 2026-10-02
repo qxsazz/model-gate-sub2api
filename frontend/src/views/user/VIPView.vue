@@ -44,6 +44,14 @@
             <VIPMembershipCard v-for="tier in state.rules.tiers" :key="tier.level" class="tier-card" :class="{ current: state.tier.level === tier.level }" :level="tier.level" :name="levelName(tier.level)" :threshold-label="'累计有效充值 $' + money(tier.threshold) + ' 起'" :benefits="tierBenefits(tier)" :current="state.tier.level === tier.level" />
           </div>
           <p class="fine-print">倍率为绝对值减免，部分分组维持原价。专属分组独立定价；人工授权与定价优先。请求仍受渠道自身容量与限额约束。</p>
+          <section class="growth-benefits" aria-labelledby="growth-benefits-title">
+            <div class="section-title"><div><p class="eyebrow">GROWTH PRIVILEGES</p><h2 id="growth-benefits-title">成长回馈</h2></div><span class="muted">签到敬请期待</span></div>
+            <div class="table-overflow"><table><thead><tr><th>等级</th><th>充值加赠</th><th>每日签到方案</th><th>参考使用节省</th></tr></thead><tbody>
+              <tr><td>普通会员</td><td>{{ bonusActive ? '0%' : '按充值页现行规则' }}</td><td>$0.01 · 未上线</td><td>对照基准</td></tr>
+              <tr v-for="tier in state.rules.tiers" :key="tier.level"><td>VIP {{ tier.level }} · {{ levelName(tier.level) }}</td><td>{{ bonusActive ? bonus(tier) + '%' : '未启用' }}</td><td>${{ money(signInPlan[tier.level] ?? 0) }} · 未上线</td><td>{{ referenceSaving(tier) }}</td></tr>
+            </tbody></table></div>
+            <p class="fine-print">节省比例以 0.4 普通分组的自动规则、普通会员无加赠为参考；不含人工价、高峰因子、邀请返利、一次性累充奖励及未上线签到。实际以对应分组和下单时权益为准。</p>
+          </section>
         </section>
         <section v-else-if="tab === 'rewards'" id="panel-rewards" role="tabpanel" aria-labelledby="tab-rewards">
           <div class="section-title"><div><p class="eyebrow">MILESTONES</p><h2>累充奖励</h2><p class="muted">每个里程碑仅可领取一次 · 奖励为门槛金额的 2%</p></div></div>
@@ -66,7 +74,9 @@
             <li>累计有效充值包含已完成的在线余额充值及后台手动增加余额，统一按配置汇率折算为美元。</li>
             <li>兑换码、赠送余额、订阅订单及活动奖励不计入累计充值；消费不影响充值成长额。</li>
             <li>在线退款与后台退费冲减累计额，自动更新等级和未领奖励资格；人工授予的权益按授权执行。</li>
-            <li>普通分组按规则减免倍率绝对值，最多减免 0.1；部分分组维持原价，人工定价优先。</li>
+            <li>普通分组按规则减免倍率绝对值，最多减免 0.075；小倍率分组维持原有较小减免或原价，人工定价优先。</li>
+            <li>充值加赠按下单时的充值成长等级计算，普通会员 0%、VIP 阶梯最高 5%；加赠不计成长额，升级后的比例从下一笔订单生效。</li>
+            <li>签到方案从每日 $0.01 至 $1.00 分档，尚未上线，敬请期待；不是当前可领取余额。</li>
             <li>VIP 专属分组独立定价，现有 API Key 不自动切换分组；并发和 RPM 仍受渠道容量限制。</li>
             <li>每档累充奖励为门槛金额的 2%，达标后手动领取，每档仅一次；奖励不计入充值、不产生邀请返利。</li>
             <li>退款跌破历史领奖门槛时追回对应奖励，再次达标不重复发放；余额不足的差额由后续入账抵扣。</li>
@@ -101,6 +111,17 @@ const exclusiveAccess = computed(() => state.value?.groups.some(g => g.exclusive
 const manualPrivilege = computed(() => state.value?.overrides?.length || 0)
 const availableRewards = computed(() => membership.value?.rewards.filter(r => r.status === 'available').length || 0)
 const progress = computed(() => { const s = state.value; if (!s) return 0; if (!s.next) return 100; const previous = s.tier.threshold || 0; return Math.max(0, Math.min(100, (s.total - previous) / (s.next.threshold - previous) * 100)) })
+const signInPlan = [0.01, 0.05, 0.10, 0.25, 0.50, 1]
+const bonusActive = computed(() => !!state.value?.enabled && !!state.value?.rules.recharge_bonus_enabled)
+const bonus = (tier: VIPTier) => tier.recharge_bonus_percent ?? 0
+function referenceSaving(tier: VIPTier) {
+  if (!bonusActive.value) return '方案未启用'
+  const group = state.value?.groups.find(g => !g.exclusive && g.base_rate === .4 && g.participating)
+  const rule = state.value?.rules.groups.find(g => g.group_id === group?.id)
+  if (!group || !rule) return '以实际分组为准'
+  const multiplier = Math.max(Math.min(rule.floor, group.base_rate), group.base_rate - Math.min(.075, rule.discounts[tier.level - 1] ?? 0))
+  return Math.max(0, (1 - multiplier / group.base_rate / (1 + bonus(tier) / 100)) * 100).toFixed(2) + '%'
+}
 function discountText(level: number) {
   const cuts = membership.value?.discount_summaries[level] || []
   if (!cuts.length) return membership.value ? '普通分组按现行规则计价' : '普通分组成长优惠'
@@ -109,7 +130,7 @@ function discountText(level: number) {
 function tierBenefits(tier: VIPTier) {
   const reward = membership.value?.rewards.find(item => item.level === tier.level)
   const rewardAmount = reward?.status === 'claimed' || reward?.status === 'revoked' ? tier.threshold * .02 : reward?.amount ?? tier.threshold * .02
-  return [discountText(tier.level), `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`, `${tier.threshold >= (state.value?.rules.access_threshold ?? Infinity) ? 'VIP 专属分组' : '专属分组按门槛开放'} · 本档奖励 $${money(rewardAmount)}`]
+  return [discountText(tier.level).replace('普通分组最高', '最高') + (bonusActive.value ? ` · 加赠 ${bonus(tier)}%` : ''), `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`, `本档奖励 $${money(rewardAmount)} · 签到敬请期待`]
 }
 const ownerThreshold = computed(() => {
   const s = state.value
@@ -123,7 +144,7 @@ const ownerBenefits = computed(() => {
   const reward = membership.value?.rewards.find(item => item.level === s.tier.level)
   const access = exclusiveAccess.value ? '专属分组' : '分组待解锁'
   const rewardText = reward ? `${access} · 奖励 $${money(reward.amount)}` : '累计充值成长记录'
-  return [discountText(s.tier.level), `${s.concurrency} 并发 · 邀请返利 ${s.rebate_percent}%`, rewardText]
+  return [discountText(s.tier.level).replace('普通分组最高', '最高') + (bonusActive.value ? ` · 加赠 ${bonus(s.tier)}%` : ''), `${s.concurrency} 并发 · 邀请返利 ${s.rebate_percent}%`, rewardText]
 })
 const statusLabel = (status: VIPReward['status']) => ({ locked: '未达标', available: '可领取', claimed: '已领取', revoked: '已追回' }[status])
 const sourceLabel = (source: string) => ({ payment: '在线充值', payment_refund: '在线退款', admin_balance: '后台调整', opening: '初始确认记录' }[source] || source)
@@ -143,6 +164,7 @@ async function claim(level: number) {
 onMounted(load)
 </script>
 <style scoped>
+.growth-benefits{margin-top:28px;border-top:1px solid var(--mg-line,#e8dfd0);padding-top:24px}.growth-benefits td{white-space:nowrap}
 .vip-page{max-width:1440px;margin:auto;color:var(--mg-ink-900,#24252a);letter-spacing:0}
 h1,h2,h3{font-family:'Noto Serif SC',SimSun,serif;font-weight:600;letter-spacing:0}
 h1{font-size:26px}h2{font-size:22px}h3{font-size:18px}

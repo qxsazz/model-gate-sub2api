@@ -98,8 +98,8 @@ func (s *UserService) SetVIPOverride(ctx context.Context, actor, id int64, o VIP
 	}
 	switch o.Benefit {
 	case "discount":
-		if o.Value > .1 {
-			return fmt.Errorf("discount exceeds 0.1")
+		if o.Value > .075 {
+			return fmt.Errorf("discount exceeds 0.075")
 		}
 	case "access":
 		if o.Value != 0 && o.Value != 1 {

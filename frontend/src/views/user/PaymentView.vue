@@ -80,13 +80,18 @@
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
                   <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
                 </div>
-                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
+                <div v-if="checkout.vip_recharge_bonus_enabled" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.vipRechargeBonus', { level: checkout.vip_recharge_bonus_level ?? 0 }) }} ({{ ((balanceRechargeMultiplier - 1) * 100).toFixed(1).replace(/\.0$/, '') }}%)</span>
+                  <span class="text-gray-900 dark:text-white">${{ (creditedAmount - validAmount).toFixed(2) }}</span>
+                </div>
+                <div v-if="checkout.vip_recharge_bonus_enabled || balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
                   <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }}</span>
                 </div>
                 <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
                   {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: balanceRechargeMultiplier.toFixed(2) }) }}
                 </p>
+                <p v-if="checkout.vip_recharge_bonus_enabled" class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.vipRechargeBonusNote') }}</p>
               </div>
             </div>
             <button :class="['btn payment-submit-button w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">

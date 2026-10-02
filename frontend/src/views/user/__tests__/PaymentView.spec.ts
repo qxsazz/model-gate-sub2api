@@ -383,6 +383,16 @@ describe('PaymentView subscription plan grid', () => {
 })
 
 describe('PaymentView recharge rate preview', () => {
+  it('uses the server VIP tier multiplier for bonus and credited-balance previews', async () => {
+    routeState.path = '/purchase'; routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({balance_recharge_multiplier:1.02,vip_recharge_bonus_enabled:true,vip_recharge_bonus_level:2}))
+    const wrapper=shallowMount(PaymentView,{global:{stubs:{AppLayout:{template:'<div><slot /></div>'},Teleport:true,Transition:false}}})
+    await flushPromises();wrapper.getComponent(AmountInput).vm.$emit('update:modelValue',100);await flushPromises()
+    expect(wrapper.text()).toContain('$102.00')
+    expect(wrapper.text()).toContain('$2.00')
+    expect(translate).toHaveBeenCalledWith('payment.vipRechargeBonus',{level:2})
+    expect(createOrder).not.toHaveBeenCalled()
+  })
   it('uses the selected payment method currency in both locale templates', async () => {
     translate.mockClear()
     routeState.path = '/purchase'
