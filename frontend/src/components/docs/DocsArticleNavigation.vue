@@ -23,8 +23,8 @@ const docTarget = (location: DocLocation) => ({ path: '/docs', query: { cat: loc
 
 <style scoped>
 .docs-article-nav { margin-top: 58px; padding-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-top: 1px solid var(--docs-border); }
-.docs-article-nav__card { min-height: 88px; padding: 16px 18px; display: flex; flex-direction: column; justify-content: center; gap: 7px; color: var(--docs-muted); border: 1px solid var(--docs-border); border-radius: 13px; background: var(--docs-surface); text-decoration: none; transition: .2s ease; }
-.docs-article-nav__card:hover { border-color: var(--docs-accent-border); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0, 0, 0, .12); }
+.docs-article-nav__card { min-height: 72px; padding: 14px 0; display: flex; flex-direction: column; justify-content: center; gap: 7px; color: var(--docs-muted); text-decoration: none; transition: .2s ease; }
+.docs-article-nav__card:hover { color: var(--docs-accent); }
 .docs-article-nav__card span { font-size: 11px; color: var(--docs-faint); }
 .docs-article-nav__card strong { color: var(--docs-text); font-size: 14px; }
 .docs-article-nav__card--next { text-align: right; }
