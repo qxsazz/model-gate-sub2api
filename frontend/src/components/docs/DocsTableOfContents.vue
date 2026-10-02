@@ -14,13 +14,13 @@
 
 <script setup lang="ts">
 import type { DocHeading } from '@/docs/types'
+import { scrollToDocHeading } from '@/docs/navigation'
 
 defineProps<{ headings: DocHeading[] }>()
 
 function scrollToHeading(event: MouseEvent, id: string): void {
   event.preventDefault()
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  history.replaceState(null, '', `#${encodeURIComponent(id)}`)
+  scrollToDocHeading(id)
 }
 </script>
 

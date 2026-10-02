@@ -29,6 +29,9 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			user.GET("/vip", h.User.GetVIP)
+			user.GET("/vip/membership", h.User.GetVIPMembership)
+			user.POST("/vip/rewards/:level/claim", h.User.ClaimVIPReward)
 			user.PUT("/password", h.User.ChangePassword)
 			user.PUT("", h.User.UpdateProfile)
 			user.GET("/aff", h.User.GetAffiliate)

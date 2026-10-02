@@ -58,11 +58,19 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'Login',
     component: () => import('@/views/auth/LoginView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'Login',
-      titleKey: 'home.login'
-    }
+    meta: { requiresAuth: false, title: 'Login', titleKey: 'home.login' }
+  },
+  {
+    path: '/vip',
+    name: 'VIP',
+    component: () => import('@/views/user/VIPView.vue'),
+    meta: { requiresAuth: true, title: 'VIP 中心' }
+  },
+  {
+    path: '/admin/vip',
+    name: 'AdminVIP',
+    component: () => import('@/views/admin/VIPRulesView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'VIP 权益', description: '管理会员等级、分组优惠与用户专属权益' }
   },
   {
     path: '/register',

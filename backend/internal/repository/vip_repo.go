@@ -1,0 +1,259 @@
+package repository
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
+)
+
+func (r *userRepository) VIPRules(ctx context.Context) (service.VIPRules, error) {
+	rows, err := r.sql.QueryContext(ctx, "SELECT payload FROM vip_rules WHERE id=true")
+	if err != nil {
+		return service.VIPRules{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return service.VIPRules{}, fmt.Errorf("VIP configuration missing")
+	}
+	var raw []byte
+	if err = rows.Scan(&raw); err != nil {
+		return service.VIPRules{}, err
+	}
+	var rules service.VIPRules
+	err = json.Unmarshal(raw, &rules)
+	return rules, err
+}
+func (r *userRepository) VIPSnapshot(ctx context.Context, id int64) (*service.VIPSnapshot, error) {
+	rules, err := r.VIPRules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := &service.VIPSnapshot{Enabled: rules.Enabled, Rules: rules, Groups: []service.VIPGroupView{}, Ledger: []service.VIPLedgerEntry{}, Overrides: []service.VIPOverride{}}
+	var restrictPublic bool
+	rows, err := r.sql.QueryContext(ctx, `SELECT u.concurrency,u.rpm_limit,GREATEST(COALESCE((SELECT SUM(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),u.restrict_public_groups FROM users u WHERE id=$1 AND deleted_at IS NULL`, id)
+	if err != nil {
+		return nil, err
+	}
+	if !rows.Next() {
+		_ = rows.Close()
+		return nil, service.ErrUserNotFound
+	}
+	err = rows.Scan(&result.Concurrency, &result.RPM, &result.Total, &restrictPublic)
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	result.Tier = rules.Tier(result.Total)
+	result.BadgeLevel = result.Tier.Level
+	result.RebatePercent = result.Tier.RebatePercent
+	if result.Tier.Concurrency > result.Concurrency {
+		result.Concurrency = result.Tier.Concurrency
+	}
+	// Preserve existing unlimited defaults; VIP must not introduce a new restriction.
+	if result.RPM > 0 && result.Tier.RPM > result.RPM {
+		result.RPM = result.Tier.RPM
+	}
+	for _, t := range rules.Tiers {
+		if t.Threshold > result.Total {
+			copy := t
+			result.Next = &copy
+			break
+		}
+	}
+	overrides := map[string]float64{}
+	rows, err = r.sql.QueryContext(ctx, `SELECT benefit,value,expires_at,reason FROM vip_overrides WHERE user_id=$1 AND (expires_at IS NULL OR expires_at>now())`, id)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var o service.VIPOverride
+		if err = rows.Scan(&o.Benefit, &o.Value, &o.ExpiresAt, &o.Reason); err != nil {
+			break
+		}
+		result.Overrides = append(result.Overrides, o)
+		if rules.Enabled {
+			overrides[o.Benefit] = o.Value
+		}
+	}
+	rowErr := rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if rowErr != nil {
+		return nil, rowErr
+	}
+	if v, ok := overrides["badge"]; ok {
+		result.BadgeLevel = int(v)
+	}
+	if v, ok := overrides["concurrency"]; ok {
+		result.Concurrency = int(v)
+	}
+	if v, ok := overrides["rpm"]; ok {
+		result.RPM = int(v)
+	}
+	if v, ok := overrides["rebate"]; ok {
+		result.RebatePercent = v
+	}
+	byGroup := map[int64]service.VIPGroupRule{}
+	for _, g := range rules.Groups {
+		byGroup[g.GroupID] = g
+	}
+	rows, err = r.sql.QueryContext(ctx, `SELECT g.id,g.name,g.platform,g.is_exclusive,g.subscription_type,g.rate_multiplier,
+ EXISTS(SELECT 1 FROM user_allowed_groups WHERE user_id=$1 AND group_id=g.id),ur.rate_multiplier
+ FROM groups g LEFT JOIN user_group_rate_multipliers ur ON ur.group_id=g.id AND ur.user_id=$1
+ WHERE g.deleted_at IS NULL AND g.status='active' ORDER BY g.sort_order,g.id`, id)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var g service.VIPGroupView
+		var manual *float64
+		if err = rows.Scan(&g.ID, &g.Name, &g.Platform, &g.Exclusive, &g.Subscription, &g.BaseRate, &g.Granted, &manual); err != nil {
+			break
+		}
+		rule, has := byGroup[g.ID]
+		autoAccess := rules.Enabled && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard" && result.Total >= rules.AccessThreshold
+		if v, ok := overrides["access"]; ok {
+			autoAccess = v == 1 && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard"
+		}
+		g.Granted = g.Granted || (!g.Exclusive && !restrictPublic) || autoAccess
+		if !g.Exclusive && !g.Granted {
+			continue
+		}
+		if g.Exclusive && !g.Granted && (!has || !rule.Access || rule.Private) {
+			continue
+		}
+		if g.Subscription != "standard" {
+			continue
+		}
+		g.Rate = g.BaseRate
+		g.Participating = has && !g.Exclusive && !rule.Private && !rule.Access
+		if rules.Enabled && g.Participating {
+			cut := 0.0
+			if result.Tier.Level > 0 {
+				cut = rule.Discounts[result.Tier.Level-1]
+			}
+			if v, ok := overrides["discount"]; ok {
+				cut = v
+			}
+			g.Rate = service.VIPDiscountedRate(g.BaseRate, rule.Floor, cut)
+		}
+		if manual != nil {
+			g.Rate = *manual
+		}
+		result.Groups = append(result.Groups, g)
+	}
+	rowErr = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if rowErr != nil {
+		return nil, rowErr
+	}
+	rows, err = r.sql.QueryContext(ctx, `SELECT id,source,amount,reason,created_at FROM vip_recharge_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 50`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var e service.VIPLedgerEntry
+		if err = rows.Scan(&e.ID, &e.Source, &e.Amount, &e.Reason, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		result.Ledger = append(result.Ledger, e)
+	}
+	return result, rows.Err()
+}
+func (r *userRepository) VIPSaveRules(ctx context.Context, actor int64, rules service.VIPRules) error {
+	if err := rules.Validate(); err != nil {
+		return err
+	}
+	ids := []int64{}
+	for _, g := range rules.Groups {
+		ids = append(ids, g.GroupID)
+	}
+	rows, err := r.sql.QueryContext(ctx, `SELECT id,name,is_exclusive,subscription_type,rate_multiplier FROM groups WHERE id=ANY($1) AND deleted_at IS NULL`, pq.Array(ids))
+	if err != nil {
+		return err
+	}
+	found := 0
+	for rows.Next() {
+		var id int64
+		var name, subscription string
+		var exclusive bool
+		var base float64
+		if err = rows.Scan(&id, &name, &exclusive, &subscription, &base); err != nil {
+			break
+		}
+		found++
+		for _, g := range rules.Groups {
+			if g.GroupID != id {
+				continue
+			}
+			if g.Floor > base {
+				err = fmt.Errorf("floor exceeds base for %s", name)
+				break
+			}
+			if g.Access && (!exclusive || subscription != "standard" || name == "zth-plus" || name == "zth-pro" || name == "ceshi" || name == "ceshi-gemini") {
+				err = fmt.Errorf("group %s cannot be automatically granted", name)
+				break
+			}
+			if exclusive {
+				for _, d := range g.Discounts {
+					if d != 0 {
+						err = fmt.Errorf("exclusive discount not allowed")
+					}
+				}
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	rowErr := rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return err
+	}
+	if rowErr != nil {
+		return rowErr
+	}
+	if found != len(ids) {
+		return fmt.Errorf("unknown group")
+	}
+	raw, err := json.Marshal(rules)
+	if err != nil {
+		return err
+	}
+	_, err = r.sql.ExecContext(ctx, `WITH updated AS (
+ UPDATE vip_rules SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=true RETURNING id)
+ INSERT INTO vip_audit(actor_id,action,detail) SELECT $2,'rules',$1::jsonb FROM updated`, string(raw), actor)
+	return err
+}
+func (r *userRepository) VIPSetOverride(ctx context.Context, actor, id int64, o service.VIPOverride) error {
+	raw, _ := json.Marshal(o)
+	_, err := r.sql.ExecContext(ctx, `WITH changed AS (
+ INSERT INTO vip_overrides(user_id,benefit,value,expires_at,reason,actor_id) VALUES($1,$2,$3,$4,$5,$6)
+ ON CONFLICT(user_id,benefit) DO UPDATE SET value=excluded.value,expires_at=excluded.expires_at,reason=excluded.reason,actor_id=excluded.actor_id,updated_at=now() RETURNING user_id)
+ INSERT INTO vip_audit(actor_id,user_id,action,detail) SELECT $6,user_id,'override',$7::jsonb FROM changed`, id, o.Benefit, o.Value, o.ExpiresAt, o.Reason, actor, string(raw))
+	return err
+}
+func (r *userRepository) VIPClearOverride(ctx context.Context, actor, id int64, benefit string) error {
+	_, err := r.sql.ExecContext(ctx, `WITH changed AS (DELETE FROM vip_overrides WHERE user_id=$1 AND benefit=$2 RETURNING user_id)
+ INSERT INTO vip_audit(actor_id,user_id,action,detail) SELECT $3,user_id,'restore_auto',jsonb_build_object('benefit',$2::text) FROM changed`, id, benefit, actor)
+	return err
+}
+func (r *userRepository) VIPInitialCredit(ctx context.Context, actor, id int64, amount float64, reason string) error {
+	// One explicit opening record per user, independent of mutable legacy totals.
+	_, err := r.sql.ExecContext(ctx, `WITH inserted AS (
+ INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason,actor_id)
+ VALUES($1,'opening',($1::bigint)::text,$2,$3,$4) ON CONFLICT(source,source_id) DO NOTHING RETURNING user_id)
+ INSERT INTO vip_audit(actor_id,user_id,action,detail) SELECT $4,user_id,'opening',jsonb_build_object('amount',$2::numeric,'reason',$3::text) FROM inserted`, id, amount, reason, actor)
+	return err
+}
+
+var _ service.VIPRepository = (*userRepository)(nil)

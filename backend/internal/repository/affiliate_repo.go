@@ -44,7 +44,7 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT user_id, COALESCE(SUM(amount), 0)::double precision AS matured_frozen_quota
     FROM user_affiliate_ledger
-    WHERE action = 'accrue' AND frozen_until IS NOT NULL AND frozen_until <= NOW()
+    WHERE action IN ('accrue','vip_refund','vip_debt_repayment') AND frozen_until IS NOT NULL AND frozen_until <= NOW()
     GROUP BY user_id
 ) matured ON matured.user_id = ua.user_id
 WHERE ua.user_id = $1
@@ -57,10 +57,11 @@ type affiliateQueryExecer interface {
 
 type affiliateRepository struct {
 	client *dbent.Client
+	vipSQL *sql.DB
 }
 
-func NewAffiliateRepository(client *dbent.Client, _ *sql.DB) service.AffiliateRepository {
-	return &affiliateRepository{client: client}
+func NewAffiliateRepository(client *dbent.Client, sqlDB *sql.DB) service.AffiliateRepository {
+	return &affiliateRepository{client: client, vipSQL: sqlDB}
 }
 
 func (r *affiliateRepository) EnsureUserAffiliate(ctx context.Context, userID int64) (*service.AffiliateSummary, error) {
@@ -216,7 +217,7 @@ SELECT COALESCE(SUM(amount), 0) FROM matured`, userID)
 	if err := rows.Close(); err != nil {
 		return 0, err
 	}
-	if thawed <= 0 {
+	if thawed == 0 {
 		return 0, nil
 	}
 
