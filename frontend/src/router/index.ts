@@ -70,7 +70,7 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/vip',
     name: 'AdminVIP',
     component: () => import('@/views/admin/VIPRulesView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true, title: 'VIP 规则与权益' }
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'VIP 权益', description: '管理会员等级、分组优惠与用户专属权益' }
   },
   {
     path: '/register',
