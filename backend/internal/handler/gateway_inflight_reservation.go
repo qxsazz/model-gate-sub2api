@@ -71,6 +71,15 @@ func reserveInflightBalanceCtx(
 	subscription *service.UserSubscription,
 	req service.InflightEstimateRequest,
 ) (context.Context, func(), error) {
+	if capture, ok := estimator.(interface {
+		CaptureRequestRate(context.Context, *service.APIKey) (context.Context, error)
+	}); ok {
+		var err error
+		ctx, err = capture.CaptureRequestRate(ctx, apiKey)
+		if err != nil {
+			return ctx, inflightNoop, err
+		}
+	}
 	if billing == nil || estimator == nil || apiKey == nil || apiKey.User == nil || !billing.InflightReservationEnabled() {
 		return ctx, inflightNoop, nil
 	}

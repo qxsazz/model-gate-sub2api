@@ -14,8 +14,17 @@ import (
 )
 
 func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+	value, err := s.getUserGroupRateMultiplierStrict(ctx, userID, groupID, groupDefaultMultiplier)
+	if err != nil {
+		logger.LegacyPrintf("service.gateway", "Rate unavailable; rejecting priced work: %v", err)
+		return 0
+	}
+	return value
+}
+
+func (s *GatewayService) getUserGroupRateMultiplierStrict(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) (float64, error) {
 	if s == nil {
-		return groupDefaultMultiplier
+		return groupDefaultMultiplier, nil
 	}
 	resolver := s.userGroupRateResolver
 	if resolver == nil {
@@ -27,10 +36,11 @@ func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID,
 			"service.gateway",
 		)
 	}
-	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
+	return resolver.ResolveStrict(ctx, userID, groupID, groupDefaultMultiplier)
 }
 
-// ResolveUserGroupRateMultiplier resolves the same cached multiplier used by usage billing.
+// ResolveUserGroupRateMultiplier is the scheduler adapter. Unconfirmed rates
+// yield a zero profit ceiling; forwarding and settlement use strict resolution.
 func (s *GatewayService) ResolveUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
 	return s.getUserGroupRateMultiplier(ctx, userID, groupID, groupDefaultMultiplier)
 }
@@ -794,7 +804,15 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	if apiKey.GroupID != nil && apiKey.Group != nil {
 		groupDefault := apiKey.Group.RateMultiplier
-		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
+		var err error
+		if rate, ok := apiKey.RequestRate(user.ID, *apiKey.GroupID); ok {
+			multiplier = rate
+		} else {
+			multiplier, err = s.getUserGroupRateMultiplierStrict(ctx, user.ID, *apiKey.GroupID, groupDefault)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 getUserGroupRateMultiplier，以免污染 user:group 倍率缓存。

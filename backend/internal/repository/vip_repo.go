@@ -26,11 +26,39 @@ func (r *userRepository) VIPRules(ctx context.Context) (service.VIPRules, error)
 	return rules, err
 }
 func (r *userRepository) VIPSnapshot(ctx context.Context, id int64) (*service.VIPSnapshot, error) {
+	return r.vipSnapshot(ctx, id, false)
+}
+func (r *userRepository) VIPMode(ctx context.Context) (bool, error) {
+	rows, err := r.sql.QueryContext(ctx, `SELECT (payload->>'enabled')::boolean FROM vip_rules WHERE id=true`)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err = rows.Err(); err != nil {
+			return false, err
+		}
+		return false, fmt.Errorf("VIP configuration missing")
+	}
+	var enabled bool
+	err = rows.Scan(&enabled)
+	if err == nil {
+		err = rows.Err()
+	}
+	return enabled, err
+}
+func (r *userRepository) VIPAuthSnapshot(ctx context.Context, id int64) (*service.VIPSnapshot, error) {
+	return r.vipSnapshot(ctx, id, true)
+}
+func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly bool) (*service.VIPSnapshot, error) {
 	rules, err := r.VIPRules(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := &service.VIPSnapshot{Enabled: rules.Enabled, Rules: rules, Groups: []service.VIPGroupView{}, Ledger: []service.VIPLedgerEntry{}, Overrides: []service.VIPOverride{}}
+	if authOnly && !rules.Enabled {
+		return result, nil
+	}
 	var restrictPublic bool
 	rows, err := r.sql.QueryContext(ctx, `SELECT u.concurrency,u.rpm_limit,GREATEST(COALESCE((SELECT SUM(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),u.restrict_public_groups FROM users u WHERE id=$1 AND deleted_at IS NULL`, id)
 	if err != nil {
@@ -153,6 +181,9 @@ func (r *userRepository) VIPSnapshot(ctx context.Context, id int64) (*service.VI
 	}
 	if rowErr != nil {
 		return nil, rowErr
+	}
+	if authOnly {
+		return result, nil
 	}
 	rows, err = r.sql.QueryContext(ctx, `SELECT id,source,amount,reason,created_at FROM vip_recharge_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 50`, id)
 	if err != nil {

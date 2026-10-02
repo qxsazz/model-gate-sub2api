@@ -111,16 +111,23 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 	}
 }
 
-// ResolveUserGroupRateMultiplier resolves the same cached multiplier used by OpenAI usage billing.
+// ResolveUserGroupRateMultiplier is the scheduler adapter, not a settlement fallback.
 func (s *OpenAIGatewayService) ResolveUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+	rate, err := s.resolveUserGroupRateMultiplierStrict(ctx, userID, groupID, groupDefaultMultiplier)
+	if err != nil {
+		return 0
+	}
+	return rate
+}
+func (s *OpenAIGatewayService) resolveUserGroupRateMultiplierStrict(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) (float64, error) {
 	if s == nil {
-		return groupDefaultMultiplier
+		return groupDefaultMultiplier, nil
 	}
 	resolver := s.userGroupRateResolver
 	if resolver == nil {
 		resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
 	}
-	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
+	return resolver.ResolveStrict(ctx, userID, groupID, groupDefaultMultiplier)
 }
 
 // openAIUsagePricingAt 返回本次用量记录使用的定价时刻：优先请求级 PricingAt
@@ -200,7 +207,15 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		multiplier = s.cfg.Default.RateMultiplier
 	}
 	if apiKey.GroupID != nil && apiKey.Group != nil {
-		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+		if rate, ok := apiKey.RequestRate(user.ID, *apiKey.GroupID); ok {
+			multiplier = rate
+		} else {
+			var err error
+			multiplier, err = s.resolveUserGroupRateMultiplierStrict(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
 	// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途

@@ -312,6 +312,9 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
+	vipModeMu                 sync.Mutex
+	vipDisabledUntil          time.Time
+	vipModeGeneration         uint64
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -739,6 +742,10 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 func (s *APIKeyService) GetByKey(ctx context.Context, key string) (result *APIKey, resultErr error) {
 	defer func() {
 		if resultErr == nil && result != nil {
+			copy := *result
+			result = &copy
+			result.requestRates = nil
+			result.vipDisabled = false
 			if err := s.applyVIP(ctx, result); err != nil {
 				result = nil
 				resultErr = err

@@ -40,6 +40,11 @@ func TestVIPRepositoryGrowthPermissionsAndManualPrices(t *testing.T) {
 	require.Equal(t, 100.0, state.Total)
 	require.Equal(t, 1, state.Tier.Level)
 	require.Equal(t, 8, state.Concurrency)
+	authState, err := repo.VIPAuthSnapshot(ctx, user)
+	require.NoError(t, err)
+	require.Equal(t, state.Total, authState.Total)
+	require.Equal(t, state.Groups, authState.Groups)
+	require.Empty(t, authState.Ledger, "authentication must not load display history")
 	find := func(id int64) *service.VIPGroupView {
 		for i := range state.Groups {
 			if state.Groups[i].ID == id {

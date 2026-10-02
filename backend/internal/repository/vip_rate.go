@@ -13,7 +13,7 @@ func (r *userGroupRateRepository) VIPEffectiveRate(ctx context.Context, userID, 
 	if !rules.Enabled {
 		return nil, false, nil
 	}
-	state, err := repo.VIPSnapshot(ctx, userID)
+	state, err := repo.VIPAuthSnapshot(ctx, userID)
 	if err != nil {
 		return nil, true, err
 	}
