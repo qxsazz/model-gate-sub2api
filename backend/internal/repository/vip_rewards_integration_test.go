@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 	"time"
 )
@@ -26,13 +27,13 @@ func TestVIPAdminClaimsSameMilestonesOnce(t *testing.T) {
 	repo := &userRepository{sql: tx}
 	amount, err := repo.VIPClaimReward(ctx, uid, 1)
 	require.NoError(t, err)
-	require.Equal(t, 1.0, amount)
+	require.Equal(t, 2.0, amount)
 	amount, err = repo.VIPClaimReward(ctx, uid, 1)
 	require.NoError(t, err)
 	require.Equal(t, 0.0, amount)
 	amount, err = repo.VIPClaimReward(ctx, uid, 2)
 	require.NoError(t, err)
-	require.Equal(t, 3.0, amount)
+	require.Equal(t, 6.0, amount)
 	_, err = tx.ExecContext(ctx, `SAVEPOINT denied`)
 	require.NoError(t, err)
 	_, err = repo.VIPClaimReward(ctx, uid, 3)
@@ -64,14 +65,14 @@ func TestVIPRewardsClaimRefundDebtAndNoRepeat(t *testing.T) {
 	_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'opening',$2,300)`, uid, fmt.Sprint(uid))
 	require.NoError(t, err)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT vip_claim_reward($1,1)`, uid).Scan(&amount))
-	require.Equal(t, 1.0, amount)
+	require.Equal(t, 2.0, amount)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT vip_claim_reward($1,1)`, uid).Scan(&amount))
 	require.Equal(t, 0.0, amount)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT vip_claim_reward($1,2)`, uid).Scan(&amount))
-	require.Equal(t, 3.0, amount)
+	require.Equal(t, 6.0, amount)
 	var balance, debt float64
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
-	require.Equal(t, 4.0, balance)
+	require.Equal(t, 8.0, balance)
 	_, err = tx.ExecContext(ctx, `UPDATE users SET balance=1 WHERE id=$1`, uid)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,-250)`, uid, fmt.Sprint(uid)+":refund")
@@ -79,12 +80,12 @@ func TestVIPRewardsClaimRefundDebtAndNoRepeat(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
 	require.Equal(t, 0.0, balance)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT amount FROM vip_reward_debt WHERE user_id=$1`, uid).Scan(&debt))
-	require.Equal(t, 3.0, debt)
+	require.Equal(t, 7.0, debt)
 	_, err = tx.ExecContext(ctx, `UPDATE users SET balance=balance+2 WHERE id=$1`, uid)
 	require.NoError(t, err)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
 	require.Equal(t, 0.0, balance)
-	_, err = tx.ExecContext(ctx, `UPDATE users SET balance=balance+5 WHERE id=$1`, uid)
+	_, err = tx.ExecContext(ctx, `UPDATE users SET balance=balance+9 WHERE id=$1`, uid)
 	require.NoError(t, err)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
 	require.Equal(t, 4.0, balance)
@@ -94,4 +95,70 @@ func TestVIPRewardsClaimRefundDebtAndNoRepeat(t *testing.T) {
 	require.Equal(t, 0.0, amount)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT sum(amount) FROM vip_recharge_ledger WHERE user_id=$1`, uid).Scan(&amount))
 	require.Equal(t, 300.0, amount)
+}
+
+func TestVIPTwoPercentPreservesOldClaimsAndRefundAmounts(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var uid int64
+	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, fmt.Sprintf("vip-legacy-%d@example.com", time.Now().UnixNano())).Scan(&uid))
+	_, err = tx.ExecContext(ctx, `UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true') WHERE id=true`)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'opening',$2,300)`, uid, fmt.Sprint(uid))
+	require.NoError(t, err)
+	oldMigration, err := os.ReadFile("../../migrations/243_vip_admin_reward_claim.sql")
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, string(oldMigration))
+	require.NoError(t, err)
+	repo := &userRepository{sql: tx}
+	amount, err := repo.VIPClaimReward(ctx, uid, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, amount)
+	newMigration, err := os.ReadFile("../../migrations/245_vip_reward_two_percent.sql")
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, string(newMigration))
+	require.NoError(t, err)
+	amount, err = repo.VIPClaimReward(ctx, uid, 1)
+	require.NoError(t, err)
+	require.Zero(t, amount)
+	membership, err := repo.VIPMembership(ctx, uid)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, membership.Rewards[0].Amount)
+	require.Equal(t, "claimed", membership.Rewards[0].Status)
+	require.Equal(t, 6.0, membership.Rewards[1].Amount)
+	_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,-250)`, uid, fmt.Sprint(uid)+":refund")
+	require.NoError(t, err)
+	var balance, revokedAmount float64
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
+	require.Zero(t, balance)
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT amount FROM vip_reward_claims WHERE user_id=$1 AND level=1 AND revoked_at IS NOT NULL`, uid).Scan(&revokedAmount))
+	require.Equal(t, 1.0, revokedAmount)
+}
+
+func TestVIPAllMilestonesPayTwoPercent(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var uid int64
+	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, fmt.Sprintf("vip-five-%d@example.com", time.Now().UnixNano())).Scan(&uid))
+	_, err = tx.ExecContext(ctx, `UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true') WHERE id=true`)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'opening',$2,3000)`, uid, fmt.Sprint(uid))
+	require.NoError(t, err)
+	repo := &userRepository{sql: tx}
+	for i, expected := range []float64{2, 6, 12, 30, 60} {
+		amount, claimErr := repo.VIPClaimReward(ctx, uid, i+1)
+		require.NoError(t, claimErr)
+		require.Equal(t, expected, amount)
+	}
+	var balance, growth float64
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
+	require.Equal(t, 110.0, balance)
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT sum(amount) FROM vip_recharge_ledger WHERE user_id=$1`, uid).Scan(&growth))
+	require.Equal(t, 3000.0, growth)
 }
