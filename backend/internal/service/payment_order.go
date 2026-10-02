@@ -180,15 +180,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		if sel != nil {
 			currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 		}
-		if fx, exists := rules.ExchangeRates[currency]; exists {
-			if providerSnapshot == nil {
-				providerSnapshot = map[string]any{}
-			}
-			providerSnapshot["vip_principal_usd"] = limitAmount * fx
-			providerSnapshot["vip_fx"] = fx
-			providerSnapshot["vip_currency"] = currency
-		} else if rules.Enabled {
-			return nil, fmt.Errorf("VIP exchange rate is not configured for %s", currency)
+		providerSnapshot, err = applyVIPPaymentSnapshot(providerSnapshot, currency, limitAmount, rules)
+		if err != nil {
+			return nil, err
 		}
 	}
 	selectedInstanceID := ""

@@ -6,6 +6,8 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"net/http"
 	"strings"
+
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -37,6 +39,13 @@ type VIPMembership struct {
 type VIPMembershipRepository interface {
 	VIPMembership(context.Context, int64) (*VIPMembership, error)
 	VIPClaimReward(context.Context, int64, int) (float64, error)
+}
+
+func VIPMilestoneReward(threshold float64) float64 {
+	if !finiteVIP(threshold) || threshold <= 0 {
+		return 0
+	}
+	return decimal.NewFromFloat(threshold).Mul(decimal.NewFromFloat(.02)).Round(2).InexactFloat64()
 }
 
 // Never publish full usernames or any part of an email domain.

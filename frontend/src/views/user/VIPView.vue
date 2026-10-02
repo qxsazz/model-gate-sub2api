@@ -46,7 +46,7 @@
           <p class="fine-print">倍率为绝对值减免，部分分组维持原价。专属分组独立定价；人工授权与定价优先。请求仍受渠道自身容量与限额约束。</p>
         </section>
         <section v-else-if="tab === 'rewards'" id="panel-rewards" role="tabpanel" aria-labelledby="tab-rewards">
-          <div class="section-title"><div><p class="eyebrow">MILESTONES</p><h2>累充奖励</h2><p class="muted">每个里程碑仅可领取一次 · 奖励为门槛金额的 1%</p></div></div>
+          <div class="section-title"><div><p class="eyebrow">MILESTONES</p><h2>累充奖励</h2><p class="muted">每个里程碑仅可领取一次 · 奖励为门槛金额的 2%</p></div></div>
           <p v-if="membership?.debt" class="status-note">待追回奖励 ${{ money(membership.debt) }}，后续余额入账将优先抵扣。</p>
           <p v-if="claimMessage" class="status-note" role="status">{{ claimMessage }}</p>
           <p v-if="membershipError" class="status-note" role="alert">{{ membershipError }}</p>
@@ -68,7 +68,7 @@
             <li>在线退款与后台退费冲减累计额，自动更新等级和未领奖励资格；人工授予的权益按授权执行。</li>
             <li>普通分组按规则减免倍率绝对值，最多减免 0.1；部分分组维持原价，人工定价优先。</li>
             <li>VIP 专属分组独立定价，现有 API Key 不自动切换分组；并发和 RPM 仍受渠道容量限制。</li>
-            <li>每档累充奖励为门槛金额的 1%，达标后手动领取，每档仅一次；奖励不计入充值、不产生邀请返利。</li>
+            <li>每档累充奖励为门槛金额的 2%，达标后手动领取，每档仅一次；奖励不计入充值、不产生邀请返利。</li>
             <li>退款跌破历史领奖门槛时追回对应奖励，再次达标不重复发放；余额不足的差额由后续入账抵扣。</li>
           </ul>
         </section>
@@ -108,7 +108,7 @@ function discountText(level: number) {
 }
 function tierBenefits(tier: VIPTier) {
   const reward = membership.value?.rewards.find(item => item.level === tier.level)
-  const rewardAmount = reward?.status === 'claimed' || reward?.status === 'revoked' ? tier.threshold * .01 : reward?.amount ?? tier.threshold * .01
+  const rewardAmount = reward?.status === 'claimed' || reward?.status === 'revoked' ? tier.threshold * .02 : reward?.amount ?? tier.threshold * .02
   return [discountText(tier.level), `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`, `${tier.threshold >= (state.value?.rules.access_threshold ?? Infinity) ? 'VIP 专属分组' : '专属分组按门槛开放'} · 本档奖励 $${money(rewardAmount)}`]
 }
 const ownerThreshold = computed(() => {

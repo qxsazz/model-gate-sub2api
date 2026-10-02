@@ -1,13 +1,13 @@
--- Execute inside BEGIN/ROLLBACK, after migration 243.
+-- Execute inside BEGIN/ROLLBACK, after migration 245.
 DO $$
 DECLARE uid bigint:=-9420244; paid numeric; total numeric;
 BEGIN
  UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true') WHERE id=true;
  INSERT INTO users(id,email,password_hash,role,status,balance) VALUES(uid,'vip-admin-smoke@example.invalid','fixture','admin','active',0);
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES(uid,'opening','vip-admin-smoke-open',300);
- paid:=vip_claim_reward(uid,1);IF paid<>1 THEN RAISE EXCEPTION 'Admin VIP1 amount mismatch'; END IF;
+ paid:=vip_claim_reward(uid,1);IF paid<>2 THEN RAISE EXCEPTION 'Admin VIP1 amount mismatch'; END IF;
  paid:=vip_claim_reward(uid,1);IF paid<>0 THEN RAISE EXCEPTION 'Duplicate admin claim paid twice'; END IF;
- paid:=vip_claim_reward(uid,2);IF paid<>3 THEN RAISE EXCEPTION 'Admin VIP2 amount mismatch'; END IF;
+ paid:=vip_claim_reward(uid,2);IF paid<>6 THEN RAISE EXCEPTION 'Admin VIP2 amount mismatch'; END IF;
  BEGIN
   PERFORM vip_claim_reward(uid,3);
   RAISE EXCEPTION 'Admin bypassed threshold';

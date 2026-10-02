@@ -84,7 +84,7 @@ func (r *userRepository) VIPMembership(ctx context.Context, id int64) (*service.
 		return nil, rowErr
 	}
 	for _, tier := range snapshot.Rules.Tiers {
-		amount, _ := decimal.NewFromFloat(tier.Threshold).Mul(decimal.NewFromFloat(.01)).Round(2).Float64()
+		amount := service.VIPMilestoneReward(tier.Threshold)
 		reward := service.VIPReward{Level: tier.Level, Threshold: tier.Threshold, Amount: amount, Status: "locked"}
 		if snapshot.Enabled && snapshot.Total >= tier.Threshold {
 			reward.Status = "available"

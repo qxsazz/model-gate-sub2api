@@ -6,7 +6,7 @@ vi.mock('@/api/vip', () => ({ getVIP: getMock, getVIPMembership: membershipMock,
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authMock }))
 function render() { return mount(VIPView, { global: { stubs: { AppLayout: { template: '<main><slot /></main>' }, VIPBadge: true, Icon: true, RouterLink: { template: '<a><slot /></a>' } } } }) }
 describe('VIP center', () => {
- beforeEach(() => { getMock.mockReset(); claimMock.mockReset(); membershipMock.mockResolvedValue({rewards:[{level:1,threshold:100,amount:1,status:'available'}],seats:[{name:'17***',level:5}],debt:0,claimed:0,discount_summaries:{1:[.02,.005]}}) })
+ beforeEach(() => { getMock.mockReset(); claimMock.mockReset(); membershipMock.mockResolvedValue({rewards:[{level:1,threshold:100,amount:2,status:'available'}],seats:[{name:'17***',level:5}],debt:0,claimed:0,discount_summaries:{1:[.02,.005]}}) })
  it('preserves small group rate precision and distinguishes concurrency from RPM', async () => {
   getMock.mockResolvedValue({ enabled:true,total:100,tier:{level:1,threshold:100},badge_level:1,concurrency:8,rpm:0,rebate_percent:2,next:{level:2,threshold:300},rules:{access_threshold:100,tiers:[]},groups:[{id:1,name:'codex-plus2',exclusive:false,base_rate:0.088,rate:0.088,participating:false}],ledger:[] })
   const wrapper = render(); await flushPromises()
@@ -16,10 +16,10 @@ describe('VIP center', () => {
   expect(wrapper.text()).toContain('200.00')
   expect(wrapper.text()).toContain('17***')
   await wrapper.get('[data-tab="rewards"]').trigger('click')
-  expect(wrapper.text()).toContain('$1.00')
-  expect(wrapper.get('.reward-actions').get('.reward-amount').text()).toContain('$1.00')
+  expect(wrapper.text()).toContain('门槛金额的 2%')
+  expect(wrapper.get('.reward-actions').get('.reward-amount').text()).toContain('$2.00')
   expect(wrapper.get('.reward-actions').get('[data-claim="1"]').text()).toContain('领取奖励')
-  claimMock.mockResolvedValue({amount:1})
+  claimMock.mockResolvedValue({amount:2})
   await wrapper.get('[data-claim="1"]').trigger('click'); await flushPromises()
   expect(claimMock).toHaveBeenCalledWith(1)
   claimMock.mockRejectedValueOnce({reason:'VIP_REWARD_THRESHOLD_NOT_REACHED',message:'累计有效充值未达到该档奖励门槛。'})
@@ -31,6 +31,16 @@ describe('VIP center', () => {
   const wrapper = render(); await flushPromises()
   expect(wrapper.get('[role="alert"]').text()).toContain('读取失败')
   expect(wrapper.find('.membership').exists()).toBe(false)
+ })
+ it('preserves actual historical claims while tier cards show the new two-percent offer', async () => {
+  membershipMock.mockResolvedValue({rewards:[{level:1,threshold:100,amount:1,status:'claimed'}],seats:[],debt:0,claimed:1,discount_summaries:{}})
+  getMock.mockResolvedValue({enabled:true,total:100,tier:{level:1,threshold:100},badge_level:1,concurrency:8,rpm:0,rebate_percent:2,next:null,rules:{access_threshold:100,tiers:[{level:1,threshold:100,concurrency:8,rebate_percent:2}]},groups:[],ledger:[]})
+  const wrapper=render(); await flushPromises()
+  expect(wrapper.get('.tier-card.palette-1').text()).toContain('本档奖励 $2.00')
+  await wrapper.get('[data-tab="rewards"]').trigger('click')
+  expect(wrapper.get('.reward-amount').text()).toContain('$1.00')
+  expect(wrapper.get('.reward-status').text()).toContain('已领取')
+  expect(wrapper.find('[data-claim="1"]').exists()).toBe(false)
  })
  it('keeps manual privilege notices outside the edge-aligned summary and does not invent recharge qualification', async () => {
   getMock.mockResolvedValue({enabled:true,total:100,tier:{level:1,threshold:100},badge_level:5,concurrency:30,rpm:0,rebate_percent:2,next:null,rules:{access_threshold:100,tiers:[]},groups:[],ledger:[],overrides:[{benefit:'badge',value:5}]})

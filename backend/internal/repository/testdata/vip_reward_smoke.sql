@@ -1,4 +1,4 @@
--- Run after migration 242 in a surrounding BEGIN/ROLLBACK transaction.
+-- Run after migration 245 in a surrounding BEGIN/ROLLBACK transaction.
 DO $$
 DECLARE uid bigint := -9420242; reward numeric; actual numeric;
 BEGIN
@@ -11,17 +11,17 @@ BEGIN
   IF SQLERRM <> 'Milestone not reached' THEN RAISE; END IF;
  END;
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES(uid,'opening','reward-smoke-open',300);
- reward:=vip_claim_reward(uid,1); IF reward<>1 THEN RAISE EXCEPTION 'VIP1 reward mismatch'; END IF;
+ reward:=vip_claim_reward(uid,1); IF reward<>2 THEN RAISE EXCEPTION 'VIP1 reward mismatch'; END IF;
  reward:=vip_claim_reward(uid,1); IF reward<>0 THEN RAISE EXCEPTION 'duplicate reward'; END IF;
- reward:=vip_claim_reward(uid,2); IF reward<>3 THEN RAISE EXCEPTION 'VIP2 reward mismatch'; END IF;
- SELECT balance INTO actual FROM users WHERE id=uid; IF actual<>4 THEN RAISE EXCEPTION 'balance mismatch'; END IF;
+ reward:=vip_claim_reward(uid,2); IF reward<>6 THEN RAISE EXCEPTION 'VIP2 reward mismatch'; END IF;
+ SELECT balance INTO actual FROM users WHERE id=uid; IF actual<>8 THEN RAISE EXCEPTION 'balance mismatch'; END IF;
  UPDATE users SET balance=1 WHERE id=uid;
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES(uid,'admin_balance','reward-smoke-refund',-250);
  SELECT balance INTO actual FROM users WHERE id=uid; IF actual<>0 THEN RAISE EXCEPTION 'recovery balance mismatch'; END IF;
- SELECT amount INTO actual FROM vip_reward_debt WHERE user_id=uid; IF actual<>3 THEN RAISE EXCEPTION 'debt mismatch'; END IF;
+ SELECT amount INTO actual FROM vip_reward_debt WHERE user_id=uid; IF actual<>7 THEN RAISE EXCEPTION 'debt mismatch'; END IF;
  UPDATE users SET balance=balance+2 WHERE id=uid;
  SELECT balance INTO actual FROM users WHERE id=uid; IF actual<>0 THEN RAISE EXCEPTION 'partial repay mismatch'; END IF;
- UPDATE users SET balance=balance+5 WHERE id=uid;
+ UPDATE users SET balance=balance+9 WHERE id=uid;
  SELECT balance INTO actual FROM users WHERE id=uid; IF actual<>4 THEN RAISE EXCEPTION 'full repay mismatch'; END IF;
  INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES(uid,'opening','reward-smoke-restore',250);
  reward:=vip_claim_reward(uid,2); IF reward<>0 THEN RAISE EXCEPTION 'revoked milestone reused'; END IF;
