@@ -21,7 +21,8 @@ func achievementError(err error) error {
 			return infraerrors.Forbidden(pg.Message, "需要有效管理员权限")
 		case "ACHIEVEMENT_ADMIN_CONFLICT":
 			return infraerrors.Conflict(pg.Message, "该请求编号已用于不同的管理操作")
-		case "ACHIEVEMENT_HISTORY_CHANGED":return infraerrors.Conflict(pg.Message,"历史权益已变化，请重新核验金额后确认补签")
+		case "ACHIEVEMENT_HISTORY_CHANGED":
+			return infraerrors.Conflict(pg.Message, "历史权益已变化，请重新核验金额后确认补签")
 		case "ACHIEVEMENT_HISTORY_UNAVAILABLE":
 			return infraerrors.BadRequest(pg.Message, "历史权益无法完整核验，或所选日期不可补签，请核对资料")
 		case "ACHIEVEMENT_ADMIN_REASON":
