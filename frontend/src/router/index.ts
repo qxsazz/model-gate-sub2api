@@ -55,12 +55,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/guide',
-    name: 'UserDocs',
-    component: () => import('@/views/docs/UserDocsView.vue'),
-    meta: { requiresAuth: true, title: '文档' }
-  },
-  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/auth/LoginView.vue'),

@@ -21,7 +21,7 @@ const FORBIDDEN_TAGS = [
   'select',
 ]
 
-export function renderMarkdown(source: string, options: { collapsedHeadings?: readonly string[]; documentationPath?: string } = {}): RenderedMarkdown {
+export function renderMarkdown(source: string, options: { collapsedHeadings?: readonly string[] } = {}): RenderedMarkdown {
   const parsed = marked.parse(source) as string
   const sanitized = DOMPurify.sanitize(parsed, {
     FORBID_TAGS: FORBIDDEN_TAGS,
@@ -52,9 +52,6 @@ export function renderMarkdown(source: string, options: { collapsedHeadings?: re
 
   container.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => {
     const href = link.getAttribute('href') || ''
-    if (options.documentationPath && /^\/docs(?:[?#]|$)/.test(href)) {
-      link.setAttribute('href', options.documentationPath + href.slice('/docs'.length))
-    }
     if (/^https?:\/\//i.test(href)) {
       link.target = '_blank'
       link.rel = 'noopener noreferrer'

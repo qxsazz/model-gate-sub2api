@@ -11,16 +11,14 @@
 </template>
 
 <script setup lang="ts">
-import { useDocumentationPath } from '@/docs/workspace'
 import { computed } from 'vue'
 import { findDocumentLocation } from '@/docs/registry'
 import type { DocArticle, DocLocation } from '@/docs/types'
 
-const basePath = useDocumentationPath()
 const props = defineProps<{ previous: DocArticle | null; next: DocArticle | null }>()
 const previousLocation = computed(() => props.previous ? findDocumentLocation(props.previous) : null)
 const nextLocation = computed(() => props.next ? findDocumentLocation(props.next) : null)
-const docTarget = (location: DocLocation) => ({ path: basePath, query: { cat: location.category, page: location.page } })
+const docTarget = (location: DocLocation) => ({ path: '/docs', query: { cat: location.category, page: location.page } })
 </script>
 
 <style scoped>
