@@ -17,6 +17,7 @@ This directory contains the Vue Router configuration for the Sub2API frontend ap
 | ----------- | ------------ | ---------------------- |
 | `/login`    | LoginView    | User login page        |
 | `/register` | RegisterView | User registration page |
+| `/docs`     | DocsView     | Public documentation   |
 
 ### User Routes (Authentication Required)
 
@@ -28,6 +29,9 @@ This directory contains the Vue Router configuration for the Sub2API frontend ap
 | `/usage`     | UsageView     | Usage records and statistics |
 | `/redeem`    | RedeemView    | Redeem code interface        |
 | `/profile`   | ProfileView   | User profile settings        |
+| `/guide`     | UserDocsView  | Documentation in the signed-in workspace |
+
+Open **文档** in the user sidebar to read the same registered articles as `/docs` inside `AppLayout`. `/guide?cat=tutorial&page=quick-start` opens a specific article; category, page and heading fragments use the same format in both routes. Sidebar, search, previous/next and article-body documentation links stay within the current documentation entry point. The embedded page follows the console's light/dark theme; the public `/docs` page retains its own header and theme control.
 
 ### Admin Routes (Admin Role Required)
 

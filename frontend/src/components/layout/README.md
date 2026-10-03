@@ -46,6 +46,7 @@ Navigation sidebar with user and admin sections.
   - Usage
   - Redeem
   - Profile
+  - Documentation (`/guide`, labelled 文档): shared public articles within the console; follows the console theme. See [documentation routes](../../router/README.md#user-routes-authentication-required).
 - Admin navigation links (shown only if user is admin):
   - Admin Dashboard
   - Users
