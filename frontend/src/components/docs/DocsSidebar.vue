@@ -2,7 +2,7 @@
   <nav class="docs-sidebar" aria-label="文档目录">
     <div class="docs-sidebar__eyebrow">DOCUMENTATION</div>
     <label class="docs-search"><Icon name="search" size="sm" /><input v-model="query" aria-label="搜索文档" placeholder="搜索文档" /><button v-if="query" type="button" aria-label="清除搜索" @click="query = ''"><Icon name="x" size="sm" /></button></label>
-    <RouterLink to="/docs" class="docs-sidebar__link docs-overview-link" :class="{ 'is-active': overview }" :aria-current="overview ? 'page' : undefined" @click="$emit('navigate')"><span class="docs-category-label"><span class="docs-nav-art" aria-hidden="true"><Icon name="grid" size="sm" /></span>文档总览</span><Icon name="chevronRight" size="xs" /></RouterLink>
+    <RouterLink :to="basePath" class="docs-sidebar__link docs-overview-link" :class="{ 'is-active': overview }" :aria-current="overview ? 'page' : undefined" @click="$emit('navigate')"><span class="docs-category-label"><span class="docs-nav-art" aria-hidden="true"><Icon name="grid" size="sm" /></span>文档总览</span><Icon name="chevronRight" size="xs" /></RouterLink>
     <p v-if="!filteredNavigation.length" role="status" class="docs-search-empty">没有找到相关文档</p>
     <div v-for="group in filteredNavigation" :key="group.slug" class="docs-sidebar__group">
       <button type="button" class="docs-sidebar__group-title" :aria-label="group.title" :aria-expanded="expanded.has(group.slug)" :aria-controls="panelId(group.slug)" @click="toggleGroup(group.slug)">
@@ -12,7 +12,7 @@
         <RouterLink
         v-for="article in group.articles"
         :key="article.slug"
-        :to="{ path: '/docs', query: { cat: group.slug, page: article.slug } }"
+        :to="{ path: basePath, query: { cat: group.slug, page: article.slug } }"
         class="docs-sidebar__link"
         :class="{ 'is-active': currentCategory === group.slug && currentPage === article.slug }"
         :aria-current="currentCategory === group.slug && currentPage === article.slug ? 'page' : undefined"
@@ -28,11 +28,13 @@
 </template>
 
 <script setup lang="ts">
+import { useDocumentationPath } from '@/docs/workspace'
 import type { DocGroup } from '@/docs/types'
 import { computed, getCurrentInstance, ref, watch } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
 import { getDocCategoryIcon } from '@/docs/categories'
 
+const basePath = useDocumentationPath()
 const props = defineProps<{
   navigation: DocGroup[]
   currentCategory?: string

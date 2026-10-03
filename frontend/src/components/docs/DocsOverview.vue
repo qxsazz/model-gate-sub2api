@@ -21,11 +21,13 @@
 </template>
 
 <script setup lang="ts">
+import { useDocumentationPath } from '@/docs/workspace'
 import Icon from '@/components/icons/Icon.vue'
 import type { DocGroup } from '@/docs/types'
 import { getDocCategoryIcon as categoryIcon } from '@/docs/categories'
+const basePath = useDocumentationPath()
 defineProps<{ navigation: DocGroup[] }>()
-const target = (category: string, page: string) => ({ path: '/docs', query: { cat: category, page } })
+const target = (category: string, page: string) => ({ path: basePath, query: { cat: category, page } })
 </script>
 
 <style scoped>

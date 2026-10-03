@@ -1,6 +1,7 @@
 <template>
-  <div class="docs-page" :class="{ 'is-dark': isDark }" data-testid="docs-shell">
-    <DocsHeader :is-dark="isDark" @open-menu="mobileMenuOpen = true" @toggle-theme="toggleTheme" />
+  <div ref="shell" class="docs-page" :class="{ 'is-dark': isDark, 'docs-page--embedded': embedded }" data-testid="docs-shell">
+    <DocsHeader v-if="!embedded" :is-dark="isDark" @open-menu="mobileMenuOpen = true" @toggle-theme="toggleTheme" />
+    <button v-else class="docs-workspace-menu" type="button" @click="mobileMenuOpen = true"><Icon name="document" size="md" />文档目录</button>
 
 
     <div class="docs-layout">
@@ -17,7 +18,7 @@
         <DocsOverview v-if="isOverview" :navigation="docsNavigation" />
         <DocsNotFoundView v-else-if="!resolved" />
         <article v-else data-testid="docs-article">
-          <div class="docs-breadcrumb"><RouterLink to="/docs">文档总览</RouterLink> <span>/</span> {{ resolved.group.title }} <span>/</span> {{ resolved.document.title }}</div>
+          <div class="docs-breadcrumb"><RouterLink :to="basePath">文档总览</RouterLink> <span>/</span> {{ resolved.group.title }} <span>/</span> {{ resolved.document.title }}</div>
           <header class="docs-article-header">
             <div class="docs-article-kicker">MODEL-GATE GUIDE</div>
             <h1 data-testid="docs-article-title">{{ resolved.document.title }}</h1>
@@ -73,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DocsArticleNavigation from '@/components/docs/DocsArticleNavigation.vue'
 import DocsHeader from '@/components/docs/DocsHeader.vue'
@@ -86,17 +87,28 @@ import Icon from '@/components/icons/Icon.vue'
 import DocsOverview from '@/components/docs/DocsOverview.vue'
 import type { DocHeading } from '@/docs/types'
 import { scrollToDocHeading } from '@/docs/navigation'
+import { useDocumentationPath } from '@/docs/workspace'
 
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const basePath = useDocumentationPath()
+const shell = ref<HTMLElement>()
 const route = useRoute()
 const router = useRouter()
 const mobileMenuOpen = ref(false)
-const isDark = ref(resolveInitialTheme())
+const isDark = ref(props.embedded ? document.documentElement.classList.contains('dark') : resolveInitialTheme())
+let themeObserver: MutationObserver | undefined
+onMounted(() => {
+  if (!props.embedded) return
+  themeObserver = new MutationObserver(() => { isDark.value = document.documentElement.classList.contains('dark') })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+onUnmounted(() => themeObserver?.disconnect())
 
 const queryValue = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined
 const isOverview = computed(() => !route.query.cat && !route.query.page)
 const overviewHeadings = computed<DocHeading[]>(() => docsNavigation.map(group => ({ id: `overview-${group.slug}`, text: group.title, level: 2 })))
 const resolved = computed(() => resolveDocument(queryValue(route.query.cat), queryValue(route.query.page)))
-const rendered = computed(() => resolved.value ? renderMarkdown(resolved.value.document.source, { collapsedHeadings: resolved.value.document.collapsedHeadings }) : { html: '', headings: [] })
+const rendered = computed(() => resolved.value ? renderMarkdown(resolved.value.document.source, { collapsedHeadings: resolved.value.document.collapsedHeadings, documentationPath: basePath }) : { html: '', headings: [] })
 const adjacent = computed(() => resolved.value
   ? getAdjacentDocuments(resolved.value.location.category, resolved.value.location.page)
   : { previous: null, next: null })
@@ -107,7 +119,8 @@ watch(() => route.fullPath, async () => {
   if (route.hash) {
     try { if (scrollToDocHeading(decodeURIComponent(route.hash.slice(1)))) return } catch { /* Invalid fragments fall back to the article top. */ }
   }
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (props.embedded) shell.value?.scrollIntoView?.({ block: 'start' })
+  else window.scrollTo({ top: 0, behavior: 'smooth' })
 }, { immediate: true })
 
 function resolveInitialTheme(): boolean {
@@ -136,10 +149,13 @@ function handleArticleClick(event: MouseEvent): void {
     try { scrollToDocHeading(decodeURIComponent((anchor.getAttribute('href') || '').slice(1))) } catch { /* Ignore malformed fragments. */ }
     return
   }
-  const link = target.closest<HTMLAnchorElement>('a[href^="/docs"]')
+  const link = target.closest<HTMLAnchorElement>('a[href]')
   if (!link) return
+  const url = new URL(link.getAttribute('href') || '/docs', window.location.origin)
+  if (url.origin !== window.location.origin || url.pathname !== basePath) return
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return
   event.preventDefault()
-  void router.push(link.getAttribute('href') || '/docs')
+  void router.push(basePath + url.search + url.hash)
 }
 
 async function copyCode(button: HTMLButtonElement, code: string): Promise<void> {
@@ -223,7 +239,14 @@ async function copyCode(button: HTMLButtonElement, code: string): Promise<void> 
 .docs-prose :deep(.docs-disclosure-content) { padding: 0 0 12px 18px; }
 .docs-prose :deep(.docs-disclosure summary:focus-visible) { outline: 2px solid var(--docs-accent); outline-offset: 2px; }
 .docs-page :deep(button:focus-visible), .docs-page :deep(a:focus-visible) { outline: 2px solid var(--docs-accent); outline-offset: 3px; }
+.docs-page--embedded { min-height: 100%; scroll-margin-top: 88px; border: 1px solid var(--docs-border); border-radius: 12px; }
+.docs-page--embedded .docs-layout { grid-template-columns: 220px minmax(0, 780px); gap: 28px; }
+.docs-page--embedded .docs-layout__toc { display: none; }
+.docs-page--embedded .docs-layout__sidebar { top: 88px; max-height: calc(100vh - 100px); }
+.docs-page--embedded .docs-mobile-toc { display: block; }
+.docs-workspace-menu { display: none; align-items: center; gap: 8px; margin: 18px 22px 0; padding: 10px 14px; border: 1px solid var(--docs-border); border-radius: 6px; color: var(--docs-text); background: var(--docs-surface); font-size: 13px; }
 @media (max-width: 1180px) { .docs-layout { grid-template-columns: 220px minmax(0, 780px); } .docs-layout__toc { display: none; } .docs-mobile-toc { display: block; } }
-@media (max-width: 960px) { .docs-layout { display: block; padding: 0 22px; } .docs-layout__sidebar { display: none; } .docs-main { max-width: 780px; margin: 0 auto; padding-top: 30px; } }
+@media (max-width: 1180px) { .docs-page--embedded .docs-layout { display: block; } .docs-page--embedded .docs-layout__sidebar { display: none; } .docs-page--embedded .docs-workspace-menu { display: inline-flex; } }
+@media (max-width: 960px) { .docs-layout { display: block; padding: 0 22px; } .docs-layout__sidebar { display: none; } .docs-main { max-width: 780px; margin: 0 auto; padding-top: 30px; } .docs-workspace-menu { display: inline-flex; } }
 @media (max-width: 600px) { .docs-layout { padding: 0 17px; } .docs-breadcrumb { margin-bottom: 28px; } .docs-article-header h1 { font-size: 30px; } .docs-prose { font-size: 14px; } .docs-prose :deep(h2) { font-size: 21px; } .docs-article-header p { font-size: 14px; } }
 </style>

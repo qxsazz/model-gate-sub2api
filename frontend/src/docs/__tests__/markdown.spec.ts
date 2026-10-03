@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { renderMarkdown } from '@/docs/markdown'
 
 describe('renderMarkdown', () => {
+  it('keeps workspace document links usable when copied or opened in a new tab', () => {
+    const result = renderMarkdown('[FAQ](/docs?cat=help&page=faq#费用) [Other](/docs-extra)', { documentationPath: '/guide' })
+    const container = document.createElement('div')
+    container.innerHTML = result.html
+    expect(decodeURI(container.querySelector('a')?.getAttribute('href') || '')).toBe('/guide?cat=help&page=faq#费用')
+    expect(container.querySelectorAll('a')[1]?.getAttribute('href')).toBe('/docs-extra')
+  })
   it('creates stable unique heading ids and a level-two/three table of contents', () => {
     const result = renderMarkdown(`
 # 文档标题
