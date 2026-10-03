@@ -96,9 +96,11 @@ describe('DocsView', () => {
     expect(writeText.mock.calls[0]?.[0]).not.toContain('curl https://model-gate.cc')
   })
 
-  it('searches navigation and clearly distinguishes planned activities from live VIP', async () => {
+  it('searches navigation and shows the available staging achievement documentation', async () => {
     const { wrapper, router } = await mountDocs('/docs?cat=achievements&page=overview')
-    expect(wrapper.get('[data-testid="docs-coming-soon"]').text()).toContain('敬请期待')
+    expect(wrapper.find('[data-testid="docs-coming-soon"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="docs-article"]').text()).toContain('21 枚')
+    expect(wrapper.get('[data-testid="docs-article"]').text()).toContain('测试环境')
     await wrapper.get('[aria-label="搜索文档"]').setValue('累充')
     expect(wrapper.get('[aria-label="文档目录"]').text()).toContain('累充奖励')
     expect(wrapper.get('[aria-label="文档目录"]').text()).not.toContain('Cursor 接入')
