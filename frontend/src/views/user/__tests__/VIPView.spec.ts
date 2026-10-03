@@ -41,6 +41,16 @@ describe('VIP center', () => {
   expect(wrapper.get('.member-card').text()).toContain('加赠 1%')
   expect(wrapper.find('[data-sign-in]').exists()).toBe(false)
  })
+ it('renders the user endpoint response with private group rules redacted to null', async () => {
+  const tiers=[1,2,3,4,5].map(level=>({level,threshold:level*100,concurrency:8,rebate_percent:level*2,recharge_bonus_percent:level}))
+  getMock.mockResolvedValue({enabled:true,total:100,tier:tiers[0],badge_level:1,concurrency:8,rpm:0,rebate_percent:2,next:null,rules:{recharge_bonus_enabled:true,access_threshold:100,tiers,groups:null,exchange_rates:null},groups:[{id:1,base_rate:.4,exclusive:false,participating:true}],ledger:[]})
+  const wrapper=render(); await flushPromises()
+  expect(wrapper.get('.member-card').text()).toContain('加赠 1%')
+  expect(wrapper.get('.growth-benefits').text()).toContain('以实际分组为准')
+  expect(wrapper.get('.growth-benefits').text()).toContain('$1.00 · 未上线')
+  await wrapper.get('[data-tab="rewards"]').trigger('click')
+  expect(wrapper.get('[data-claim="1"]').text()).toContain('领取奖励')
+ })
  it('preserves actual historical claims while tier cards show the new two-percent offer', async () => {
   membershipMock.mockResolvedValue({rewards:[{level:1,threshold:100,amount:1,status:'claimed'}],seats:[],debt:0,claimed:1,discount_summaries:{}})
   getMock.mockResolvedValue({enabled:true,total:100,tier:{level:1,threshold:100},badge_level:1,concurrency:8,rpm:0,rebate_percent:2,next:null,rules:{access_threshold:100,tiers:[{level:1,threshold:100,concurrency:8,rebate_percent:2}]},groups:[],ledger:[]})

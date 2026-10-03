@@ -117,7 +117,7 @@ const bonus = (tier: VIPTier) => tier.recharge_bonus_percent ?? 0
 function referenceSaving(tier: VIPTier) {
   if (!bonusActive.value) return '方案未启用'
   const group = state.value?.groups.find(g => !g.exclusive && g.base_rate === .4 && g.participating)
-  const rule = state.value?.rules.groups.find(g => g.group_id === group?.id)
+  const rule = state.value?.rules.groups?.find(g => g.group_id === group?.id)
   if (!group || !rule) return '以实际分组为准'
   const multiplier = Math.max(Math.min(rule.floor, group.base_rate), group.base_rate - Math.min(.075, rule.discounts[tier.level - 1] ?? 0))
   return Math.max(0, (1 - multiplier / group.base_rate / (1 + bonus(tier) / 100)) * 100).toFixed(2) + '%'
