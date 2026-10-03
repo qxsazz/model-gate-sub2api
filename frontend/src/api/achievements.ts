@@ -7,6 +7,7 @@ export interface CashReceipt {
   revoked_at?: string | null
 }
 export interface AchievementReceipt extends CashReceipt {
+  source?: 'user' | 'admin'
   reason: string
   day: string
   tier: number
@@ -23,6 +24,7 @@ export interface Medal {
   progress: number
   unlocked: boolean
   claim: CashReceipt | null
+  manual?: 'granted' | 'revoked' | null
 }
 export interface AchievementState {
   date: string
@@ -32,6 +34,7 @@ export interface AchievementState {
   daily_rewards: number[]
   cash_reason: string
   milestone_cash_enabled: boolean
+  milestone_cash_reason?: string
   today: AchievementReceipt | null
   total_days: number
   streak: number
@@ -43,6 +46,8 @@ export interface AchievementState {
   medals: Medal[]
 }
 export interface AchievementConfig {
+  cash_scope: 'all' | 'allowlist'
+  budget_enabled: boolean
   daily_rewards: number[]
   cash_enabled: boolean
   milestone_cash_enabled: boolean
@@ -50,6 +55,78 @@ export interface AchievementConfig {
   daily_budget: number
   monthly_budget: number
 }
+export interface AchievementAudit {
+  id: number
+  actor_id: number
+  user_id: number
+  action: string
+  key: string | null
+  day: string | null
+  reason: string
+  response: CashReceipt
+  created_at: string
+}
+export interface AdminAchievementState extends AchievementState {
+  user: {
+    id: number
+    email: string
+    username: string
+    balance: number
+    status: string
+    created_at: string
+  }
+  operations: AchievementAudit[]
+}
+export interface BackfillPreview {
+  day: string
+  tier: number
+  gross: number
+  existing: boolean
+  policy_known: boolean
+  vip_total?: number
+  reason?: string
+}
+export interface AchievementAdminBody {
+  expected_gross?: number
+  expected_tier?: number
+  key?: string
+  date?: string
+  reason: string
+  request_key: string
+  grant_reward?: boolean
+  reclaim_reward?: boolean
+}
+export const getAdminAchievements = async (id: number) =>
+  (
+    await apiClient.get<AdminAchievementState>(
+      `/admin/achievements/users/${id}`,
+    )
+  ).data
+export const previewAchievementBackfill = async (id: number, date: string) =>
+  (
+    await apiClient.get<BackfillPreview>(
+      `/admin/achievements/users/${id}/backfill-preview`,
+      { params: { date } },
+    )
+  ).data
+export const adminAchievementAction = async (
+  id: number,
+  action: 'backfill' | 'grant' | 'revoke' | 'restore',
+  body: AchievementAdminBody,
+) =>
+  (
+    await apiClient.post<
+      CashReceipt & {
+        saved: boolean
+        action: string
+        existing?: boolean
+        recovered?: number
+        debt_added?: number
+      }
+    >(`/admin/achievements/users/${id}/${action}`, body)
+  ).data
+export const getAchievementAudit = async () =>
+  (await apiClient.get<AchievementAudit[]>('/admin/achievements/audit')).data
 export const getAchievements = async () =>
   (await apiClient.get<AchievementState>('/user/achievements')).data
 type AchievementBody = { key?: string; date?: string; request_key?: string }

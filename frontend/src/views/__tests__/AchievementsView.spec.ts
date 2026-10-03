@@ -44,6 +44,27 @@ function render() {
   })
 }
 describe('achievement checkin', () => {
+  it('shows the administrator backfill source in readable Chinese', async () => {
+    const receipt = {
+      day: state.date,
+      gross: 0.1,
+      net: 0.1,
+      offset_amount: 0,
+      reason: 'admin_backfill',
+      source: 'admin',
+      streak: 1,
+    }
+    mocks.get.mockResolvedValue({
+      ...state,
+      today: receipt,
+      history: [receipt],
+    })
+    const w = render()
+    await flushPromises()
+    expect(w.text()).toContain('管理员已补签')
+    expect(w.text()).toContain('管理员补签')
+    expect(w.text()).not.toContain('admin_backfill')
+  })
   it('opens on checkin and uses server day for the real transaction', async () => {
     mocks.get.mockResolvedValue(state)
     mocks.change.mockResolvedValue({
@@ -73,20 +94,38 @@ describe('achievement checkin', () => {
     expect(w.get('[role="alert"]').text()).toContain('连接失败')
     expect(w.text()).toContain('重试')
   })
-  it('retries an uncertain cash response with the same request key',async()=>{
+  it('retries an uncertain cash response with the same request key', async () => {
     mocks.get.mockResolvedValue(state)
-    mocks.change.mockRejectedValueOnce(new Error('网络中断')).mockResolvedValue({gross:0,net:0,offset_amount:0})
-    const w=render();await flushPromises()
-    await w.get('[data-testid="checkin"]').trigger('click');await flushPromises()
-    const first=mocks.change.mock.calls.at(-1)![1].request_key
-    await w.get('[data-testid="checkin"]').trigger('click');await flushPromises()
+    mocks.change
+      .mockRejectedValueOnce(new Error('网络中断'))
+      .mockResolvedValue({ gross: 0, net: 0, offset_amount: 0 })
+    const w = render()
+    await flushPromises()
+    await w.get('[data-testid="checkin"]').trigger('click')
+    await flushPromises()
+    const first = mocks.change.mock.calls.at(-1)![1].request_key
+    await w.get('[data-testid="checkin"]').trigger('click')
+    await flushPromises()
     expect(mocks.change.mock.calls.at(-1)![1].request_key).toBe(first)
   })
-  it('shows the recorded no-cash reason after a budget-exhausted checkin',async()=>{
-    mocks.get.mockResolvedValue({...state,today:{day:state.date,gross:0,net:0,offset_amount:0,reason:'budget_exhausted',streak:1}})
-    const w=render();await flushPromises()
+  it('shows the recorded no-cash reason after a budget-exhausted checkin', async () => {
+    mocks.get.mockResolvedValue({
+      ...state,
+      today: {
+        day: state.date,
+        gross: 0,
+        net: 0,
+        offset_amount: 0,
+        reason: 'budget_exhausted',
+        streak: 1,
+      },
+    })
+    const w = render()
+    await flushPromises()
     expect(w.text()).toContain('本期奖励预算已用完')
-    expect(w.get('[data-testid="checkin"]').attributes('disabled')).toBeDefined()
+    expect(
+      w.get('[data-testid="checkin"]').attributes('disabled'),
+    ).toBeDefined()
     expect(w.text()).not.toContain('今日现金奖励已开放，签到后即时入账')
   })
 })

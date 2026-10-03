@@ -13,6 +13,8 @@ import (
 
 type AchievementConfig struct {
 	DailyRewards         []float64 `json:"daily_rewards,omitempty"`
+	CashScope            string    `json:"cash_scope"`
+	BudgetEnabled        bool      `json:"budget_enabled"`
 	CashEnabled          bool      `json:"cash_enabled"`
 	MilestoneCashEnabled bool      `json:"milestone_cash_enabled"`
 	CashAllowlist        []int64   `json:"cash_allowlist"`
@@ -31,8 +33,11 @@ func (c AchievementConfig) Validate() error {
 		}
 		seen[id] = true
 	}
-	if c.CashEnabled && (len(c.CashAllowlist) == 0 || c.DailyBudget == 0) {
-		return infraerrors.BadRequest("ACHIEVEMENT_CONFIG_INVALID", "发奖试点必须指定账户和预算")
+	if c.CashScope != "" && c.CashScope != "all" && c.CashScope != "allowlist" {
+		return infraerrors.BadRequest("ACHIEVEMENT_CONFIG_INVALID", "无效的奖励开放范围")
+	}
+	if c.CashEnabled && ((c.CashScope != "all" && len(c.CashAllowlist) == 0) || (c.BudgetEnabled && c.DailyBudget == 0)) {
+		return infraerrors.BadRequest("ACHIEVEMENT_CONFIG_INVALID", "指定账户模式须填写名单，启用金额上限时须设置正数上限")
 	}
 	return nil
 }
@@ -96,6 +101,9 @@ func (s *UserService) GetAchievementConfig(ctx context.Context) (*AchievementCon
 }
 func (s *UserService) SetAchievementConfig(ctx context.Context, actor int64, c AchievementConfig) error {
 	c.DailyRewards = nil // Read-only policy comes from the persisted tier table.
+	if c.CashScope == "" {
+		c.CashScope = "allowlist"
+	}
 	if c.CashAllowlist == nil {
 		c.CashAllowlist = []int64{}
 	}

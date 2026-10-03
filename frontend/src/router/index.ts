@@ -74,7 +74,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/achievements', name: 'AdminAchievements',
     component: () => import('@/views/admin/AchievementSettingsView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true, title: '成就与签到设置' }
+    meta: { requiresAuth: true, requiresAdmin: true, title: '成就与签到管理' }
   },
   {
     path: '/admin/vip',

@@ -17,6 +17,15 @@ func achievementError(err error) error {
 	var pg *pq.Error
 	if errors.As(err, &pg) {
 		switch pg.Message {
+		case "ACHIEVEMENT_ADMIN_FORBIDDEN":
+			return infraerrors.Forbidden(pg.Message, "需要有效管理员权限")
+		case "ACHIEVEMENT_ADMIN_CONFLICT":
+			return infraerrors.Conflict(pg.Message, "该请求编号已用于不同的管理操作")
+		case "ACHIEVEMENT_HISTORY_CHANGED":return infraerrors.Conflict(pg.Message,"历史权益已变化，请重新核验金额后确认补签")
+		case "ACHIEVEMENT_HISTORY_UNAVAILABLE":
+			return infraerrors.BadRequest(pg.Message, "历史权益无法完整核验，或所选日期不可补签，请核对资料")
+		case "ACHIEVEMENT_ADMIN_REASON":
+			return infraerrors.BadRequest(pg.Message, "请填写操作原因")
 		case "ACTIVITY_REQUEST_CONFLICT":
 			return infraerrors.Conflict(pg.Message, "请求编号已用于不同的答题提交")
 		case "ACTIVITY_ATTEMPT_LIMIT":
@@ -46,6 +55,9 @@ func (r *userRepository) achievementJSON(ctx context.Context, query string, args
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, achievementError(err)
+		}
 		return nil, service.ErrUserNotFound
 	}
 	var raw []byte
@@ -61,16 +73,38 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
  'cash_reason',achievement_cash_reason($1,c.payload),'milestone_cash_enabled',COALESCE((c.payload->>'milestone_cash_enabled')::boolean,false),
+ 'milestone_cash_reason',achievement_cash_reason($1,jsonb_set(c.payload,'{cash_enabled}',COALESCE(c.payload->'milestone_cash_enabled','false'))),
  'today',(SELECT to_jsonb(ch) FROM achievement_checkins ch WHERE user_id=$1 AND day=d.today),
  'total_days',(SELECT count(*) FROM achievement_checkins WHERE user_id=$1),
  'streak',COALESCE((SELECT streak FROM achievement_checkins WHERE user_id=$1 AND day>=d.today-1 ORDER BY day DESC LIMIT 1),0),
  'longest',achievement_progress($1,'S01'),
  'calendar',COALESCE((SELECT jsonb_agg(day ORDER BY day) FROM achievement_checkins WHERE user_id=$1 AND day>=date_trunc('month',d.today)::date),'[]'::jsonb),
  'history',COALESCE((SELECT jsonb_agg(to_jsonb(h) ORDER BY day DESC) FROM (SELECT * FROM achievement_checkins WHERE user_id=$1 ORDER BY day DESC LIMIT 10) h),'[]'::jsonb),
- 'equipment',(SELECT eq.key FROM achievement_equipment eq JOIN achievement_catalog cat ON cat.key=eq.key WHERE eq.user_id=$1 AND achievement_progress($1,eq.key)>=cat.target),
+ 'equipment',(SELECT eq.key FROM achievement_equipment eq WHERE eq.user_id=$1 AND achievement_is_unlocked($1,eq.key)),
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),
- 'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',NOT cat.preview AND achievement_progress($1,cat.key)>=cat.target,'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
- ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL AND u.status='active'`, id)
+ 'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
+ ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
+}
+
+func (r *userRepository) AdminAchievementSnapshot(ctx context.Context, id int64) (json.RawMessage, error) {
+	snapshot, e := r.AchievementSnapshot(ctx, id)
+	if e != nil {
+		return nil, e
+	}
+	return r.achievementJSON(ctx, `SELECT $2::jsonb||jsonb_build_object('user',jsonb_build_object('id',u.id,'email',u.email,'username',u.username,'balance',u.balance,'status',u.status,'created_at',u.created_at),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(o) - 'request' ORDER BY id DESC) FROM (SELECT * FROM achievement_operations WHERE user_id=$1 ORDER BY id DESC LIMIT 50)o),'[]'::jsonb)) FROM users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id, string(snapshot))
+}
+func (r *userRepository) AchievementBackfillPreview(ctx context.Context, id int64, date string) (json.RawMessage, error) {
+	return r.achievementJSON(ctx, `SELECT achievement_backfill_preview($1,$2::date)`, id, date)
+}
+func (r *userRepository) AdminAchievementMutation(ctx context.Context, actor, id int64, action string, c service.AchievementAdminCommand) (json.RawMessage, error) {
+	raw, e := json.Marshal(c)
+	if e != nil {
+		return nil, e
+	}
+	return r.achievementJSON(ctx, `SELECT achievement_admin_operation($1,$2,$3,$4::jsonb)`, actor, id, action, string(raw))
+}
+func (r *userRepository) AchievementAudit(ctx context.Context) (json.RawMessage, error) {
+	return r.achievementJSON(ctx, `SELECT COALESCE(jsonb_agg(to_jsonb(o)-'request' ORDER BY id DESC),'[]'::jsonb) FROM (SELECT * FROM achievement_operations ORDER BY id DESC LIMIT 100)o`)
 }
 func (r *userRepository) AchievementMutation(ctx context.Context, id int64, action, key, date, idem string) (json.RawMessage, error) {
 	switch action {

@@ -144,7 +144,7 @@ func TestAchievementConcurrentBudgetAndClaim(t *testing.T) {
 	})
 	_, e = integrationDB.ExecContext(ctx, `DELETE FROM achievement_budget`)
 	require.NoError(t, e)
-	require.NoError(t, repo.SaveAchievementConfig(ctx, ids[0], service.AchievementConfig{CashEnabled: true, MilestoneCashEnabled: true, CashAllowlist: ids, DailyBudget: .01, MonthlyBudget: .01}))
+	require.NoError(t, repo.SaveAchievementConfig(ctx, ids[0], service.AchievementConfig{CashEnabled: true, MilestoneCashEnabled: true, CashAllowlist: ids, BudgetEnabled: true, DailyBudget: .01, MonthlyBudget: .01}))
 	run := func(action string) {
 		var wg sync.WaitGroup
 		errors := make(chan error, 24)

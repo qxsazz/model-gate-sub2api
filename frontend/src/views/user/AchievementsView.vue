@@ -205,13 +205,17 @@
             <div class="card-top">
               <span>{{ m.key }}</span
               ><span>{{
-                m.preview
-                  ? '篇章预告'
-                  : m.claim?.revoked_at
-                    ? '已追回'
-                    : m.unlocked
-                      ? '✓ 已解锁'
-                      : '待点亮'
+                m.manual === 'revoked'
+                  ? '管理员已取消'
+                  : m.manual === 'granted'
+                    ? '管理员授予'
+                    : m.preview
+                      ? '篇章预告'
+                      : m.claim?.revoked_at
+                        ? '已追回'
+                        : m.unlocked
+                          ? '✓ 已解锁'
+                          : '待点亮'
               }}</span>
             </div>
             <button
@@ -262,7 +266,7 @@
                   }}</button
                 ><button
                   class="equip-button"
-                  :disabled="busy || !m.unlocked || m.preview"
+                  :disabled="busy || !m.unlocked"
                   @click="act('equip', state.equipment === m.key ? '' : m.key)"
                 >
                   {{ state.equipment === m.key ? '已佩戴' : '佩戴' }}
@@ -281,7 +285,10 @@
         <details v-if="tab === 'sign' && state.history.length" class="history">
           <summary>最近的签到记录</summary>
           <div v-for="h in state.history" :key="h.day">
-            <span>{{ h.day }} · 连续 {{ h.streak }} 天</span
+            <span
+              >{{ h.day }} ·
+              {{ h.source === 'admin' ? '管理员补签' : '用户签到' }} · 连续
+              {{ h.streak }} 天</span
             ><span>奖励 ${{ money(h.gross) }} · 到账 ${{ money(h.net) }}</span>
           </div>
         </details>
@@ -404,17 +411,19 @@ const cashReason = (reason: string) =>
   ({
     eligible: '今日现金奖励已开放，签到后即时入账。',
     cash_disabled: '当前现金奖励未开放，签到仍计入成长。',
-    not_in_cash_pilot: '当前账户未加入现金奖励试点，签到仍计入成长。',
+    not_in_cash_pilot: '当前账户不在奖励开放名单，签到仍计入成长。',
     recent_activity_required:
       '近 30 日需有有效充值或余额计费使用，签到仍计入成长。',
     budget_exhausted: '本期奖励预算已用完，签到仍计入成长。',
+    admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
   })[reason] ?? reason
 function canClaim(m: Medal) {
   return (
     m.unlocked &&
     !m.claim &&
     state.value?.milestone_cash_enabled &&
-    state.value.cash_reason === 'eligible'
+    (state.value.milestone_cash_reason ?? state.value.cash_reason) ===
+      'eligible'
   )
 }
 const errorMessage = (e: unknown) => {

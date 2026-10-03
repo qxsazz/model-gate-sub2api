@@ -33,6 +33,16 @@ func RegisterAdminRoutes(
 	admin.GET("/vip/rules", h.User.GetVIPConfig)
 	admin.GET("/achievements/config", h.User.GetAchievementConfig)
 	admin.PUT("/achievements/config", gin.HandlerFunc(stepUpAuth), h.User.SaveAchievementConfig)
+	admin.GET("/achievements/audit", h.User.GetAchievementAudit)
+	admin.GET("/achievements/users/:id", h.User.GetAdminAchievements)
+	admin.GET("/achievements/users/:id/backfill-preview", h.User.PreviewAchievementBackfill)
+	for _, action := range []string{"backfill", "grant", "revoke", "restore"} {
+		action := action
+		admin.POST("/achievements/users/:id/"+action, gin.HandlerFunc(stepUpAuth), func(c *gin.Context) {
+			c.Params = append(c.Params, gin.Param{Key: "action", Value: action})
+			h.User.ControlAdminAchievement(c)
+		})
+	}
 	admin.PUT("/vip/rules", gin.HandlerFunc(stepUpAuth), h.User.SaveVIPConfig)
 	admin.GET("/vip/users/:id", h.User.GetVIP)
 	admin.PUT("/vip/users/:id/overrides", gin.HandlerFunc(stepUpAuth), h.User.SetVIPOverride)
