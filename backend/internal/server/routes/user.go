@@ -30,6 +30,17 @@ func RegisterUserRoutes(
 		{
 			user.GET("/profile", h.User.GetProfile)
 			user.GET("/vip", h.User.GetVIP)
+			user.GET("/achievements", h.User.GetAchievements)
+			user.GET("/achievements/activity/topics", h.User.GetAchievementTopics)
+			user.GET("/achievements/activity/:kind/:topic", h.User.GetAchievementQuiz)
+			user.POST("/achievements/activity/:kind/:topic", h.User.SubmitAchievementQuiz)
+			for _, action := range []string{"checkin", "claim", "equip"} {
+				action := action
+				user.POST("/achievements/"+action, func(c *gin.Context) {
+					c.Params = append(c.Params, gin.Param{Key: "action", Value: action})
+					h.User.ChangeAchievement(c)
+				})
+			}
 			user.GET("/vip/membership", h.User.GetVIPMembership)
 			user.POST("/vip/rewards/:level/claim", h.User.ClaimVIPReward)
 			user.PUT("/password", h.User.ChangePassword)

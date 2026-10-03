@@ -31,6 +31,8 @@ func RegisterAdminRoutes(
 	admin.Use(gin.HandlerFunc(auditLog))
 	admin.Use(middleware.AdminComplianceGuard(settingService))
 	admin.GET("/vip/rules", h.User.GetVIPConfig)
+	admin.GET("/achievements/config", h.User.GetAchievementConfig)
+	admin.PUT("/achievements/config", gin.HandlerFunc(stepUpAuth), h.User.SaveAchievementConfig)
 	admin.PUT("/vip/rules", gin.HandlerFunc(stepUpAuth), h.User.SaveVIPConfig)
 	admin.GET("/vip/users/:id", h.User.GetVIP)
 	admin.PUT("/vip/users/:id/overrides", gin.HandlerFunc(stepUpAuth), h.User.SetVIPOverride)
