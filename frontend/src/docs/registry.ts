@@ -87,13 +87,13 @@ export const docsNavigation: DocGroup[] = [
     ],
   },
   {
-    slug: 'achievements', title: '成就与活动', description: '收藏每一次成长。',
+    slug: 'achievements', title: '成就与签到', description: '收藏每一次成长。',
     articles: [
-      article('overview', '成就收藏册', '勋章、进度、领取与佩戴玩法预告。', achievementsSource, 'upcoming'),
-      article('token', 'Token 成长成就', '累计调用用量的三档成长里程碑。', tokenSource, 'upcoming'),
-      article('check-in', '签到与全勤', '连续签到、补签卡及全勤奖励。', checkinSource, 'upcoming'),
-      article('activities', '活动与盲盒', '排行榜、答题与盲盒收藏玩法。', activitiesSource, 'upcoming'),
-      article('collection', '充值与收藏成就', '充值荣誉、分类收藏及终章成就。', collectionSource, 'upcoming'),
+      article('overview', '成就收藏册', '21 枚徽章、成长进度、领取与佩戴。', achievementsSource),
+      article('token', 'Token 成长成就', '付费文本用量的六档成长里程碑。', tokenSource),
+      article('check-in', '签到与全勤', '每日签到、会员权益与连续参与记录。', checkinSource),
+      article('activities', '活动探索', '知识闯关、实践演练与篇章收藏。', activitiesSource),
+      article('collection', '充值与收藏成就', '有效充值荣誉、奖励与退款处理。', collectionSource),
     ],
   },
   {
@@ -136,7 +136,7 @@ function article(
     title,
     description,
     source,
-    updatedAt: ['service', 'security', 'faq', 'http-errors', 'network', 'records', 'account-issues', 'recharge', 'rewards', 'collection', 'overview', 'vip', 'check-in'].includes(slug) ? '2026-10-02' : '2026-10-01',
+    updatedAt: ['account-issues', 'rewards', 'collection', 'overview', 'vip', 'check-in', 'token', 'activities'].includes(slug) ? '2026-10-03' : ['service', 'security', 'faq', 'http-errors', 'network', 'records', 'recharge'].includes(slug) ? '2026-10-02' : '2026-10-01',
     status,
     collapsedHeadings: optionalSections[slug] || [],
   }

@@ -32,12 +32,12 @@ describe('VIP center', () => {
   expect(wrapper.get('[role="alert"]').text()).toContain('读取失败')
   expect(wrapper.find('.membership').exists()).toBe(false)
  })
- it('shows the active bonus ladder and clearly labels planned check-in amounts', async () => {
+ it('shows the active bonus ladder and links to the real check-in page with eligibility guidance', async () => {
   const tiers=[1,2,3,4,5].map(level=>({level,threshold:level*100,concurrency:8,rebate_percent:level*2,recharge_bonus_percent:level}))
   getMock.mockResolvedValue({enabled:true,total:100,tier:tiers[0],badge_level:1,concurrency:8,rpm:0,rebate_percent:2,next:null,rules:{recharge_bonus_enabled:true,access_threshold:100,tiers,groups:[{group_id:1,floor:.3,discounts:[.015,.03,.045,.06,.075]}]},groups:[{id:1,base_rate:.4,exclusive:false,participating:true}],ledger:[]})
   const wrapper=render(); await flushPromises()
   expect(wrapper.get('.growth-benefits').text()).toContain('22.62%')
-  expect(wrapper.get('.growth-benefits').text()).toContain('$1.00 · 未上线')
+  expect(wrapper.get('.growth-benefits').text()).toContain('$1.00 · 以签到页为准')
   expect(wrapper.get('.member-card').text()).toContain('加赠 1%')
   expect(wrapper.find('[data-sign-in]').exists()).toBe(false)
  })
@@ -47,7 +47,7 @@ describe('VIP center', () => {
   const wrapper=render(); await flushPromises()
   expect(wrapper.get('.member-card').text()).toContain('加赠 1%')
   expect(wrapper.get('.growth-benefits').text()).toContain('以实际分组为准')
-  expect(wrapper.get('.growth-benefits').text()).toContain('$1.00 · 未上线')
+  expect(wrapper.get('.growth-benefits').text()).toContain('$1.00 · 以签到页为准')
   await wrapper.get('[data-tab="rewards"]').trigger('click')
   expect(wrapper.get('[data-claim="1"]').text()).toContain('领取奖励')
  })
@@ -80,7 +80,7 @@ describe('VIP center', () => {
   expect(wrapper.get('.membership-rules').text()).toContain('后台手动增加余额')
   expect(wrapper.get('.membership-rules').text()).toContain('0.075')
   expect(wrapper.text()).toContain('签到')
-  expect(wrapper.text()).toContain('敬请期待')
+  expect(wrapper.text()).toContain('成就与签到页为准')
   expect(wrapper.get('.membership-rules').text()).toContain('不重复发放')
   expect(wrapper.get('.membership-rules').text()).not.toContain('7 天')
   authMock.user.username=''

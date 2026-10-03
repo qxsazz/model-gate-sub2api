@@ -208,6 +208,15 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 		result.QuotaState = quotaState
 	}
+	if tokens := cmd.AchievementTokens(); tokens > 0 {
+		_, err := tx.ExecContext(ctx, `INSERT INTO achievement_growth(user_id,tokens,last_paid_at,last_balance_paid_at)
+		 VALUES($1,$2,now(),CASE WHEN $3 THEN now() ELSE NULL END)
+		 ON CONFLICT(user_id) DO UPDATE SET tokens=achievement_growth.tokens+excluded.tokens,
+		 last_paid_at=now(),last_balance_paid_at=COALESCE(excluded.last_balance_paid_at,achievement_growth.last_balance_paid_at)`, cmd.UserID, tokens, cmd.BalanceCost > 0)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
