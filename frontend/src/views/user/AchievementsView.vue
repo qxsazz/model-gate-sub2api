@@ -66,7 +66,7 @@
             </p>
           </div>
         </section>
-        <nav class="tabs" aria-label="成就分类">
+        <nav class="achievement-tabs" aria-label="成就分类">
           <button
             v-for="t in tabs"
             :key="t.key"
@@ -621,23 +621,23 @@ summary:focus-visible {
   color: var(--muted);
   font-size: 10px;
 }
-.tabs {
+.achievement-tabs {
   display: flex;
   border-bottom: 1px solid var(--line);
   gap: 28px;
 }
-.tabs button {
+.achievement-tabs button {
   padding: 15px 0;
   background: none;
   border-bottom: 2px solid transparent;
   color: var(--muted);
   white-space: nowrap;
 }
-.tabs .active {
+.achievement-tabs .active {
   color: var(--gold);
   border-color: var(--gold);
 }
-.tabs small {
+.achievement-tabs small {
   font: 10px Consolas;
   margin-left: 9px;
   opacity: 0.65;
@@ -967,7 +967,7 @@ progress::-moz-progress-bar {
   color: var(--muted);
   font-size: 25px;
 }
-:global(.dark) .achievement-page {
+:global(.dark .achievement-page) {
   --paper: #1e2421;
   --ink: #e6e2d6;
   --muted: #a0a497;
@@ -1027,7 +1027,7 @@ progress::-moz-progress-bar {
   .overview {
     padding: 22px;
   }
-  .tabs {
+  .achievement-tabs {
     gap: 22px;
     overflow-x: auto;
   }

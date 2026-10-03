@@ -369,7 +369,7 @@ input:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
 }
-:global(.dark) .quiz-dialog {
+:global(.dark .quiz-dialog) {
   --paper: #1e2421;
   --ink: #e6e2d6;
   --muted: #a0a497;
