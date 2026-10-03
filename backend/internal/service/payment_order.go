@@ -171,6 +171,21 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, err
 	}
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
+	if req.OrderType == payment.OrderTypeBalance {
+		quote, quoteErr := s.GetVIPRechargeQuote(ctx, req.UserID, cfg.BalanceRechargeMultiplier)
+		if quoteErr != nil {
+			return nil, quoteErr
+		}
+		orderAmount = calculateCreditedBalance(limitAmount, quote.Multiplier)
+		if providerSnapshot == nil {
+			providerSnapshot = map[string]any{}
+		}
+		providerSnapshot["balance_recharge_multiplier"] = quote.Multiplier
+		providerSnapshot["vip_recharge_bonus_enabled"] = quote.Enabled
+		providerSnapshot["vip_recharge_bonus_level"] = quote.Level
+		providerSnapshot["recharge_principal"] = limitAmount
+		providerSnapshot["recharge_bonus_amount"] = decimal.NewFromFloat(orderAmount).Sub(decimal.NewFromFloat(limitAmount)).Round(2).InexactFloat64()
+	}
 	if repo, ok := s.userRepo.(VIPRepository); ok && req.OrderType == "balance" {
 		rules, configErr := repo.VIPRules(ctx)
 		if configErr != nil {

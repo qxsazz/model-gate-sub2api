@@ -19,7 +19,7 @@ func TestVIPThresholdRefundAndDisabled(t *testing.T) {
 	}
 }
 func TestVIPDecimalRatesAndPriceDecrease(t *testing.T) {
-	for _, c := range []struct{ base, floor, cut, want float64 }{{.3, .2, .1, .2}, {.2, .17, .005, .195}, {.12, .11, .002, .118}, {.088, .088, 0, .088}, {.15, .2, .1, .15}} {
+	for _, c := range []struct{ base, floor, cut, want float64 }{{.3, .2, .1, .225}, {.2, .17, .005, .195}, {.12, .11, .002, .118}, {.088, .088, 0, .088}, {.15, .2, .1, .15}} {
 		if got := VIPDiscountedRate(c.base, c.floor, c.cut); got != c.want {
 			t.Fatalf("got %.10f want %.10f", got, c.want)
 		}

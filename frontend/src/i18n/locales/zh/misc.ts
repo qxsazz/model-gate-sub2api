@@ -329,6 +329,8 @@ export default {
     amountLabel: '充值金额',
     paymentAmount: '支付金额',
     creditedBalance: '到账余额',
+    vipRechargeBonus: 'VIP {level} 充值加赠',
+    vipRechargeBonusNote: '按下单时的充值成长等级计算；加赠不计成长额，升级后的比例从下一笔订单生效。',
     quickAmounts: '快捷金额',
     customAmount: '自定义金额',
     enterAmount: '输入金额',

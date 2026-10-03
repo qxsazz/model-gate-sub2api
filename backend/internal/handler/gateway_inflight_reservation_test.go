@@ -31,6 +31,21 @@ type countingEstimator struct {
 	priced bool
 }
 
+type rejectingRateEstimator struct{ countingEstimator }
+
+func (e *rejectingRateEstimator) CaptureRequestRate(ctx context.Context, _ *service.APIKey) (context.Context, error) {
+	return ctx, service.ErrVIPRateUnavailable
+}
+func TestVIPRateFailureRejectsBeforeForwardEvenWithReservationDisabled(t *testing.T) {
+	est := &rejectingRateEstimator{}
+	_, _, err := reserveInflightBalanceCtx(context.Background(), nil, est, &service.APIKey{}, nil, service.InflightEstimateRequest{})
+	require.ErrorIs(t, err, service.ErrVIPRateUnavailable)
+	require.Zero(t, est.calls)
+	status, code, _, _ := billingErrorDetails(err)
+	require.Equal(t, http.StatusServiceUnavailable, status)
+	require.Equal(t, "billing_service_error", code)
+}
+
 func (e *countingEstimator) EstimateInflightReservation(context.Context, *service.APIKey, service.InflightEstimateRequest) (float64, bool) {
 	e.calls++
 	return e.cost, e.priced

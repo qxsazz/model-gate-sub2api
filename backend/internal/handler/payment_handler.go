@@ -38,7 +38,16 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, cfg)
+	copy := *cfg
+	if subject, ok := middleware2.GetAuthSubjectFromContext(c); ok && h.paymentService != nil {
+		quote, err := h.paymentService.GetVIPRechargeQuote(c.Request.Context(), subject.UserID, cfg.BalanceRechargeMultiplier)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		copy.BalanceRechargeMultiplier = quote.Multiplier
+	}
+	response.Success(c, &copy)
 }
 
 // GetPlans returns subscription plans available for sale.
@@ -119,6 +128,14 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	// Fetch plans with group info
+	quote := service.VIPRechargeQuote{Multiplier: cfg.BalanceRechargeMultiplier}
+	if subject, ok := middleware2.GetAuthSubjectFromContext(c); ok && h.paymentService != nil {
+		quote, err = h.paymentService.GetVIPRechargeQuote(ctx, subject.UserID, cfg.BalanceRechargeMultiplier)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
 	plans, _ := h.configService.ListPlansForSale(ctx)
 	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
 	planList := make([]checkoutPlan, 0, len(plans))
@@ -146,7 +163,9 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		GlobalMax:                     limitsResp.GlobalMax,
 		Plans:                         planList,
 		BalanceDisabled:               cfg.BalanceDisabled,
-		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
+		BalanceRechargeMultiplier:     quote.Multiplier,
+		VIPRechargeBonusEnabled:       quote.Enabled,
+		VIPRechargeBonusLevel:         quote.Level,
 		SubscriptionUSDToCNYRate:      cfg.SubscriptionUSDToCNYRate,
 		RechargeFeeRate:               cfg.RechargeFeeRate,
 		HelpText:                      cfg.HelpText,
@@ -158,6 +177,8 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 }
 
 type checkoutInfoResponse struct {
+	VIPRechargeBonusEnabled       bool                            `json:"vip_recharge_bonus_enabled"`
+	VIPRechargeBonusLevel         int                             `json:"vip_recharge_bonus_level"`
 	Methods                       map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                     float64                         `json:"global_min"`
 	GlobalMax                     float64                         `json:"global_max"`

@@ -53,7 +53,7 @@ func (h *GatewayHandler) KeyBillingInfo(c *gin.Context) {
 
 	resolvedRate, ok := h.resolveKeyBillingRate(c, apiKey)
 	if !ok {
-		h.errorResponse(c, http.StatusInternalServerError, "api_error", "Billing information is unavailable")
+		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Billing information is unavailable")
 		return
 	}
 
@@ -62,18 +62,27 @@ func (h *GatewayHandler) KeyBillingInfo(c *gin.Context) {
 }
 
 func (h *GatewayHandler) resolveKeyBillingRate(c *gin.Context, apiKey *service.APIKey) (float64, bool) {
-	groupRate := apiKey.Group.RateMultiplier
 	switch apiKey.Group.Platform {
 	case service.PlatformOpenAI, service.PlatformGrok:
 		if h.openAIGatewayService == nil {
 			return 0, false
 		}
-		return h.openAIGatewayService.ResolveUserGroupRateMultiplier(c.Request.Context(), apiKey.UserID, *apiKey.GroupID, groupRate), true
+		ctx, err := h.openAIGatewayService.CaptureRequestRate(c.Request.Context(), apiKey)
+		if err != nil {
+			return 0, false
+		}
+		c.Request = c.Request.WithContext(ctx)
+		return apiKey.RequestRate(apiKey.UserID, *apiKey.GroupID)
 	default:
 		if h.gatewayService == nil {
 			return 0, false
 		}
-		return h.gatewayService.ResolveUserGroupRateMultiplier(c.Request.Context(), apiKey.UserID, *apiKey.GroupID, groupRate), true
+		ctx, err := h.gatewayService.CaptureRequestRate(c.Request.Context(), apiKey)
+		if err != nil {
+			return 0, false
+		}
+		c.Request = c.Request.WithContext(ctx)
+		return apiKey.RequestRate(apiKey.UserID, *apiKey.GroupID)
 	}
 }
 

@@ -333,6 +333,20 @@ func TestApiKeyAuthWithSubscriptionGoogle_QueryApiKeyRejected(t *testing.T) {
 	require.Equal(t, "INVALID_ARGUMENT", resp.Error.Status)
 }
 
+func TestVIPGoogleAuthUnavailableIs503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestAPIKeyService(fakeAPIKeyRepo{getByKey: func(context.Context, string) (*service.APIKey, error) { return nil, service.ErrVIPUnavailable }})
+	r := gin.New()
+	r.Use(APIKeyAuthWithSubscriptionGoogle(svc, nil, &config.Config{}))
+	r.GET("/v1beta/test", func(c *gin.Context) { c.Status(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.Header.Set("x-api-key", "valid-key")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.NotContains(t, w.Body.String(), "Invalid API key")
+}
+
 func TestApiKeyAuthWithSubscriptionGoogleSetsGroupContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

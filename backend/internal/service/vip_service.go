@@ -84,7 +84,13 @@ func (s *UserService) SaveVIPConfig(ctx context.Context, actor int64, rules VIPR
 	if e != nil {
 		return e
 	}
-	return r.VIPSaveRules(ctx, actor, rules)
+	if err := r.VIPSaveRules(ctx, actor, rules); err != nil {
+		return err
+	}
+	if cache, ok := s.authCacheInvalidator.(interface{ InvalidateVIPConfig() }); ok {
+		cache.InvalidateVIPConfig()
+	}
+	return nil
 }
 func (s *UserService) SetVIPOverride(ctx context.Context, actor, id int64, o VIPOverride) error {
 	if !finiteVIP(o.Value) || o.Value < 0 || len(o.Reason) < 3 {
@@ -92,8 +98,8 @@ func (s *UserService) SetVIPOverride(ctx context.Context, actor, id int64, o VIP
 	}
 	switch o.Benefit {
 	case "discount":
-		if o.Value > .1 {
-			return fmt.Errorf("discount exceeds 0.1")
+		if o.Value > .075 {
+			return fmt.Errorf("discount exceeds 0.075")
 		}
 	case "access":
 		if o.Value != 0 && o.Value != 1 {

@@ -99,6 +99,10 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		apiKey, err := apiKeyService.GetByKey(c.Request.Context(), apiKeyString)
 		if err != nil {
+			if errors.Is(err, service.ErrVIPUnavailable) || errors.Is(err, service.ErrVIPRateUnavailable) {
+				AbortWithError(c, http.StatusServiceUnavailable, "VIP_UNAVAILABLE", "Membership authorization is temporarily unavailable")
+				return
+			}
 			if errors.Is(err, service.ErrAPIKeyNotFound) {
 				recordInvalidAuthFailure(c, apiKeyService)
 				MarkIngressRejected(c, IngressRejectInvalidAPIKey)
@@ -117,6 +121,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// apiKey 已加载（含 User/Group）。即便后续因分组停用/Key 停用/用户停用/
 		// IP 限制等早退中断，也让 Ops 错误日志能回退取到 user/group/platform。
 		SetOpsFallbackAPIKey(c, apiKey)
+		c.Request = c.Request.WithContext(service.WithAPIKeyRequestRates(c.Request.Context(), apiKey))
 
 		// ── 3. 基础鉴权（始终执行） ─────────────────────────────────
 

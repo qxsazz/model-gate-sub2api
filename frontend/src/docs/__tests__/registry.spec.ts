@@ -47,7 +47,10 @@ describe('documentation registry', () => {
 
   it('documents actual VIP rules and labels unreleased activities as upcoming', () => {
     const vip = resolveDocument('membership', 'vip')
-    expect(vip?.document.source).toContain('0.30 − 0.04 = 0.26')
+    expect(vip?.document.source).toContain('0.40 − 0.03 = 0.37')
+    expect(vip?.document.source).toContain('0.075')
+    expect(vip?.document.source).toContain('22.62%')
+    expect(resolveDocument('achievements', 'check-in')?.document.source).toContain('$1.00')
     const rewards = resolveDocument('membership', 'rewards')?.document.source || ''
     expect(rewards).toContain('2%')
     for (const amount of ['$2.00', '$6.00', '$12.00', '$30.00', '$60.00']) expect(rewards).toContain(amount)

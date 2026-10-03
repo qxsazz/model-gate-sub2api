@@ -31,7 +31,7 @@ func TestVIPRepositoryGrowthPermissionsAndManualPrices(t *testing.T) {
 	}
 	rules := service.DefaultVIPRules()
 	rules.Enabled = true
-	rules.Groups = []service.VIPGroupRule{{GroupID: ordinary, Floor: .2, Discounts: []float64{.02, .04, .06, .08, .1}}, {GroupID: exclusive, Access: true, Discounts: []float64{0, 0, 0, 0, 0}}, {GroupID: private, Private: true, Discounts: []float64{0, 0, 0, 0, 0}}}
+	rules.Groups = []service.VIPGroupRule{{GroupID: ordinary, Floor: .2, Discounts: []float64{.02, .04, .06, .075, .075}}, {GroupID: exclusive, Access: true, Discounts: []float64{0, 0, 0, 0, 0}}, {GroupID: private, Private: true, Discounts: []float64{0, 0, 0, 0, 0}}}
 	require.NoError(t, repo.VIPSaveRules(ctx, user, rules))
 	require.NoError(t, repo.VIPInitialCredit(ctx, user, user, 100, "fixture opening"))
 	require.NoError(t, repo.VIPInitialCredit(ctx, user, user, 100, "fixture duplicate"))
@@ -40,6 +40,11 @@ func TestVIPRepositoryGrowthPermissionsAndManualPrices(t *testing.T) {
 	require.Equal(t, 100.0, state.Total)
 	require.Equal(t, 1, state.Tier.Level)
 	require.Equal(t, 8, state.Concurrency)
+	authState, err := repo.VIPAuthSnapshot(ctx, user)
+	require.NoError(t, err)
+	require.Equal(t, state.Total, authState.Total)
+	require.Equal(t, state.Groups, authState.Groups)
+	require.Empty(t, authState.Ledger, "authentication must not load display history")
 	find := func(id int64) *service.VIPGroupView {
 		for i := range state.Groups {
 			if state.Groups[i].ID == id {

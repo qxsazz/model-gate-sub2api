@@ -271,7 +271,7 @@ func TestGetUserGroupRateMultiplier_UsesCacheAndSingleflight(t *testing.T) {
 	require.Equal(t, int64(0), fallback)
 }
 
-func TestGetUserGroupRateMultiplier_FallbackOnRepoError(t *testing.T) {
+func TestGetUserGroupRateMultiplier_RejectsUnconfirmedPriceOnRepoError(t *testing.T) {
 	resetGatewayHotpathStatsForTest()
 
 	repo := &userGroupRateRepoHotpathStub{
@@ -288,7 +288,7 @@ func TestGetUserGroupRateMultiplier_FallbackOnRepoError(t *testing.T) {
 	}
 
 	got := svc.getUserGroupRateMultiplier(context.Background(), 101, 202, 1.25)
-	require.Equal(t, 1.25, got)
+	require.Zero(t, got, "scheduler must not invent a base price when lookup failed")
 	require.Equal(t, int64(1), repo.calls.Load())
 
 	_, _, _, _, fallback := GatewayUserGroupRateCacheStats()

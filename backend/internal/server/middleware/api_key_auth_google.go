@@ -60,6 +60,10 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 
 		apiKey, err := apiKeyService.GetByKey(c.Request.Context(), apiKeyString)
 		if err != nil {
+			if errors.Is(err, service.ErrVIPUnavailable) || errors.Is(err, service.ErrVIPRateUnavailable) {
+				abortWithGoogleError(c, 503, "Membership authorization is temporarily unavailable")
+				return
+			}
 			if errors.Is(err, service.ErrAPIKeyNotFound) {
 				recordInvalidAuthFailure(c, apiKeyService)
 				MarkIngressRejected(c, IngressRejectInvalidAPIKey)
@@ -78,6 +82,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 		// 同 api_key_auth.go：早退中断前也写入 Ops 回退 key，便于错误日志展示
 		// user/group/platform。
 		SetOpsFallbackAPIKey(c, apiKey)
+		c.Request = c.Request.WithContext(service.WithAPIKeyRequestRates(c.Request.Context(), apiKey))
 
 		// disabled / 未知状态 → 无条件拦截（expired 和 quota_exhausted 留给计费阶段，
 		// 与主中间件 api_key_auth.go 保持一致）。
