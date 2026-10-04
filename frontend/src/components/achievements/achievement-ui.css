@@ -2418,17 +2418,10 @@
 }
 .achievement-page .medal-button {
   display: block;
-  width: 100%;
   padding: 0;
 }
-.achievement-page .equipped > .medal-button {
-  width: 112px;
-  flex-shrink: 0;
-}
-@media (max-width: 1150px) {
-  .achievement-page .equipped > .medal-button {
-    width: 92px;
-  }
+.achievement-page .medal-button:not(.equipped-art) {
+  width: 100%;
 }
 .achievement-page .badge-progress {
   display: block;
@@ -2496,7 +2489,7 @@
   overflow: auto;
 }
 .achievement-page dialog::backdrop {
-  background: #12171388;
+  background: #0b0c10a6;
   backdrop-filter: blur(3px);
 }
 .achievement-page .card-dialog {
