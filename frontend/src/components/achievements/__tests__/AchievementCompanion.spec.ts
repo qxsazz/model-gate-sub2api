@@ -17,7 +17,9 @@ describe('account companion', () => {
     save.mockResolvedValue({ zodiac: 'libra' })
     const w = mount(AchievementCompanion, { props: { state } })
     expect(w.text()).toContain('98')
-    expect(w.text()).toContain('2026-06-29')
+    expect(w.get('.memory-ribbon').attributes('aria-label')).toContain(
+      '2026-06-29',
+    )
     expect(w.get('select').element.value).toBe('')
     await w.get('select').setValue('libra')
     await flushPromises()
@@ -32,5 +34,15 @@ describe('account companion', () => {
     expect(w.get('[role=alert]').text()).toContain('暂未保存')
     expect(w.get('select').element.value).toBe('')
     expect(w.emitted('updated')).toBeUndefined()
+  })
+  it('keeps the approved zodiac symbol, keyword, date, sun advice and footnote', () => {
+    const w = mount(AchievementCompanion, {
+      props: { state: { ...state, zodiac: 'gemini' }, date: '2026-10-06' },
+    })
+    expect(w.get('.zodiac-symbol').text()).toBe('♊')
+    expect(w.get('.zodiac-keyword').text()).toContain('灵感')
+    expect(w.get('.zodiac-day').text()).toBe('10 / 06')
+    expect(w.find('.energy-suggestion svg').exists()).toBe(true)
+    expect(w.text()).toContain('今天怎样度过，仍由你决定')
   })
 })

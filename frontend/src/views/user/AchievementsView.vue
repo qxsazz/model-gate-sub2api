@@ -4,22 +4,26 @@
       <p v-if="error" class="notice" role="alert">
         {{ error }} <button :disabled="busy" @click="load">重试</button>
       </p>
-      <p v-if="message" class="notice" role="status">{{ message }}</p>
+      <p v-if="message" class="achievement-toast" role="status">
+        {{ message }}
+      </p>
       <p v-if="!state && !error" class="loading">正在读取你的成就记录…</p>
       <template v-if="state">
-        <section class="hero">
-          <div class="wear-panel">
-            <MedalArt
+        <section class="hero account-summary">
+          <div class="wear-panel equipped">
+            <button
               v-if="equipped"
-              :medal="equipped.key"
-              :name="equipped.name"
-              class="hero-art"
-            />
+              class="medal-button equipped-art"
+              :aria-label="'查看' + equipped.name + '介绍'"
+              @click="openDetail(equipped)"
+            >
+              <MedalArt :medal="equipped.key" :name="equipped.name" />
+            </button>
             <div v-else class="empty-medal">MG</div>
             <div>
-              <p class="eyebrow">CURRENTLY EQUIPPED</p>
+              <span class="eyebrow">当前佩戴</span>
               <h2>{{ equipped?.name ?? '静待第一枚印记' }}</h2>
-              <p class="muted">
+              <p>
                 {{
                   equipped
                     ? condition(equipped)
@@ -28,36 +32,37 @@
               </p>
               <button
                 v-if="equipped"
-                class="text-button"
-                :disabled="busy"
-                @click="act('equip', '')"
+                class="text-link"
+                @click="openDetail(equipped)"
               >
-                卸下徽章
-              </button>
-              <p v-else class="gold small">收藏从今天开始</p>
+                查看徽章 <AchievementIcon name="arrow" /></button
+              ><span v-else class="text-link">收藏从今天开始</span>
             </div>
           </div>
           <div class="overview">
-            <div class="stats">
-              <div>
-                <strong>{{ unlocked }}<small> / 21</small></strong
-                ><span>已解锁 / 全部收藏</span>
+            <div class="stats summary-metrics">
+              <div class="metric">
+                <strong
+                  >{{ unlocked
+                  }}<small> / {{ state.medals.length || 21 }}</small></strong
+                ><span>已解锁徽章</span>
               </div>
-              <div>
-                <strong>{{ state.card_balance ?? 0 }}</strong
-                ><span>可用补签卡</span>
-              </div>
-              <div>
+              <div class="metric">
                 <strong>{{ pending }}</strong
-                ><span>可领取奖励</span>
+                ><span>待领取奖励</span
+                ><button :disabled="!pending" @click="openPending">
+                  查看可领取
+                </button>
+              </div>
+              <div class="metric">
+                <strong>{{ state.card_balance ?? 0 }}</strong
+                ><span>可用补签卡</span
+                ><button @click="goBackfill">去补签</button>
               </div>
             </div>
-            <p class="overview-note">
-              达标解锁 · 每枚奖励仅领一次 · 换戴不重复发奖
-            </p>
           </div>
         </section>
-        <nav class="achievement-tabs" aria-label="成就分类">
+        <nav class="achievement-tabs main-tabs" aria-label="成就分类">
           <button
             v-for="t in tabs"
             :key="t.key"
@@ -69,20 +74,17 @@
           </button>
         </nav>
         <section v-if="tab === 'sign'" class="sign-section">
-          <div class="sign-title">
+          <div class="sign-title section-head">
             <div>
-              <p class="eyebrow">THE DAILY CHAPTER</p>
               <h2>每日签到</h2>
-              <p class="muted">
-                每日一次，收下今天的奖励，也收下一点向前的能量。
-              </p>
+              <p>每日一次，收下今天的奖励，也收下一点向前的能量。</p>
             </div>
-            <span class="date-label">{{ state.date }} · 北京时间</span>
+            <span class="muted mono">北京时间 · {{ state.date }}</span>
           </div>
-          <div class="sign-layout">
-            <div class="sign-calendar">
-              <header>
-                <div class="calendar-month-nav">
+          <div class="sign-layout checkin-layout">
+            <div class="calendar-stack">
+              <section class="sign-calendar calendar-panel">
+                <div class="calendar-month-nav calendar-head">
                   <button
                     type="button"
                     aria-label="上个月"
@@ -95,80 +97,92 @@
                   <button
                     type="button"
                     aria-label="下个月"
-                    :disabled="busy || viewMonth >= state.date.slice(0, 7)"
+                    :disabled="busy || viewMonth >= maximumMonth"
                     @click="changeMonth(1)"
                   >
                     ›
                   </button>
                 </div>
-                <span class="gold">点击漏签日期补签</span>
-              </header>
-              <div class="week">
-                <span
-                  v-for="w in ['一', '二', '三', '四', '五', '六', '日']"
-                  :key="w"
-                  >{{ w }}</span
-                >
-              </div>
-              <div class="days">
-                <span v-for="n in monthOffset" :key="'blank' + n" /><button
-                  v-for="n in daysInMonth"
-                  :key="n"
-                  type="button"
-                  :data-testid="'calendar-day-' + dayString(n)"
-                  :aria-label="
-                    dayString(n) +
-                    (state.calendar.includes(dayString(n))
-                      ? '，已签到'
-                      : canBackfillDate(dayString(n))
-                        ? '，可补签'
-                        : '，查看小笺')
-                  "
-                  :disabled="busy"
-                  @click="selectCalendarDate(dayString(n))"
-                  :class="{
-                    selectedDay: dayString(n) === companionDate,
-                    today: dayString(n) === state.date,
-                    checked: state.calendar.includes(dayString(n)),
-                    backfillable: canBackfillDate(dayString(n)),
-                  }"
-                >
-                  {{ n
-                  }}<small v-if="state.calendar.includes(dayString(n))">✓</small
-                  ><small v-else-if="canBackfillDate(dayString(n))">补</small>
-                </button>
-              </div>
-              <section class="token-inspiration">
-                <div>
-                  <p class="eyebrow">TOKEN · 今日使用灵感</p>
-                  <h4>{{ tokenTheme.name }}</h4>
-                  <p>{{ tokenTheme.text }}</p>
+                <div class="week calendar-week">
+                  <span
+                    v-for="w in ['一', '二', '三', '四', '五', '六', '日']"
+                    :key="w"
+                    >{{ w }}</span
+                  >
                 </div>
-                <button class="text-button" @click="copyPrompt">
-                  复制提问示例 →
-                </button>
+                <div class="days calendar-grid">
+                  <span v-for="n in monthOffset" :key="'blank' + n" /><button
+                    v-for="n in daysInMonth"
+                    :key="n"
+                    type="button"
+                    :data-testid="'calendar-day-' + dayString(n)"
+                    :aria-label="
+                      dayString(n) +
+                      (state.calendar.includes(dayString(n))
+                        ? '，已签到'
+                        : canBackfillDate(dayString(n))
+                          ? '，可补签'
+                          : '，查看小笺')
+                    "
+                    :disabled="busy"
+                    @click="selectCalendarDate(dayString(n))"
+                    :class="{
+                      today: dayString(n) === state.date,
+                      'selected-day': dayString(n) === companionDate,
+                      signed: state.calendar.includes(dayString(n)),
+                      makeup: canBackfillDate(dayString(n)),
+                    }"
+                  >
+                    {{ n
+                    }}<small v-if="state.calendar.includes(dayString(n))"
+                      >✓</small
+                    ><small v-else-if="canBackfillDate(dayString(n))">补</small>
+                  </button>
+                </div>
+                <div class="calendar-legend">
+                  <span>✓ 已签到</span><span>补 可补签</span
+                  ><span
+                    >选中 {{ companionDate.slice(5).replace('-', ' / ') }}</span
+                  >
+                </div>
+                <p class="quiet-note calendar-hint">
+                  点击日期查看小笺；带「补」的漏签日期可使用补签卡。
+                </p>
+                <section class="token-inspiration" aria-label="Token 使用灵感">
+                  <div>
+                    <span class="eyebrow">TOKEN · 今日使用灵感</span>
+                    <h4>{{ tokenTheme.name }}</h4>
+                    <p>{{ tokenTheme.text }}</p>
+                  </div>
+                  <button
+                    class="text-link"
+                    aria-label="复制模型提问示例"
+                    @click="copyPrompt"
+                  >
+                    复制提问 <AchievementIcon name="copy" />
+                  </button>
+                </section>
               </section>
-              <p class="calendar-hint">
-                点击日期查看小笺；带「补」的漏签日期可使用补签卡。
-              </p>
             </div>
-            <div class="sign-benefits">
-              <div class="daily-head">
+            <section class="sign-benefits daily-panel daily-companion">
+              <div class="daily-head daily-action-top">
                 <div>
                   <p class="eyebrow">
                     {{
                       state.tier
-                        ? 'VIP ' + state.tier + ' DAILY PRIVILEGE'
-                        : 'DAILY PRIVILEGE'
+                        ? 'VIP ' + state.tier + ' 每日权益'
+                        : '普通会员每日权益'
                     }}
                   </p>
-                  <h3>收下今天的小确幸</h3>
+                  <h2>
+                    {{ state.today ? '今天，已如约而至' : '收下今天的小确幸' }}
+                  </h2>
                 </div>
-                <div class="daily-value">
+                <div class="daily-value daily-amount">
                   ${{ money(state.daily_amount) }}<small>今日签到奖励</small>
                 </div>
               </div>
-              <p class="muted" data-testid="current-cash-status">
+              <p class="policy-status" data-testid="current-cash-status">
                 {{
                   state.today && state.cash_reason === 'eligible'
                     ? '当前签到金额奖励已开放。'
@@ -177,85 +191,89 @@
               </p>
               <button
                 data-testid="checkin"
-                class="gold-button"
+                class="gold-button primary"
                 :disabled="busy || !!state.today"
                 @click="act('checkin')"
               >
                 {{
-                  busy ? '正在处理…' : state.today ? '今日已签到' : '立即签到'
+                  busy
+                    ? '正在处理…'
+                    : state.today
+                      ? '今日已签到 · 明天再见'
+                      : '立即签到'
                 }}
               </button>
-              <p v-if="state.today" class="receipt">
-                今日奖励 ${{ money(state.today.gross) }} · 实际到账 ${{
-                  money(state.today.net)
-                }}<span v-if="state.today.offset_amount">
-                  · 抵扣 ${{ money(state.today.offset_amount) }}</span
-                >
-              </p>
-              <p
-                v-if="state.today"
-                class="small muted"
-                data-testid="checkin-receipt-reason"
+              <template v-if="state.today"
+                ><p class="receipt">
+                  今日奖励 ${{ money(state.today.gross) }} · 实际到账 ${{
+                    money(state.today.net)
+                  }}<span v-if="state.today.offset_amount">
+                    · 抵扣 ${{ money(state.today.offset_amount) }}</span
+                  >
+                </p>
+                <p class="policy-status" data-testid="checkin-receipt-reason">
+                  {{ recordedCashReason(state.today.reason) }}
+                </p></template
               >
-                {{ recordedCashReason(state.today.reason) }}
-              </p>
-              <div class="sign-stats">
-                <span
-                  ><strong>{{ state.streak }}</strong
-                  >连续签到</span
-                ><span
-                  ><strong>{{ state.longest }}</strong
-                  >最长连续</span
-                ><span
-                  ><strong>{{ state.card_balance ?? 0 }}</strong
-                  >可用补签卡</span
-                >
+              <div class="sign-stats day-stats">
+                <div>
+                  <strong>{{ state.streak }}</strong
+                  ><span>连续签到</span>
+                </div>
+                <div>
+                  <strong>{{ state.longest }}</strong
+                  ><span>最长连续</span>
+                </div>
+                <div>
+                  <strong>{{ state.card_balance ?? 0 }}</strong
+                  ><span>可用补签卡</span>
+                </div>
               </div>
               <div class="companion-time">
-                <div>
-                  <span>我们相伴的第</span>
-                  <p>
-                    从
-                    {{ state.joined_date || '初次相遇' }}
-                    开始，一次次相逢，慢慢变成了日常。
-                  </p>
-                </div>
-                <strong
+                <span>我们相伴的第</span
+                ><strong
                   >{{ state.companionship_days ?? '—'
-                  }}<small> 天</small></strong
+                  }}<small>天</small></strong
                 >
+                <p>
+                  从 {{ joinedDateLabel }} 开始，一次次相逢，慢慢变成了日常。
+                </p>
               </div>
-              <button
-                v-if="nextSignMedal"
-                class="next-sign-medal"
-                @click="openDetail(nextSignMedal)"
-              >
+              <div v-if="nextSignMedal" class="next-sign-medal daily-milestone">
                 <MedalArt
                   :medal="nextSignMedal.key"
                   :name="nextSignMedal.name"
+                  class="milestone-art"
                 />
                 <div>
-                  <span class="eyebrow">下一枚签到徽章</span>
+                  <p class="eyebrow">下一枚签到徽章</p>
                   <h3>{{ nextSignMedal.name }}</h3>
                   <p>
-                    {{ condition(nextSignMedal) }} · 历史最长
+                    目标连续 {{ nextSignMedal.target }} 天 · 历史最长
                     {{ state.longest }} 天
                   </p>
                   <progress
+                    class="badge-progress"
                     :value="Math.min(state.longest, nextSignMedal.target)"
                     :max="nextSignMedal.target"
                   />
                 </div>
-                <span>查看 →</span>
-              </button>
-              <div class="daily-encouragement">
-                <strong>把好奇，交给一次认真提问</strong>
+                <button class="text-link" @click="openDetail(nextSignMedal)">
+                  查看 <AchievementIcon name="arrow" />
+                </button>
+              </div>
+              <div v-else class="token-gentle">
+                <span class="eyebrow">签到系列已集齐</span>
+                <p>四季里的坚持，都已收入你的收藏。</p>
+              </div>
+              <div class="daily-encouragement token-gentle">
+                <span class="eyebrow">把好奇，交给一次认真提问</span>
                 <p>从一个真实的问题开始，让 Token 为你的想法添一点光。</p>
               </div>
-              <p class="small muted">
-                奖励按签到时的实际成长等级确定，即时到账；同日升级不会重复发奖。签到不增加充值成长。
+              <p class="companion-whisper">
+                日子有快有慢，每一次回来，都值得被好好记住。
               </p>
-            </div>
+            </section>
           </div>
           <AchievementCompanion
             :state="state"
@@ -270,16 +288,16 @@
                 }}<strong>${{ money(amount) }} / 日</strong></span
               >
             </div>
-            <p class="small muted">
-              VIP
-              规则关闭时按普通会员权益计算。签到金额奖励须由管理员开启，并处于开放范围内，无需近期充值或消费；启用金额上限且额度不足时仍记录签到。
+            <p>
+              奖励按签到时的实际成长等级确定，即时到账；同日升级不会重复发奖。VIP
+              规则关闭时按普通会员权益计算，签到不增加充值成长。
             </p>
           </details>
           <section class="card-panel" aria-label="补签卡">
             <div>
-              <p class="eyebrow">CHECK-IN CARDS</p>
+              <p class="eyebrow">补签卡</p>
               <h3>补上遗漏，继续前行</h3>
-              <p class="muted">
+              <p>
                 可补最近 30 天的漏签，可跨月；按漏签日历史 VIP
                 权益补发金额，并重算连续签到。
               </p>
@@ -287,16 +305,14 @@
             <div class="card-panel-actions">
               <strong data-testid="card-balance"
                 >{{ state.card_balance ?? 0 }} <small>张补签卡</small></strong
-              >
-              <button
-                class="gold-button"
+              ><button
+                class="small-button"
                 :disabled="busy || !(state.card_balance ?? 0)"
                 @click="focusBackfillCalendar"
               >
-                在日历选择日期
-              </button>
-              <button class="text-button" @click="tab = 'activity'">
-                前往活动领取
+                在日历选择日期</button
+              ><button class="text-link" @click="tab = 'activity'">
+                前往活动领取 <AchievementIcon name="arrow" />
               </button>
             </div>
           </section>
@@ -310,195 +326,151 @@
                     ? '管理员追回'
                     : '领取 ' +
                       (state.medals.find((m) => m.key === h.key)?.name ?? h.key)
-              }}</span>
-              <span>{{ h.delta > 0 ? '+' : '' }}{{ h.delta }} 张</span>
+              }}</span
+              ><span>{{ h.delta > 0 ? '+' : '' }}{{ h.delta }} 张</span>
             </div>
           </details>
         </section>
-        <nav
-          v-if="tab === 'activity'"
-          class="activity-groups"
-          aria-label="活动类型"
-        >
-          <button
-            v-for="g in activityGroups"
-            :key="g.key"
-            :class="{ active: activityGroup === g.key }"
-            :aria-pressed="activityGroup === g.key"
-            @click="activityGroup = g.key"
-          >
-            {{ g.name }}<small>{{ groupProgress(g.key) }}</small>
-          </button>
-        </nav>
-        <p v-if="tab === 'activity'" class="group-description">
-          {{
-            activityGroup === 'knowledge'
-              ? '通过 1、3、6 个不同知识主题，分别解锁对应勋章。'
-              : activityGroup === 'practice'
-                ? '通过 2、4、6 个不同实践关卡，逐步解锁三枚勋章。'
-                : '按篇章完成指定任务，收藏对应勋章；后续篇章暂未开放。'
-          }}
-        </p>
-        <section
-          v-if="tab === 'activity'"
-          class="series-rewards"
-          aria-label="系列收集奖励"
-        >
-          <article v-for="s in visibleSeries" :key="s.key">
-            <p class="eyebrow">COMPLETE THE COLLECTION</p>
-            <h3>{{ s.name }}</h3>
-            <p class="muted">
-              收集全部
-              {{ s.total }} 枚成就，领取系列金额奖励。单枚勋章奖励补签卡。
-            </p>
-            <div class="progress-label">
-              <span>{{ s.collected }} / {{ s.total }} 已收集</span
-              ><strong>${{ money(s.reward) }}</strong>
-            </div>
-            <p
-              v-if="s.claim?.prior_amount || s.prior_amount"
-              class="small muted"
-            >
-              已领取的旧活动金额 ${{
-                money(s.claim?.prior_amount ?? s.prior_amount ?? 0)
-              }}
-              已计入系列总奖励。
-              <span v-if="!s.claim"
-                >本次可领 ${{ money(s.claimable_amount ?? s.reward) }}。</span
-              >
-            </p>
+        <template v-if="tab === 'activity'">
+          <nav class="activity-groups group-tabs" aria-label="活动类型">
             <button
-              class="text-button"
-              :disabled="busy || !canClaimSeries(s)"
-              @click="act('claim_series', s.key)"
+              v-for="g in activityGroups"
+              :key="g.key"
+              :class="{ active: activityGroup === g.key }"
+              :aria-pressed="activityGroup === g.key"
+              @click="chooseActivityGroup(g.key)"
             >
-              {{
-                s.claim?.revoked_at
-                  ? '已追回'
-                  : s.claim
-                    ? '已领取'
-                    : s.preview
-                      ? '后续篇章待开放'
-                      : !s.unlocked
-                        ? '集齐后领取'
-                        : canClaimSeries(s)
-                          ? '领取系列奖励'
-                          : '金额奖励待开放'
-              }}
+              {{ g.name }}<small>{{ groupProgress(g.key) }}</small>
             </button>
-          </article>
-        </section>
-        <div class="section-caption">
-          <span>{{ captions[tab] }}</span
-          ><span
-            >{{ visible.filter((m) => m.unlocked).length }} /
-            {{ visible.length }} 已解锁</span
+          </nav>
+          <div class="section-head group-heading">
+            <div>
+              <h2>{{ activityName }}</h2>
+              <p>{{ activityDescription }}</p>
+            </div>
+            <div
+              v-for="s in visibleSeries"
+              :key="s.key"
+              class="series-summary series-rewards"
+              id="activity-series"
+            >
+              <AchievementIcon name="gift" />
+              <div>
+                <span>集齐本系列 {{ s.total }} 枚</span
+                ><small>{{
+                  s.preview ? '后续篇章开放后可领取' : '额外获得系列金额奖励'
+                }}</small
+                ><button
+                  class="text-link"
+                  :disabled="busy || !canClaimSeries(s)"
+                  @click="act('claim_series', s.key)"
+                >
+                  {{
+                    s.claim?.revoked_at
+                      ? '已追回'
+                      : s.claim
+                        ? '已领取'
+                        : s.preview
+                          ? '后续篇章待开放'
+                          : !s.unlocked
+                            ? '集齐后领取'
+                            : canClaimSeries(s)
+                              ? '领取系列奖励'
+                              : '金额奖励待开放'
+                  }}
+                </button>
+              </div>
+              <strong>${{ money(s.reward) }}</strong>
+            </div>
+          </div>
+          <p
+            v-for="s in visibleSeries.filter(
+              (s) => s.prior_amount || s.claim?.prior_amount,
+            )"
+            :key="s.key"
+            class="quiet-note"
           >
+            已领取的旧活动金额 ${{
+              money(s.claim?.prior_amount ?? s.prior_amount ?? 0)
+            }}
+            已计入系列总奖励。<span v-if="!s.claim"
+              >本次可领 ${{ money(s.claimable_amount ?? s.reward) }}。</span
+            >
+          </p>
+        </template>
+        <div v-else class="section-head collection-head">
+          <div>
+            <h2>{{ captions[tab] }}</h2>
+            <p>{{ collectionDescription }}</p>
+          </div>
+          <span v-if="tab !== 'sign'" class="muted">{{
+            collectionCounter
+          }}</span>
         </div>
-        <section class="medal-grid" aria-label="成就册">
+        <section
+          class="medal-grid badge-grid"
+          :class="{
+            'collection-grid': tab !== 'activity',
+            'sign-badges': tab === 'sign',
+          }"
+          aria-label="成就册"
+        >
           <article
             v-for="m in visible"
             :key="m.key"
-            class="medal-card"
+            class="medal-card badge-card"
             :class="{ locked: !m.unlocked }"
           >
-            <div class="card-top">
-              <span>{{ m.key }}</span
-              ><span>{{
-                m.manual === 'revoked'
-                  ? '管理员已取消'
-                  : m.manual === 'granted'
-                    ? '管理员授予'
-                    : m.preview
-                      ? '篇章预告'
-                      : m.claim?.revoked_at
-                        ? '已追回'
-                        : m.unlocked
-                          ? '✓ 已解锁'
-                          : '待点亮'
-              }}</span>
+            <div class="card-top badge-state">
+              <span class="mono">阶段 {{ phase(m) }}</span
+              ><span class="status" :class="{ unlocked: m.unlocked }"
+                ><AchievementIcon v-if="m.unlocked" name="check" />{{
+                  medalStatus(m)
+                }}</span
+              >
             </div>
             <button
-              class="art-button"
+              class="art-button medal-button"
               :aria-label="'查看' + m.name"
               @click="openDetail(m)"
             >
-              <MedalArt :medal="m.key" :name="m.name" />
+              <MedalArt :medal="m.key" :name="m.name" class="badge-art" />
             </button>
             <h3>{{ m.name }}</h3>
-            <p class="condition">{{ condition(m) }}</p>
-            <div class="progress-label">
-              <span
-                >{{ formatProgress(m.progress) }} /
-                {{ formatProgress(m.target) }}</span
-              ><span
-                >{{
-                  Math.min(100, Math.floor((m.progress / m.target) * 100))
-                }}%</span
-              >
-            </div>
+            <p class="condition badge-requirement">{{ condition(m) }}</p>
             <progress
+              class="badge-progress"
+              :aria-label="m.name + '收集进度'"
               :value="Math.min(m.progress, m.target)"
               :max="m.target"
-              :aria-label="m.name + '收集进度'"
             />
-            <footer>
-              <span class="reward"
-                ><template v-if="m.card_reward"
-                  >{{ m.card_reward }} 张补签卡<small
-                    >活动勋章奖励</small
-                  ></template
-                ><template v-else
-                  >${{ money(m.reward) }}<small>成就奖励</small></template
-                ></span
+            <div class="progress-label badge-progress-label">
+              <span
+                >{{ formatProgress(Math.min(m.progress, m.target)) }} /
+                {{ formatProgress(m.target) }}</span
+              ><span>{{
+                m.unlocked
+                  ? '已达成'
+                  : '还差 ' + formatProgress(Math.max(0, m.target - m.progress))
+              }}</span>
+            </div>
+            <footer class="badge-footer">
+              <span class="reward badge-reward"
+                ><AchievementIcon :name="m.card_reward ? 'ticket' : 'coin'" />{{
+                  m.card_reward
+                    ? m.card_reward + ' 张补签卡'
+                    : '$' + money(m.reward)
+                }}</span
+              ><button
+                class="text-button small-button"
+                :data-testid="'claim-' + m.key"
+                :disabled="busy || m.preview"
+                @click="medalAction(m)"
               >
-              <div>
-                <button
-                  v-if="!m.unlocked && !m.preview && m.category === 'activity'"
-                  class="text-button"
-                  @click="viewTasks"
-                >
-                  查看任务 →
-                </button>
-                <button
-                  v-if="m.category !== 'activity' || m.unlocked"
-                  class="text-button"
-                  :data-testid="'claim-' + m.key"
-                  :disabled="busy || !canClaim(m)"
-                  @click="act('claim', m.key)"
-                >
-                  {{
-                    m.card_reward
-                      ? m.card_claim
-                        ? m.card_claim.reclaimed
-                          ? '已领取 · 有卡片追回'
-                          : '补签卡已领取'
-                        : m.preview
-                          ? '篇章待开放'
-                          : !m.unlocked
-                            ? '尚未达成'
-                            : '领取补签卡'
-                      : m.claim?.revoked_at
-                        ? '已追回'
-                        : m.claim
-                          ? '已领取'
-                          : !m.unlocked
-                            ? '尚未达成'
-                            : canClaim(m)
-                              ? '领取奖励'
-                              : '奖励待开放'
-                  }}</button
-                ><button
-                  v-if="m.unlocked"
-                  class="equip-button"
-                  :disabled="busy || !m.unlocked"
-                  @click="act('equip', state.equipment === m.key ? '' : m.key)"
-                >
-                  {{ state.equipment === m.key ? '已佩戴' : '佩戴' }}
-                </button>
-              </div>
+                {{ medalActionLabel(m) }}
+              </button>
             </footer>
-            <p v-if="m.card_claim" class="small muted">
+            <p v-if="m.card_claim" class="claim-record">
               已使用 {{ m.card_claim.used }} 张 · 已追回
               {{ m.card_claim.reclaimed }} 张 · 可用
               {{
@@ -508,20 +480,26 @@
             </p>
           </article>
         </section>
+        <p v-if="tab === 'activity'" class="badge-swipe-hint">
+          左右滑动，查看本系列的 3 枚勋章
+        </p>
         <ActivityExplorer
           v-if="tab === 'activity'"
           id="activity-tasks"
           :group="activityGroup"
           :goal="nextActivityMedal"
+          :series-reward="visibleSeries[0]?.reward"
           :passes="state.passes"
           @updated="load"
+          @show-series="documentScrollSeries"
         />
         <p v-if="tab === 'token'" class="fine-print">
           成长进度从本功能启用后开始累计，以成功提交的付费文本计费为准，缓存
-          Token 按互斥桶计数。图片、视频及未计费调用不计入。
+          Token
+          按互斥桶计数。图片、视频及未计费调用不计入；每枚奖励终身领取一次。
         </p>
         <p v-if="tab === 'recharge'" class="fine-print">
-          以累计有效充值本金为准，加赠和奖励不计入；退款可能使荣誉锁定，并追回对应已领奖励。
+          以累计有效充值本金为准，加赠和奖励不计入；退款可能使荣誉锁定，并追回对应已领奖励，每枚奖励终身领取一次。
         </p>
         <details v-if="tab === 'sign' && state.history.length" class="history">
           <summary>最近的签到记录</summary>
@@ -546,73 +524,141 @@
         @close="clearCardPreview"
         @cancel="busy && $event.preventDefault()"
       >
-        <button
-          class="close"
-          :disabled="busy"
-          aria-label="关闭补签"
-          @click="cardDialog?.close()"
-        >
-          ×
-        </button>
-        <p class="eyebrow">RESTORE YOUR DAILY CHAPTER</p>
-        <h2>{{ cardDay }} · 补签</h2>
-        <p class="muted">
-          消耗 1 张补签卡 · 当前剩余 {{ state?.card_balance ?? 0 }} 张
-        </p>
-        <p class="muted">
-          每次消耗 1
-          张。确认前核验历史会员权益，服务端校验未通过不扣卡。网络中断时请按原请求重试或刷新查询回执。
-        </p>
-        <p v-if="busy && !cardPreview" class="muted" role="status">
-          正在核验该日历史权益…
-        </p>
-        <button
-          v-if="cardError && !cardCommand"
-          class="text-button"
-          :disabled="busy || !cardDay"
-          @click="prepareCard"
-        >
-          重新核验
-        </button>
-        <template v-if="cardPreview">
-          <p v-if="cardPreview.available">
-            {{ cardDay }} ·
-            {{ cardPreview.tier ? 'VIP ' + cardPreview.tier : '普通会员' }} ·
-            补发 ${{ money(cardPreview.gross) }}
+        <div class="dialog-top">
+          <strong>这一天的签到</strong
+          ><button
+            class="close"
+            :disabled="busy"
+            aria-label="关闭日期详情"
+            @click="cardDialog?.close()"
+          >
+            <AchievementIcon name="close" />
+          </button>
+        </div>
+        <div v-if="state && cardDay" class="calendar-day-body">
+          <p class="eyebrow">{{ lunarDate(cardDay) }}</p>
+          <h2>{{ cardDay }}</h2>
+          <p class="day-record-status">
+            <AchievementIcon
+              :name="state.calendar.includes(cardDay) ? 'check' : 'book'"
+            />{{ dayStatus }}
           </p>
-          <p v-else class="muted">
-            {{
-              cardPreview.existing
-                ? '该日已经签到，无需补签。'
-                : !cardPreview.policy_known
-                  ? '历史权益无法完整核验，不能补签。'
-                  : !cardPreview.card_balance
-                    ? '补签卡不足。'
-                    : cardUnavailableReason(cardPreview.cash_reason)
-            }}
+          <div class="day-inline-tip">
+            <AchievementIcon name="sun" />
+            <p>{{ dayTip }}</p>
+          </div>
+          <p v-if="actionError" class="quiz-error" role="alert">
+            {{ actionError }}
           </p>
-        </template>
-        <p v-if="cardError" class="notice" role="alert">{{ cardError }}</p>
-        <button
-          class="gold-button"
-          :disabled="busy || !cardPreview?.available || !cardCommand"
-          @click="spendCard"
-        >
-          {{
-            busy ? '正在处理…' : cardError && cardCommand ? '重试补签' : '补签'
-          }}
-        </button>
+          <div v-if="dayRecord" class="financial-details">
+            <div>
+              <span>当日金额奖励</span
+              ><strong>${{ money(dayRecord.gross) }}</strong>
+            </div>
+            <div>
+              <span>实际到账</span><strong>${{ money(dayRecord.net) }}</strong>
+            </div>
+            <p>{{ recordedCashReason(dayRecord.reason) }}</p>
+          </div>
+          <template v-if="cardEligible"
+            ><div class="financial-details">
+              <div>
+                <span>消耗补签卡</span
+                ><strong
+                  >1 张 · 当前剩余 {{ state.card_balance ?? 0 }} 张</strong
+                >
+              </div>
+              <p v-if="busy && !cardPreview" role="status">
+                正在核验该日历史权益…
+              </p>
+              <template v-if="cardPreview"
+                ><div>
+                  <span>历史会员权益</span
+                  ><strong
+                    >{{
+                      cardPreview.policy_known
+                        ? cardPreview.tier
+                          ? 'VIP ' + cardPreview.tier
+                          : '普通会员'
+                        : '历史权益待核验'
+                    }}
+                    <template v-if="cardPreview.policy_known">
+                      · ${{ money(cardPreview.gross) }}</template
+                    ></strong
+                  >
+                </div>
+                <p v-if="!cardPreview.available">
+                  {{
+                    cardPreview.existing
+                      ? '该日已经签到，无需补签。'
+                      : !cardPreview.policy_known
+                        ? '历史权益无法完整核验，不能补签。'
+                        : !cardPreview.card_balance
+                          ? '补签卡不足。'
+                          : cardUnavailableReason(cardPreview.cash_reason)
+                  }}
+                </p></template
+              >
+              <p>
+                确认前核验历史权益，服务端校验未通过不扣卡。网络中断请按原请求重试或刷新查询回执。
+              </p>
+            </div>
+            <p v-if="cardError" class="notice" role="alert">{{ cardError }}</p>
+            <button
+              v-if="cardError && !cardCommand"
+              class="text-button"
+              :disabled="busy"
+              @click="prepareCard"
+            >
+              重新核验
+            </button>
+            <div class="day-makeup-action">
+              <div>
+                <strong>补上这一天的签到</strong>
+                <p>
+                  使用 1 张补签卡 · 剩余 {{ state.card_balance ?? 0 }} 张 ·
+                  按核验的历史权益即时补发
+                </p>
+              </div>
+              <button
+                class="gold-button primary"
+                :disabled="busy || !cardPreview?.available || !cardCommand"
+                @click="spendCard"
+              >
+                {{
+                  busy
+                    ? '正在处理…'
+                    : cardError && cardCommand
+                      ? '重试补签'
+                      : '补签'
+                }}
+              </button>
+            </div>
+          </template>
+          <div
+            v-else-if="cardDay === state.date && !state.today"
+            class="day-makeup-action"
+          >
+            <span>今日签到权益 ${{ money(state.daily_amount) }}</span
+            ><button class="primary" :disabled="busy" @click="checkinFromDate">
+              {{ busy ? '正在处理…' : '立即签到' }}
+            </button>
+          </div>
+        </div>
       </dialog>
-      <dialog ref="detailDialog" class="medal-dialog">
-        <template v-if="selected"
+      <dialog ref="detailDialog" class="medal-dialog detail-dialog">
+        <div class="dialog-top">
+          <strong>徽章详情</strong
           ><button
             class="close"
             aria-label="关闭详情"
+            :disabled="busy"
             @click="detailDialog?.close()"
           >
-            ×
+            <AchievementIcon name="close" />
           </button>
-          <p class="eyebrow">{{ selected.key }} / COLLECTION</p>
+        </div>
+        <div v-if="selected" class="detail-body">
           <MedalArt
             :medal="selected.key"
             :name="selected.name"
@@ -620,31 +666,135 @@
           />
           <h2>{{ selected.name }}</h2>
           <p>{{ selected.description }}</p>
-          <p class="muted">{{ condition(selected) }}</p>
-          <p>
-            {{
-              selected.card_reward
-                ? selected.card_reward + ' 张补签卡'
-                : '成就奖励 $' + money(selected.reward)
-            }}
-            ·
-            {{ selected.unlocked ? '已解锁' : '尚未达成' }}
+          <div class="detail-info">
+            <div>
+              <span>达成条件</span><strong>{{ condition(selected) }}</strong>
+            </div>
+            <div>
+              <span>当前进度</span
+              ><strong
+                >{{
+                  formatProgress(Math.min(selected.progress, selected.target))
+                }}
+                / {{ formatProgress(selected.target) }}</strong
+              >
+            </div>
+            <div>
+              <span>勋章奖励</span
+              ><strong>{{
+                selected.card_reward
+                  ? selected.card_reward + ' 张补签卡'
+                  : '$' + money(selected.reward)
+              }}</strong>
+            </div>
+            <div>
+              <span>领取状态</span
+              ><strong>{{
+                selected.preview
+                  ? '后续开放'
+                  : selected.claim?.revoked_at
+                    ? '已追回'
+                    : claimed(selected)
+                      ? '已领取'
+                      : selected.unlocked
+                        ? canClaim(selected)
+                          ? '可领取'
+                          : '暂不可领取'
+                        : '尚未达成'
+              }}</strong>
+            </div>
+          </div>
+          <p v-if="selected.category === 'activity'" class="quiet-note">
+            每个主题 10 题，答对至少 8
+            题通关。单枚发补签卡，集齐系列后另领金额。
           </p>
-          <p class="small muted">
-            佩戴和金额奖励分别记录；更换徽章不会重复发奖。
-          </p></template
-        >
+          <p
+            v-if="
+              selected.unlocked && !claimed(selected) && !canClaim(selected)
+            "
+            class="quiet-note"
+          >
+            {{ milestoneUnavailableReason() }}
+          </p>
+          <p v-if="actionError" class="quiz-error" role="alert">
+            {{ actionError }}
+          </p>
+          <div
+            v-if="selected.claim && !selected.card_reward"
+            class="financial-details"
+          >
+            <div>
+              <span>已领奖励原额</span
+              ><strong>${{ money(selected.claim.gross) }}</strong>
+            </div>
+            <div>
+              <span>实际到账</span
+              ><strong>${{ money(selected.claim.net) }}</strong>
+            </div>
+            <div v-if="selected.claim.offset_amount">
+              <span>抵扣待追回金额</span
+              ><strong>${{ money(selected.claim.offset_amount) }}</strong>
+            </div>
+            <p>历史回执保留，当前奖励配置不会重复发放已领取的奖励。</p>
+          </div>
+          <div class="detail-actions">
+            <button
+              class="primary"
+              :disabled="
+                busy ||
+                selected.preview ||
+                (selected.unlocked && !claimed(selected) && !canClaim(selected))
+              "
+              @click="
+                selected.unlocked && !claimed(selected)
+                  ? act('claim', selected.key)
+                  : showMedalTask(selected)
+              "
+            >
+              {{
+                selected.preview
+                  ? '敬请期待'
+                  : selected.unlocked && !claimed(selected)
+                    ? actionError
+                      ? '重试领取'
+                      : '领取奖励'
+                    : '查看对应任务'
+              }}</button
+            ><button
+              v-if="selected.unlocked"
+              class="small-button"
+              :disabled="busy"
+              @click="
+                act(
+                  'equip',
+                  state?.equipment === selected.key ? '' : selected.key,
+                )
+              "
+            >
+              {{
+                state?.equipment === selected.key ? '卸下徽章' : '佩戴此徽章'
+              }}
+            </button>
+          </div>
+        </div>
       </dialog>
     </main></AppLayout
   >
 </template>
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
+import '@/components/achievements/achievement-ui.css'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MedalArt from '@/components/achievements/MedalArt.vue'
 import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
-import { dayIndex, tokenThemes } from '@/components/achievements/companion'
+import {
+  dayIndex,
+  tokenThemes,
+  dayWhispers,
+  lunarDate,
+} from '@/components/achievements/companion'
 import {
   getAchievements,
   changeAchievement,
@@ -661,6 +811,7 @@ const auth = useAuthStore(),
   state = ref<AchievementState | null>(null),
   error = ref(''),
   message = ref(''),
+  actionError = ref(''),
   busy = ref(false),
   tab = ref('sign'),
   selected = ref<Medal | null>(null),
@@ -675,11 +826,20 @@ const calendarMonth = ref('')
 const viewMonth = computed(
   () => calendarMonth.value || state.value?.date.slice(0, 7) || '2026-01',
 )
-const minimumMonth = computed(
-  () =>
-    state.value?.card_min_date?.slice(0, 7) ||
-    state.value?.date.slice(0, 7) ||
-    viewMonth.value,
+const shiftMonth = (month: string, delta: number) => {
+  const date = new Date(month + '-01T00:00:00Z')
+  date.setUTCMonth(date.getUTCMonth() + delta)
+  return date.toISOString().slice(0, 7)
+}
+const minimumMonth = computed(() => {
+  const month = state.value?.date.slice(0, 7) || viewMonth.value
+  return [
+    state.value?.card_min_date?.slice(0, 7) || month,
+    shiftMonth(month, -1),
+  ].sort()[0]
+})
+const maximumMonth = computed(() =>
+  shiftMonth(state.value?.date.slice(0, 7) || viewMonth.value, 1),
 )
 const missingCardDays = computed(() => {
   if (!state.value?.card_min_date || !state.value.card_max_date) return []
@@ -702,20 +862,30 @@ const tabs = [
   { key: 'activity', name: '活动探索', count: 9 },
 ]
 const captions: Record<string, string> = {
-  sign: '日序系列 · 收藏坚持的时光',
-  token: '星核系列 · 六个成长阶段',
-  recharge: '铭印系列 · 珍藏每一份支持',
-  activity: '探索系列 · 知识、实践与篇章',
+  sign: '坚持的奖励',
+  token: 'Token 成长',
+  recharge: '充值荣誉',
+  activity: '本系列勋章',
 }
 const selectedCalendarDate = ref('')
 const companionDate = computed(
   () => selectedCalendarDate.value || state.value?.date || '',
 )
 function selectCalendarDate(date: string) {
+  if (busy.value) return
   selectedCalendarDate.value = date
+  actionError.value = ''
+  cardDay.value = date
+  clearCardPreview()
   if (canBackfillDate(date)) void openCardDialog(date)
+  else cardDialog.value?.showModal()
 }
 const activityGroup = ref<'knowledge' | 'practice' | 'chapter'>('knowledge')
+const focusActivityMedal = ref('')
+function chooseActivityGroup(group: 'knowledge' | 'practice' | 'chapter') {
+  activityGroup.value = group
+  focusActivityMedal.value = ''
+}
 const activityGroups = [
   { key: 'knowledge' as const, name: '知识挑战' },
   { key: 'practice' as const, name: '实践演练' },
@@ -746,7 +916,12 @@ const nextSignMedal = computed(() =>
   state.value?.medals.find((m) => m.category === 'sign' && !m.unlocked),
 )
 const nextActivityMedal = computed(
-  () => visible.value.find((m) => !m.unlocked) ?? visible.value.at(-1),
+  () =>
+    visible.value.find(
+      (m) => m.key === focusActivityMedal.value && !m.unlocked,
+    ) ??
+    visible.value.find((m) => !m.unlocked) ??
+    visible.value.at(-1),
 )
 const tokenTheme = computed(
   () =>
@@ -762,10 +937,9 @@ async function copyPrompt() {
     message.value = '复制暂不可用，请稍后重试。'
   }
 }
-function viewTasks() {
-  document
-    .getElementById('activity-tasks')
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+function goBackfill() {
+  tab.value = 'sign'
+  setTimeout(focusBackfillCalendar, 0)
 }
 
 const equipped = computed(() =>
@@ -804,10 +978,7 @@ function changeMonth(offset: number) {
   const next = new Date(Date.UTC(year!, month! - 1 + offset, 1))
     .toISOString()
     .slice(0, 7)
-  if (
-    next >= minimumMonth.value &&
-    next <= (state.value?.date.slice(0, 7) ?? viewMonth.value)
-  )
+  if (next >= minimumMonth.value && next <= maximumMonth.value)
     calendarMonth.value = next
 }
 const money = (v: number) => Number(v || 0).toFixed(2)
@@ -823,12 +994,14 @@ const condition = (m: Medal) =>
     : m.category === 'sign'
       ? '连续签到 ' + m.target + ' 天'
       : m.category === 'recharge'
-        ? '累计有效充值 $' + formatProgress(m.target)
+        ? '累计有效充值 $' + m.target.toLocaleString('zh-CN')
         : m.key.startsWith('A-K')
-          ? '通过 ' + m.target + ' 个知识主题'
+          ? '通过 ' + m.target + ' 个不同知识主题'
           : m.key.startsWith('A-X')
-            ? '通过 ' + m.target + ' 个实践关卡'
-            : '收藏 ' + m.target + ' 个活动篇章'
+            ? '通过 ' + m.target + ' 个不同实践关卡'
+            : m.key === 'A-C01'
+              ? '完成初航 4 项指定任务'
+              : '收藏 ' + m.target + ' 个不同篇章'
 const cashReason = (reason: string) =>
   ({
     eligible: '今日现金奖励已开放，签到后即时入账。',
@@ -852,6 +1025,21 @@ const recordedCashReason = (reason: string) =>
     admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
     card_backfill: '已使用补签卡，奖励按漏签日历史权益即时补发。',
   })[reason] ?? reason
+function milestoneUnavailableReason() {
+  const reason = state.value?.milestone_cash_reason ?? state.value?.cash_reason
+  return (
+    (
+      {
+        cash_disabled: '成就金额奖励尚未开启，徽章解锁与补签卡领取分别记录。',
+        not_in_cash_pilot: '当前账户不在成就金额奖励开放范围。',
+        recent_activity_required:
+          '成就金额奖励需近 30 日有有效充值或余额计费使用；签到金额不受此条件限制。',
+        budget_exhausted: '本期金额奖励额度不足，请稍后核对。',
+        account_unavailable: '当前账户不可领取成就金额奖励。',
+      } as Record<string, string>
+    )[reason || ''] || '暂不可领取，请刷新核对奖励状态。'
+  )
+}
 function canClaim(m: Medal) {
   if (m.card_reward) return m.unlocked && !m.preview && !m.card_claim
   return (
@@ -961,12 +1149,13 @@ const errorMessage = (e: unknown) => {
 async function load() {
   try {
     state.value = await getAchievements()
+    if (selected.value)
+      selected.value =
+        state.value.medals.find((m) => m.key === selected.value?.key) ?? null
     if (
       calendarMonth.value &&
-      (calendarMonth.value <
-        (state.value.card_min_date?.slice(0, 7) ??
-          state.value.date.slice(0, 7)) ||
-        calendarMonth.value > state.value.date.slice(0, 7))
+      (calendarMonth.value < minimumMonth.value ||
+        calendarMonth.value > maximumMonth.value)
     )
       calendarMonth.value = ''
     error.value = ''
@@ -982,6 +1171,7 @@ async function act(
   busy.value = true
   error.value = ''
   message.value = ''
+  actionError.value = ''
   try {
     if (
       action === 'checkin' ||
@@ -1004,1020 +1194,216 @@ async function act(
       message.value = key ? '徽章已佩戴' : '徽章已卸下'
     }
     await load()
+    if (action !== 'checkin') detailDialog.value?.close()
   } catch (e) {
     error.value = errorMessage(e)
+    actionError.value = error.value
   } finally {
     busy.value = false
   }
 }
 function openDetail(m: Medal) {
+  actionError.value = ''
   selected.value = m
   detailDialog.value?.showModal()
 }
 onMounted(load)
+
+const activityName = computed(
+  () => activityGroups.find((g) => g.key === activityGroup.value)?.name || '',
+)
+const collectionDescription = computed(() =>
+  tab.value === 'sign'
+    ? '连续签到达到里程碑，解锁对应勋章与金额奖励。'
+    : tab.value === 'token'
+      ? '持续使用付费文本模型，积累 Token，逐步解锁成长勋章。'
+      : '按累计有效充值本金解锁，奖励与充值加赠分别计算。',
+)
+const collectionCounter = computed(() =>
+  tab.value === 'token'
+    ? '当前累计 ' +
+      formatProgress(
+        state.value?.medals.find((m) => m.category === 'token')?.progress ?? 0,
+      ) +
+      ' Token'
+    : '当前累计 $' +
+      money(
+        state.value?.medals.find((m) => m.category === 'recharge')?.progress ??
+          0,
+      ),
+)
+const activityDescription = computed(() =>
+  activityGroup.value === 'knowledge'
+    ? '通过 1、3、6 个不同知识主题，分别解锁对应勋章。'
+    : activityGroup.value === 'practice'
+      ? '通过 2、4、6 个不同实践关卡，逐步解锁三枚勋章。'
+      : '按篇章完成指定任务，收藏对应勋章。',
+)
+const claimed = (m: Medal) => !!(m.card_reward ? m.card_claim : m.claim)
+const cardEligible = computed(
+  () => !!state.value && canBackfillDate(cardDay.value),
+)
+const dayTip = computed(
+  () =>
+    dayWhispers[
+      dayIndex(cardDay.value || state.value?.date || '2026-01-01') %
+        dayWhispers.length
+    ][0],
+)
+const dayRecord = computed(() =>
+  state.value?.history.find((h) => h.day === cardDay.value),
+)
+const dayStatus = computed(() => {
+  const s = state.value
+  if (!s) return ''
+  if (s.calendar.includes(cardDay.value)) return '这一天已签到，记录已保留。'
+  if (cardDay.value === s.date) return '今天还未签到，收下今天的奖励吧。'
+  if (cardDay.value > s.date) return '还未到来的日子，也值得期待。'
+  if (cardEligible.value) return '这一天留了个空位，可使用补签卡补上。'
+  if (s.joined_date && cardDay.value < s.joined_date)
+    return '这一天还未与你相遇，可以看看这一天的小笺。'
+  return '该日期已超过补签范围，可以看看这一天的小笺。'
+})
+const joinedDateLabel = computed(() => {
+  if (!state.value?.joined_date) return '初次相遇'
+  const [year, month, day] = state.value.joined_date.split('-').map(Number)
+  return `${year} 年 ${month} 月 ${day} 日`
+})
+function phase(m: Medal) {
+  return String(
+    (state.value?.medals
+      .filter(
+        (x) =>
+          x.category === m.category &&
+          (m.category !== 'activity' ||
+            x.key.slice(0, 3) === m.key.slice(0, 3)),
+      )
+      .findIndex((x) => x.key === m.key) ?? 0) + 1,
+  ).padStart(2, '0')
+}
+function medalStatus(m: Medal) {
+  return m.manual === 'revoked'
+    ? '管理员已取消'
+    : m.manual === 'granted'
+      ? '管理员授予'
+      : m.preview
+        ? '后续开放'
+        : m.claim?.revoked_at
+          ? '已追回'
+          : m.unlocked
+            ? '已解锁'
+            : '未解锁'
+}
+function medalActionLabel(m: Medal) {
+  return m.preview
+    ? '敬请期待'
+    : !m.unlocked
+      ? '查看任务'
+      : claimed(m)
+        ? '查看详情'
+        : canClaim(m)
+          ? m.card_reward
+            ? '领取补签卡'
+            : '领取金额'
+          : '查看领取条件'
+}
+function showMedalTask(m: Medal) {
+  if (busy.value) return
+  detailDialog.value?.close()
+  tab.value = m.category
+  if (m.category === 'activity')
+    activityGroup.value = m.key.startsWith('A-K')
+      ? 'knowledge'
+      : m.key.startsWith('A-X')
+        ? 'practice'
+        : 'chapter'
+  focusActivityMedal.value = m.key
+  selected.value = m
+  setTimeout(
+    () =>
+      document
+        .querySelector(
+          m.category === 'activity'
+            ? '#activity-tasks'
+            : m.category === 'sign'
+              ? '.sign-calendar'
+              : '.collection-head',
+        )
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    0,
+  )
+}
+function medalAction(m: Medal) {
+  if (busy.value) return
+  if (!m.unlocked) showMedalTask(m)
+  else if (!claimed(m) && canClaim(m)) void act('claim', m.key)
+  else openDetail(m)
+}
+function openPending() {
+  const medal = state.value?.medals.find(canClaim)
+  if (medal) openDetail(medal)
+  else {
+    const series = state.value?.series?.find(canClaimSeries)
+    if (series) {
+      tab.value = 'activity'
+      activityGroup.value =
+        series.key === 'A-K'
+          ? 'knowledge'
+          : series.key === 'A-X'
+            ? 'practice'
+            : 'chapter'
+    }
+  }
+}
+async function checkinFromDate() {
+  await act('checkin')
+  if (state.value?.today) cardDialog.value?.close()
+}
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+watch(message, (value) => {
+  clearTimeout(toastTimer)
+  if (value)
+    toastTimer = setTimeout(() => {
+      message.value = ''
+    }, 6500)
+})
+onUnmounted(() => clearTimeout(toastTimer))
+
+function documentScrollSeries() {
+  document
+    .getElementById('activity-series')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 </script>
 <style scoped>
-.card-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  margin-top: 26px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  background: var(--wash);
-}
-.card-panel h3,
-.series-rewards h3 {
-  margin: 8px 0 12px;
-  font-size: 22px;
-}
-.card-panel-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  flex-shrink: 0;
-}
-.card-panel-actions strong {
-  text-align: center;
-  font-size: 30px;
-  color: var(--gold);
-}
-.card-panel-actions strong small {
-  font-size: 12px;
-  font-weight: normal;
-}
-.series-rewards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  margin: 24px 0;
-}
-.series-rewards article {
-  padding: 22px;
-  border: 1px solid var(--line);
-  background: var(--wash);
-}
-.series-rewards .text-button {
-  margin-top: 14px;
-}
-.card-dialog {
-  width: min(520px, 92vw);
-}
-.card-dialog .gold-button {
-  width: 100%;
-  margin-top: 18px;
-}
-@media (max-width: 760px) {
-  .card-panel {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .series-rewards {
-    grid-template-columns: 1fr;
-  }
-}
 .achievement-page {
   --paper: #fffefa;
-  --ink: #292c29;
-  --muted: #73776e;
-  --gold: #806635;
-  --line: #e3dfd3;
-  --wash: #f5f3ec;
-  color: var(--ink);
-  max-width: 1460px;
-  margin: auto;
-  padding: 34px 30px 56px;
-}
-
-.eyebrow {
-  font:
-    10px Consolas,
-    monospace;
-  letter-spacing: 2px;
-  color: var(--gold);
-}
-h1,
-h2,
-h3 {
-  font-family: 'Noto Serif SC', 'SimSun', serif;
-  font-weight: 500;
-}
-h1 {
-  font-size: 30px;
-  letter-spacing: 2px;
-  margin: 8px 0;
-}
-h2 {
-  font-size: 23px;
-  margin: 7px 0;
-}
-h3 {
-  font-size: 23px;
-}
-.muted {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.8;
-}
-.small {
-  font-size: 11px;
-  line-height: 1.8;
-}
-.gold {
-  color: var(--gold);
-}
-
-button {
-  cursor: pointer;
-}
-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-button:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 4px;
-}
-.hero {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  margin-bottom: 30px;
-}
-.wear-panel {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 25px 30px;
-  background: radial-gradient(ellipse at 25% 50%, #e5d6b62a, transparent);
-}
-.hero-art {
-  width: 126px;
-  flex-shrink: 0;
-}
-.empty-medal {
-  width: 126px;
-  height: 126px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--gold);
-  font:
-    35px 'Times New Roman',
-    serif;
-  flex-shrink: 0;
-}
-.overview {
-  padding: 30px;
-  border-left: 1px solid var(--line);
-  display: grid;
-  align-content: center;
-}
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-}
-.stats > div {
-  padding: 0 18px;
-  border-right: 1px solid var(--line);
-}
-.stats > div:first-child {
-  padding-left: 0;
-}
-.stats > div:last-child {
-  border: 0;
-}
-.stats strong {
-  font:
-    27px Consolas,
-    monospace;
-}
-.stats small {
-  font-size: 12px;
-  color: var(--muted);
-}
-.stats span {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 6px;
-}
-.overview-note {
-  border-top: 1px solid var(--line);
-  padding-top: 16px;
-  margin-top: 22px;
-  color: var(--muted);
-  font-size: 10px;
-}
-.achievement-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--line);
-  gap: 28px;
-}
-.achievement-tabs button {
-  padding: 15px 0;
-  background: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.achievement-tabs .active {
-  color: var(--gold);
-  border-color: var(--gold);
-}
-.achievement-tabs small {
-  font: 10px Consolas;
-  margin-left: 9px;
-  opacity: 0.65;
-}
-.sign-section {
-  margin-top: 27px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  padding: 26px;
-}
-.sign-title,
-.sign-calendar header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-.date-label {
-  font: 11px Consolas;
-  color: var(--muted);
-}
-.sign-layout {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 46px;
-  margin-top: 24px;
-}
-.sign-calendar {
-  border: 1px solid var(--line);
-  padding: 20px;
-}
-.sign-calendar h3 {
-  font:
-    18px 'SimSun',
-    serif;
-}
-.sign-calendar header span {
-  font-size: 11px;
-}
-.calendar-month-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.calendar-month-nav button {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border: 1px solid var(--line);
-  color: var(--gold);
-  background: transparent;
-  font-size: 22px;
-}
-.calendar-month-nav button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.calendar-hint {
-  margin: 16px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.8;
-}
-@media (max-width: 720px) {
-  .sign-calendar header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .calendar-month-nav {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .calendar-month-nav h3 {
-    white-space: nowrap;
-  }
-}
-.week,
-.days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 7px;
-  text-align: center;
-}
-.week {
-  font-size: 11px;
-  color: var(--muted);
-  margin: 18px 0 10px;
-}
-.days > span,
-.days > button {
-  min-height: 40px;
-  display: grid;
-  place-content: center;
-  font: 13px Consolas;
-  border: 1px solid transparent;
-  position: relative;
-}
-.days > button {
-  color: var(--ink);
-  background: transparent;
-  border-radius: 3px;
-}
-.days > button:disabled {
-  cursor: default;
-}
-.days .backfillable {
-  border-color: var(--line);
-  color: var(--gold);
-  background: var(--wash);
-  cursor: pointer;
-}
-.days .backfillable:hover {
-  border-color: var(--gold);
-}
-.days > button:focus-visible,
-.calendar-month-nav button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
-}
-.days .today {
-  border-color: var(--gold);
-}
-.days .checked {
-  background: #b4925420;
-  color: var(--gold);
-}
-.days small {
-  position: absolute;
-  right: 4px;
-  bottom: 2px;
-  font-size: 9px;
-}
-.sign-benefits h3 {
-  margin: 9px 0;
-}
-.daily-value {
-  font:
-    38px 'Times New Roman',
-    serif;
-  color: var(--gold);
-  margin: 16px 0;
-}
-.daily-value small {
-  display: block;
-  font:
-    11px 'Microsoft YaHei',
-    sans-serif;
-  color: var(--muted);
-  margin-top: 4px;
-}
-.gold-button {
-  background: var(--gold);
-  color: var(--paper);
-  border: 0;
-  padding: 13px 20px;
-  margin: 15px 0 8px;
-  width: 100%;
-  font-size: 13px;
-}
-.receipt {
-  font-size: 11px;
-  line-height: 1.8;
-  color: var(--gold);
-}
-.sign-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 17px 0;
-  padding-top: 15px;
-  border-top: 1px solid var(--line);
-}
-.sign-stats span {
-  font-size: 11px;
-  color: var(--muted);
-}
-.sign-stats strong {
-  display: block;
-  font: 23px Consolas;
-  color: var(--ink);
-  margin-bottom: 6px;
-}
-.vip-plan {
-  margin-top: 24px;
-  border-top: 1px solid var(--line);
-  padding-top: 15px;
-  font-size: 12px;
-}
-.vip-plan > div {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 15px;
-  padding: 18px 0;
-}
-.vip-plan strong {
-  display: block;
-  color: var(--gold);
-  font: 13px Consolas;
-  margin-top: 8px;
-}
-summary {
-  cursor: pointer;
-}
-.section-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  font-size: 11px;
-  color: var(--muted);
-  margin: 24px 0 16px;
-}
-.medal-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
-.medal-card {
-  border: 1px solid var(--line);
-  background: var(--paper);
-  padding: 22px 24px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  font:
-    11px Consolas,
-    monospace;
-  color: var(--muted);
-}
-.card-top span:last-child {
-  color: var(--gold);
-}
-.art-button {
-  width: 180px;
-  height: 220px;
-  display: flex;
-  align-items: center;
-  margin: 17px auto 13px;
-  border: 0;
-  background: transparent;
-}
-.locked .art-button {
-  opacity: 0.7;
-}
-.medal-card h3 {
-  font-size: 25px;
-  letter-spacing: 2px;
-  margin-bottom: 8px;
-}
-.condition {
-  font-size: 11px;
-  color: var(--muted);
-  margin: 0 0 12px;
-}
-
-.progress-label {
-  display: flex;
-  justify-content: space-between;
-  font: 10px Consolas;
-  color: var(--muted);
-  margin: 18px 0 7px;
-}
-progress {
-  appearance: none;
-  height: 3px;
-  width: 100%;
-  border: 0;
-  background: var(--line);
-}
-progress::-webkit-progress-bar {
-  background: var(--line);
-}
-progress::-webkit-progress-value {
-  background: var(--gold);
-}
-progress::-moz-progress-bar {
-  background: var(--gold);
-}
-.medal-card footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  border-top: 1px solid var(--line);
-  margin-top: 21px;
-  padding-top: 16px;
-  text-align: left;
-}
-.reward {
-  font:
-    20px 'Times New Roman',
-    serif;
-  color: var(--gold);
-}
-.reward small {
-  display: block;
-  font:
-    9px 'Microsoft YaHei',
-    sans-serif;
-  margin-top: 3px;
-  color: var(--muted);
-}
-.text-button {
-  border: 0;
-  background: transparent;
-  color: var(--gold);
-  font-size: 11px;
-  padding: 7px;
-}
-.equip-button {
-  border: 1px solid var(--line);
-  background: transparent;
-  font-size: 11px;
-  padding: 6px 11px;
-  color: var(--ink);
-}
-.fine-print,
-.history {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.9;
-  margin-top: 22px;
-}
-.history > div {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--line);
-  padding: 12px 0;
-}
-.notice {
-  padding: 14px 18px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--gold);
-  font-size: 12px;
-  margin: 16px 0;
-}
-.notice button {
-  background: none;
-  border: 0;
-  text-decoration: underline;
-  margin-left: 12px;
-}
-.loading {
-  padding: 60px;
-  text-align: center;
-  color: var(--muted);
-}
-.medal-dialog {
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  padding: 35px;
-  text-align: center;
-  width: min(430px, 90vw);
-  max-height: 90vh;
-  overflow: auto;
-}
-.medal-dialog::backdrop {
-  background: #10181299;
-}
-.medal-dialog p {
-  margin: 16px 0;
-  line-height: 1.8;
-  font-size: 13px;
-}
-.detail-art {
-  width: 190px;
-  margin: 20px auto;
-}
-.close {
-  position: absolute;
-  right: 13px;
-  top: 9px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 25px;
-}
-:global(.dark .achievement-page) {
-  --paper: #1e2421;
-  --ink: #e6e2d6;
-  --muted: #a0a497;
-  --gold: #d2ba86;
-  --line: #3b4239;
-  --wash: #181e1a;
-}
-@media (max-width: 1050px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
-  .overview {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-  .sign-layout {
-    gap: 24px;
-  }
-  .art-button {
-    width: 150px;
-    height: 210px;
-  }
-  .medal-card {
-    padding: 20px 16px;
-  }
-  .medal-card footer {
-    flex-wrap: wrap;
-  }
-  .vip-plan > div {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 720px) {
-  .achievement-page {
-    padding: 23px 14px;
-  }
-
-  .wear-panel {
-    padding: 20px;
-    gap: 18px;
-  }
-  .hero-art,
-  .empty-medal {
-    width: 90px;
-  }
-  .empty-medal {
-    height: 90px;
-  }
-  .stats strong {
-    font-size: 23px;
-  }
-  .overview {
-    padding: 22px;
-  }
-  .achievement-tabs {
-    gap: 22px;
-    overflow-x: auto;
-  }
-  .sign-layout {
-    grid-template-columns: 1fr;
-  }
-  .sign-title {
-    align-items: start;
-    flex-direction: column;
-  }
-  .sign-section {
-    padding: 20px 15px;
-  }
-  .medal-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .medal-card {
-    padding: 15px 10px;
-  }
-  .art-button {
-    width: 110px;
-    height: 165px;
-  }
-  .medal-card h3 {
-    font-size: 20px;
-    letter-spacing: 1px;
-  }
-
-  .card-top {
-    font-size: 9px;
-  }
-  .sign-calendar {
-    padding: 15px;
-  }
-  .days > span,
-  .days > button {
-    min-height: 35px;
-  }
-  .history > div {
-    gap: 12px;
-  }
-  .medal-card footer > div {
-    display: flex;
-    flex-wrap: wrap;
-  }
-  .reward {
-    font-size: 18px;
-  }
-}
-
-/* Approved companion palette, shared by all small panels. */
-.achievement-page {
+  --surface: #fffefa;
+  --ink: #282925;
+  --muted: #78766d;
+  --line: #e6e0d3;
+  --gold: #93763c;
+  --gold-light: #c9b477;
+  --wash: #f5f2e9;
   --companion-surface: #f7f4ec;
   --companion-emphasis: #eee4ce;
   --companion-soft: #f1eadb;
   --companion-border: #e3d9c4;
+  --companion-ink: #806536;
 }
 :global(.dark .achievement-page) {
+  --paper: #181a1a;
+  --surface: #181a1a;
+  --ink: #f0ece2;
+  --muted: #a09d91;
+  --line: #37382e;
+  --gold: #d0ba80;
+  --gold-light: #9b8550;
+  --wash: #20221e;
   --companion-surface: #23231f;
   --companion-emphasis: #3b3323;
   --companion-soft: #2d2b23;
   --companion-border: #45402f;
-}
-.hero {
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 24px;
-}
-.wear-panel {
-  padding: 18px 26px;
-}
-.hero-art {
-  width: 90px;
-}
-.overview {
-  padding: 20px 26px;
-}
-.overview-note {
-  margin-top: 16px;
-}
-.wear-panel h2 {
-  font-size: 24px;
-}
-.achievement-tabs {
-  margin-bottom: 25px;
-}
-.sign-layout {
-  align-items: stretch;
-  grid-template-columns: 1.05fr 1fr;
-  gap: 24px;
-}
-.sign-calendar,
-.sign-benefits {
-  background: var(--companion-surface);
-  border-color: var(--companion-border);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  padding: 28px;
-}
-.sign-calendar .days {
-  flex: 1;
-  align-content: space-evenly;
-  min-height: 285px;
-}
-.token-inspiration {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--companion-border);
-}
-.token-inspiration h4 {
-  font-family: 'SimSun', serif;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--ink);
-  margin: 7px 0;
-}
-.token-inspiration p {
-  font-size: 12px;
-  line-height: 1.8;
-  color: var(--muted);
-}
-.token-inspiration button {
-  flex-shrink: 0;
-  font-size: 11px;
-}
-.daily-head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-.daily-head h3 {
-  font-size: 26px;
-  margin: 10px 0 18px;
-}
-.daily-head .daily-value {
-  margin: 0;
-  text-align: right;
-}
-.daily-value,
-.companion-time > strong {
-  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
-  font-size: 32px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  color: var(--gold);
-  line-height: 1.3;
-}
-.daily-value small {
-  font-size: 11px;
-  margin-top: 8px;
-}
-.companion-time > strong small {
-  font-size: 12px;
-  font-weight: 400;
-}
-.companion-time {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  justify-content: space-between;
-  padding: 20px 0;
-  border-top: 1px solid var(--companion-border);
-  color: var(--muted);
-  font-size: 12px;
-}
-.companion-time p {
-  max-width: 300px;
-  line-height: 1.9;
-  margin: 8px 0 0;
-}
-.companion-time > strong {
-  white-space: nowrap;
-}
-.next-sign-medal {
-  display: flex;
-  align-items: center;
-  gap: 17px;
-  text-align: left;
-  border: 0;
-  border-top: 1px solid var(--companion-border);
-  background: none;
-  padding: 20px 0;
-  color: var(--gold);
-}
-.next-sign-medal :deep(.medal-art) {
-  width: 62px;
-  flex-shrink: 0;
-}
-.next-sign-medal > div {
-  flex: 1;
-}
-.next-sign-medal h3 {
-  font-size: 22px;
-  margin: 7px 0;
-}
-.next-sign-medal p {
-  font-size: 11px;
-  color: var(--muted);
-  margin: 6px 0;
-}
-.next-sign-medal > span {
-  font-size: 11px;
-}
-.next-sign-medal progress {
-  width: 100%;
-  height: 4px;
-  accent-color: var(--gold);
-}
-.daily-encouragement {
-  border-top: 1px solid var(--companion-border);
-  padding: 18px 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-.daily-encouragement strong {
-  font-weight: 500;
-  color: var(--gold);
-}
-.daily-encouragement p {
-  line-height: 1.8;
-  margin: 7px 0;
-}
-.sign-benefits .sign-stats {
-  margin: 20px 0;
-}
-.sign-stats strong {
-  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
-  font-size: 23px;
-  font-variant-numeric: tabular-nums;
-}
-.activity-groups {
-  display: flex;
-  gap: 10px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 15px;
-}
-.activity-groups button {
-  background: var(--wash);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 10px 17px;
-  color: var(--muted);
-}
-.activity-groups .active {
-  background: var(--companion-emphasis);
-  border-color: var(--gold);
-  color: var(--gold);
-}
-.activity-groups small {
-  margin-left: 12px;
-  font-size: 11px;
-}
-.group-description {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 20px 0;
-}
-.series-rewards {
-  grid-template-columns: 1fr;
-  margin: 15px 0;
-}
-.series-rewards article {
-  border-radius: 10px;
-}
-.medal-card {
-  border-radius: 10px;
-}
-.medal-grid {
-  gap: 22px;
-}
-@media (max-width: 650px) {
-  .sign-layout {
-    grid-template-columns: 1fr;
-  }
-  .sign-calendar,
-  .sign-benefits {
-    padding: 22px;
-  }
-  .daily-value,
-  .companion-time > strong {
-    font-size: 30px;
-  }
-  .daily-head h3 {
-    font-size: 23px;
-  }
-  .activity-groups {
-    gap: 6px;
-  }
-  .activity-groups button {
-    padding: 9px 10px;
-    font-size: 12px;
-  }
-  .activity-groups small {
-    display: block;
-    margin: 4px 0 0;
-  }
-  .token-inspiration {
-    align-items: start;
-  }
-  .hero-art {
-    width: 72px;
-  }
-  .wear-panel {
-    gap: 16px;
-    padding: 18px;
-  }
-  .medal-grid {
-    grid-template-columns: repeat(3, minmax(250px, 1fr));
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 12px;
-  }
-  .medal-card {
-    scroll-snap-align: start;
-  }
-}
-.days button.selectedDay {
-  outline: 1px solid var(--gold);
-  outline-offset: -1px;
-  background: var(--companion-soft);
-}
-.sign-benefits {
-  border: 1px solid var(--companion-border);
-}
-.medal-card footer {
-  flex-wrap: wrap;
-}
-.reward {
-  white-space: nowrap;
-  font-size: 18px;
-}
-.medal-card footer > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-@media (max-width: 850px) {
-  .sign-layout {
-    grid-template-columns: 1fr;
-  }
+  --companion-ink: #d8c28e;
 }
 </style>

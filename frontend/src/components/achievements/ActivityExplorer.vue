@@ -1,75 +1,118 @@
 <template>
   <section class="exploration">
-    <header>
-      <div>
-        <p class="eyebrow">THE EXPLORATION ATLAS</p>
-        <h2>{{ groupTitle }} · 对应任务</h2>
-        <p>知识与实践各六个主题，10 题答对 8 题即可通关；不同主题各计一次。</p>
-      </div>
-      <span v-if="group === 'chapter'" class="stamp"
-        >初航篇章<br /><strong>{{ themeProgress }} / 4</strong></span
-      >
-    </header>
-    <div v-if="group === 'chapter'" class="theme-track">
-      <span
-        v-for="t in firstVoyage"
-        :key="t.key"
-        :class="{ done: hasPass(t.kind, t.key) }"
-        >{{ hasPass(t.kind, t.key) ? '✓' : '○' }} {{ t.name }}</span
-      >
-    </div>
-    <p v-if="group === 'chapter'" class="theme-note">
-      完成初识平台、选择接入地址、构造首次请求和核对使用成本，即可收藏「初航」篇章。实践为场景演练，不消耗调用额度。后续篇章待开放。
-    </p>
-    <p v-if="error" role="alert" class="activity-notice">
+    <p v-if="error" role="alert" class="quiz-error">
       {{ error }} <button @click="load">重试</button>
     </p>
-    <div class="task-layout">
-      <div class="topic-grid">
-        <button
+    <section v-if="group === 'chapter'" class="chapter-tasks">
+      <div class="section-head">
+        <div>
+          <h3>初航篇章 · 完成以下 4 项任务</h3>
+          <p>这里的任务分别来自知识与实践，可直接进入，无需来回寻找。</p>
+        </div>
+        <span class="muted">{{ themeProgress }} / 4</span>
+      </div>
+      <div class="topic-grid chapter-list">
+        <div
           v-for="t in visibleTopics"
           :key="t.kind + t.key"
-          :disabled="busy"
-          @click="start(t)"
+          class="chapter-task"
+          :class="{ completed: hasPass(t.kind, t.key) }"
         >
-          <span class="eyebrow">{{
-            t.kind === 'knowledge' ? 'KNOWLEDGE' : 'PRACTICE'
-          }}</span>
-          <h3>{{ t.name }}</h3>
-          <p>{{ t.description }}</p>
-          <span class="topic-state">{{
-            hasPass(t.kind, t.key) ? '✓ 已通关 · 再次练习' : '开始探索 →'
-          }}</span>
-        </button>
+          <span>{{ hasPass(t.kind, t.key) ? '✓' : '○' }} {{ t.name }}</span
+          ><button class="text-link" :disabled="busy" @click="start(t)">
+            {{ hasPass(t.kind, t.key) ? '再练习' : '去完成' }}
+            <AchievementIcon name="arrow" />
+          </button>
+        </div>
       </div>
-      <aside v-if="goal && group !== 'chapter'" class="next-goal">
-        <p class="eyebrow">
-          {{ goal.unlocked ? '本系列已点亮' : '下一枚徽章' }}
-        </p>
-        <MedalArt :medal="goal.key" :name="goal.name" />
-        <h3>{{ goal.name }}</h3>
-        <p>
-          {{
-            goal.unlocked
-              ? '本系列徽章已全部解锁，可领取尚未领取的奖励。'
-              : `再通过 ${Math.max(0, goal.target - goal.progress)} 个不同${group === 'knowledge' ? '知识主题' : '实践关卡'}即可解锁。`
-          }}
-        </p>
-        <progress
-          :value="Math.min(goal.progress, goal.target)"
-          :max="goal.target"
-        />
-        <p>每个主题分别计入进度，重复练习不会重复增加收集数量。</p>
-        <button
-          v-if="nextTopic"
-          class="submit"
-          :disabled="busy"
-          @click="start(nextTopic)"
-        >
-          继续下个任务 →
-        </button>
-      </aside>
-    </div>
+      <p class="quiet-note">
+        <AchievementIcon
+          name="info"
+        />篇章同行、万象收藏暂未开放，不会计入当前可领取奖励。
+      </p>
+    </section>
+    <template v-else
+      ><div class="task-layout">
+        <section class="task-list">
+          <div class="task-list-head">
+            <div>
+              <h3>本系列任务</h3>
+              <p>每个主题 10 题，答对至少 8 题即可通关</p>
+            </div>
+            <button @click="hideCompleted = !hideCompleted">
+              {{ hideCompleted ? '显示已通过' : '收起已通过' }}
+            </button>
+          </div>
+          <div class="topic-grid">
+            <div v-for="t in taskTopics" :key="t.kind + t.key" class="task-row">
+              <span class="task-icon"
+                ><AchievementIcon
+                  :name="
+                    activityPresentation[t.kind + ':' + t.key]?.icon || 'book'
+                  "
+              /></span>
+              <div class="task-copy">
+                <strong>{{ t.name }}</strong
+                ><span v-if="hasPass(t.kind, t.key)" class="completed-check"
+                  >✓ 已通过</span
+                >
+                <p>{{ t.description }}</p>
+              </div>
+              <span class="task-meta">10 题 · 8 题通关</span
+              ><button class="task-action" :disabled="busy" @click="start(t)">
+                {{ hasPass(t.kind, t.key) ? '再次练习' : '开始挑战'
+                }}<AchievementIcon name="arrow" />
+              </button>
+            </div>
+          </div>
+          <p v-if="!taskTopics.length" class="quiet-note">
+            已通过的任务已收起，你可以随时再次练习。
+          </p>
+        </section>
+        <aside v-if="goal" class="next-goal">
+          <p class="eyebrow">
+            {{ goal.unlocked ? '本系列已点亮' : '下一枚徽章' }}
+          </p>
+          <MedalArt :medal="goal.key" :name="goal.name" class="goal-art" />
+          <h3>{{ goal.name }}</h3>
+          <p>
+            {{
+              goal.unlocked
+                ? '本系列徽章已全部解锁，可领取尚未领取的奖励。'
+                : `再通过 ${Math.max(0, goal.target - goal.progress)} 个${group === 'knowledge' ? '知识主题' : '实践关卡'}即可解锁。`
+            }}
+          </p>
+          <div class="goal-track">
+            <template v-for="(n, index) in stages" :key="n"
+              ><span :class="{ done: passedCount >= n }">{{
+                passedCount >= n ? '✓' : n
+              }}</span
+              ><i v-if="index < stages.length - 1"
+            /></template>
+          </div>
+          <p>
+            单枚勋章获得补签卡。<template v-if="seriesReward !== undefined"
+              >集齐 3 枚后，另可领取 ${{ seriesReward.toFixed(2) }}。</template
+            >
+          </p>
+          <button
+            class="primary"
+            :disabled="busy"
+            @click="nextTopic ? start(nextTopic) : emit('showSeries')"
+          >
+            {{ nextTopic ? '继续下个任务' : '查看系列奖励'
+            }}<AchievementIcon name="arrow" />
+          </button>
+        </aside>
+      </div>
+      <p class="quiet-note">
+        <AchievementIcon name="info" />{{
+          group === 'practice'
+            ? '实践为场景答题演练，不调用真实模型，也不消耗账户额度。'
+            : '不同知识主题分别计入进度，重复练习不会重复增加收集数量。'
+        }}
+      </p></template
+    >
     <dialog
       ref="dialog"
       class="quiz-dialog"
@@ -77,107 +120,160 @@
       @cancel="protectAttempt"
     >
       <template v-if="quiz"
-        ><button
-          class="close"
-          :disabled="busy || (!!submittedAnswers && !result)"
-          aria-label="关闭练习"
-          @click="dialog?.close()"
-        >
-          ×
-        </button>
-        <p class="eyebrow">
-          {{ quiz.topic.kind === 'knowledge' ? 'KNOWLEDGE' : 'PRACTICE' }} / 10
-          QUESTIONS
-        </p>
-        <h2>{{ quiz.topic.name }}</h2>
-        <p class="quiz-rule">
-          答对 8 题即可通关 · 提交后由服务器核验 · 24 小时内最多提交 30 次
-        </p>
-        <form @submit.prevent="submit">
-          <fieldset
-            v-if="quiz.questions[questionIndex]"
-            :key="questionIndex"
-            :disabled="busy || !!result || !!submittedAnswers"
+        ><div class="dialog-top">
+          <strong
+            >{{ quiz.topic.kind === 'knowledge' ? '知识挑战' : '实践演练' }} /
+            {{ quizTitle }}</strong
+          ><button
+            class="close"
+            :disabled="busy || (!!submittedAnswers && !result)"
+            aria-label="关闭练习"
+            @click="dialog?.close()"
           >
-            <legend>
-              {{ questionIndex + 1 }} / {{ quiz.questions.length }} ·
-              {{ quiz.questions[questionIndex].prompt }}
-            </legend>
-            <label
-              v-for="(option, i) in quiz.questions[questionIndex].options"
-              :key="i"
-              ><input
-                v-model="answers[questionIndex]"
-                type="radio"
-                :name="'q' + questionIndex"
-                :value="i"
-                required
-              />{{ option }}</label
-            >
-          </fieldset>
-          <div class="question-navigation">
-            <button
-              type="button"
-              :disabled="questionIndex === 0 || busy"
-              @click="questionIndex--"
-            >
-              上一题
-            </button>
-            <span
-              >已完成 {{ answers.filter((a) => a >= 0).length }} /
-              {{ quiz.questions.length }} 题</span
-            >
-            <button
-              v-if="questionIndex < quiz.questions.length - 1"
-              type="button"
-              data-next-question
-              :disabled="answers[questionIndex] < 0 || busy"
-              @click="questionIndex++"
-            >
-              下一题 →
-            </button>
+            <AchievementIcon name="close" />
+          </button>
+        </div>
+        <div class="quiz-body">
+          <div class="quiz-label">
+            <span>{{
+              quiz.topic.kind === 'knowledge'
+                ? '学习与理解'
+                : '场景判断 · 不消耗调用额度'
+            }}</span
+            ><span>答对 8 题通关</span>
           </div>
-          <p v-if="quizError" class="activity-notice" role="alert">
-            {{ quizError }}
-            <span v-if="submittedAnswers">重试会核验已提交的同一份答案。</span>
-            <button
-              v-if="submittedAnswers"
-              type="button"
-              :disabled="busy"
-              @click="newAttempt"
-            >
-              修改答案并开始新尝试
-            </button>
-          </p>
+          <h2>{{ quizTitle }}</h2>
           <div v-if="result" class="quiz-result" role="status">
             <strong
-              >{{ result.score }} / 10 ·
-              {{ result.passed ? '已通关' : '继续探索' }}</strong
+              >{{ result.score
+              }}<small> / {{ quiz.questions.length }}</small></strong
             >
+            <h3>{{ result.passed ? '挑战通过' : '再试一次，把知识掌握好' }}</h3>
             <p>
               {{
                 result.passed
-                  ? '这一主题已收入你的探索记录。'
-                  : '至少答对 8 题才能通关。可以查阅使用文档后再次练习。'
+                  ? '该主题已计入对应系列的勋章进度。'
+                  : '至少答对 8 题才能通关，可查阅使用文档后重新练习。'
               }}
             </p>
-            <button type="button" @click="dialog?.close()">回到探索册</button>
+            <button
+              v-if="!result.passed"
+              class="primary"
+              type="button"
+              @click="newAttempt"
+            >
+              重新挑战</button
+            ><button class="primary" type="button" @click="dialog?.close()">
+              返回任务，查看勋章进度</button
+            ><span class="sr-only"
+              >{{ result.score }} / {{ quiz.questions.length }} ·
+              {{ result.passed ? '已通关' : '继续探索' }}</span
+            >
           </div>
-          <button
-            v-else
-            class="submit"
-            :disabled="busy || answers.some((a) => a < 0)"
-          >
-            {{ busy ? '正在核验…' : '提交探索答案' }}
-          </button>
-        </form></template
-      >
+          <form v-else @submit.prevent="submit">
+            <div class="question-progress">
+              <span
+                v-for="(_, index) in quiz.questions"
+                :key="index"
+                :class="{
+                  filled: answers[index] >= 0 || index === questionIndex,
+                }"
+              />
+            </div>
+            <p class="question-number">
+              第 {{ questionIndex + 1 }} / {{ quiz.questions.length }} 题
+            </p>
+            <fieldset
+              :key="questionIndex"
+              :disabled="busy || !!submittedAnswers"
+            >
+              <legend class="question-title">
+                {{ quiz.questions[questionIndex].prompt }}
+              </legend>
+              <div class="answer-options">
+                <label
+                  v-for="(option, index) in quiz.questions[questionIndex]
+                    .options"
+                  :key="index"
+                  class="answer-option"
+                  ><input
+                    v-model="answers[questionIndex]"
+                    type="radio"
+                    :name="'q' + questionIndex"
+                    :value="index"
+                    required
+                  /><span class="answer-letter">{{
+                    String.fromCharCode(65 + index)
+                  }}</span
+                  ><span>{{ option }}</span></label
+                >
+              </div>
+            </fieldset>
+            <div v-if="quizError" class="quiz-error" role="alert">
+              {{ quizError
+              }}<span v-if="submittedAnswers"
+                >重试会核验已提交的同一份答案。</span
+              ><button
+                v-if="submittedAnswers"
+                type="button"
+                :disabled="busy"
+                @click="newAttempt"
+              >
+                修改答案并开始新尝试
+              </button>
+            </div>
+            <div class="quiz-bottom">
+              <button
+                class="text-link"
+                type="button"
+                :disabled="questionIndex === 0 || busy"
+                @click="questionIndex--"
+              >
+                上一题</button
+              ><span class="muted"
+                >已完成 {{ answers.filter((a) => a >= 0).length }} /
+                {{ quiz.questions.length }} 题</span
+              ><button
+                v-if="
+                  questionIndex < quiz.questions.length - 1 && !submittedAnswers
+                "
+                type="button"
+                class="primary"
+                data-next-question
+                :disabled="answers[questionIndex] < 0 || busy"
+                @click="questionIndex++"
+              >
+                下一题 <AchievementIcon name="arrow" /></button
+              ><button
+                v-else
+                class="primary submit"
+                :disabled="busy || answers.some((a) => a < 0)"
+              >
+                {{
+                  busy
+                    ? '正在核验…'
+                    : submittedAnswers
+                      ? '重试提交'
+                      : '提交答案'
+                }}<AchievementIcon name="arrow" />
+              </button>
+            </div>
+            <p class="quiz-rule">
+              每个主题单独计入进度，重复通过不会重复增加收集数量。提交后由服务器核验，24
+              小时内最多提交 30 次。
+            </p>
+          </form>
+        </div>
+      </template>
     </dialog>
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import MedalArt from './MedalArt.vue'
+import AchievementIcon from './AchievementIcon.vue'
+import './achievement-ui.css'
+import { activityPresentation } from './activityPresentation'
 import {
   getActivityTopics,
   getActivityQuiz,
@@ -191,10 +287,12 @@ const props = withDefaults(
       passes: { kind: string; topic: string }[]
       group?: 'knowledge' | 'practice' | 'chapter'
       goal?: Medal
+      seriesReward?: number
     }>(),
     { group: 'knowledge' },
   ),
-  emit = defineEmits<{ updated: [] }>()
+  emit = defineEmits<{ updated: []; showSeries: [] }>()
+const hideCompleted = ref(false)
 const questionIndex = ref(0)
 const topics = ref<ActivityTopic[]>([]),
   error = ref(''),
@@ -212,12 +310,6 @@ const firstVoyage = [
   { kind: 'practice', key: 'request', name: '构造首次请求' },
   { kind: 'practice', key: 'cost', name: '核对使用成本' },
 ]
-const groupTitle = computed(
-  () =>
-    ({ knowledge: '知识挑战', practice: '实践演练', chapter: '初航篇章' })[
-      props.group
-    ],
-)
 const visibleTopics = computed(() =>
   topics.value.filter((t) =>
     props.group === 'chapter'
@@ -242,7 +334,10 @@ const err = (e: unknown) => {
 }
 async function load() {
   try {
-    topics.value = await getActivityTopics()
+    topics.value = (await getActivityTopics()).map((t) => ({
+      ...t,
+      ...(activityPresentation[t.kind + ':' + t.key] || {}),
+    }))
     error.value = ''
   } catch (e) {
     error.value = err(e)
@@ -293,250 +388,36 @@ function protectAttempt(event: Event) {
 }
 onMounted(load)
 function newAttempt() {
+  if (result.value && quiz.value)
+    answers.value = Array(quiz.value.questions.length).fill(-1)
+  result.value = null
   questionIndex.value = 0
   submittedAnswers.value = null
   requestKey.value = crypto.randomUUID()
   quizError.value = ''
 }
+
+const quizTitle = computed(() =>
+  quiz.value
+    ? (activityPresentation[quiz.value.topic.kind + ':' + quiz.value.topic.key]
+        ?.name ?? quiz.value.topic.name)
+    : '',
+)
+watch(
+  () => props.group,
+  () => {
+    hideCompleted.value = false
+  },
+)
+const taskTopics = computed(() =>
+  visibleTopics.value.filter(
+    (t) => !hideCompleted.value || !hasPass(t.kind, t.key),
+  ),
+)
+const passedCount = computed(
+  () => visibleTopics.value.filter((t) => hasPass(t.kind, t.key)).length,
+)
+const stages = computed(() =>
+  props.group === 'knowledge' ? [1, 3, 6] : [2, 4, 6],
+)
 </script>
-<style scoped>
-.exploration {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  padding: 26px;
-  margin-top: 27px;
-}
-.exploration header {
-  display: flex;
-  justify-content: space-between;
-  gap: 25px;
-}
-.eyebrow {
-  font:
-    10px Consolas,
-    monospace;
-  letter-spacing: 2px;
-  color: var(--gold);
-}
-h2,
-h3 {
-  font-family: 'SimSun', serif;
-  font-weight: 500;
-}
-h2 {
-  font-size: 23px;
-  margin: 9px 0;
-}
-p {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.8;
-}
-.stamp {
-  font-size: 11px;
-  text-align: center;
-  min-width: 95px;
-  border: 1px solid var(--line);
-  padding: 10px;
-  color: var(--gold);
-}
-.stamp strong {
-  display: block;
-  font: 24px Consolas;
-  margin-top: 8px;
-}
-.theme-track {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-top: 22px;
-}
-.theme-track span {
-  font-size: 12px;
-  padding: 13px;
-  background: var(--wash);
-  color: var(--muted);
-}
-.theme-track .done {
-  color: var(--gold);
-}
-.theme-note {
-  margin-top: 12px;
-}
-.task-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 22px;
-  align-items: start;
-}
-.next-goal {
-  margin-top: 22px;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--wash);
-  text-align: center;
-}
-.next-goal .medal-art {
-  width: 120px;
-  margin: 16px auto;
-}
-.next-goal progress {
-  width: 100%;
-  height: 4px;
-  accent-color: var(--gold);
-}
-.topic-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  margin-top: 22px;
-}
-.topic-grid > button {
-  text-align: left;
-  padding: 19px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
-}
-h3 {
-  font-size: 18px;
-  margin: 10px 0;
-}
-.topic-state {
-  font-size: 11px;
-  color: var(--gold);
-  display: block;
-  margin-top: 15px;
-}
-.quiz-dialog {
-  background: var(--paper, #fffefa);
-  color: var(--ink, #292c29);
-  width: min(670px, 94vw);
-  max-height: 90vh;
-  overflow: auto;
-  border: 1px solid var(--line, #e3dfd3);
-  padding: 30px;
-}
-.quiz-dialog::backdrop {
-  background: #101812aa;
-}
-.close {
-  position: absolute;
-  right: 12px;
-  top: 10px;
-  font-size: 25px;
-  border: 0;
-  background: none;
-  color: inherit;
-}
-.quiz-rule {
-  margin: 15px 0;
-}
-.quiz-dialog fieldset {
-  margin: 20px 0;
-  padding: 15px;
-  border: 1px solid var(--line, #e3dfd3);
-  font-size: 13px;
-}
-.quiz-dialog legend {
-  padding: 0 7px;
-}
-.quiz-dialog label {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin: 12px 0;
-  font-size: 12px;
-}
-.quiz-dialog input {
-  accent-color: var(--gold, #806635);
-}
-.submit,
-.quiz-result button {
-  width: 100%;
-  background: var(--gold, #806635);
-  color: var(--paper, #fffefa);
-  border: 0;
-  padding: 13px;
-}
-.quiz-result {
-  padding: 20px;
-  text-align: center;
-  border: 1px solid var(--line, #e3dfd3);
-}
-.quiz-result strong {
-  font-size: 19px;
-}
-.activity-notice {
-  padding: 12px;
-  border: 1px solid var(--line);
-  color: var(--gold);
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 3px;
-}
-:global(.dark .quiz-dialog) {
-  --paper: #1e2421;
-  --ink: #e6e2d6;
-  --muted: #a0a497;
-  --gold: #d2ba86;
-  --line: #3b4239;
-}
-@media (max-width: 850px) {
-  .task-layout {
-    grid-template-columns: 1fr;
-  }
-  .topic-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .theme-track {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 520px) {
-  .exploration {
-    padding: 20px 15px;
-  }
-  .topic-grid {
-    grid-template-columns: 1fr;
-  }
-  .quiz-dialog {
-    padding: 24px 18px;
-  }
-}
-.question-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: 20px 0;
-  font-size: 12px;
-}
-.question-navigation button {
-  padding: 10px 14px;
-  color: var(--gold);
-  border: 1px solid var(--line);
-  background: var(--wash);
-}
-.topic-grid p,
-.quiz-rule {
-  font-size: 13px;
-}
-.quiz-dialog label {
-  font-size: 14px;
-  min-height: 40px;
-}
-.exploration:has(.theme-track) .task-layout {
-  grid-template-columns: 1fr;
-}
-</style>

@@ -12,6 +12,37 @@ vi.mock('@/api/achievements', () => ({
   submitActivityQuiz: mocks.submit,
 }))
 describe('activity receipt retry', () => {
+  it('collapses passed tasks and resets the filter when the category changes', async () => {
+    mocks.topics.mockResolvedValue([
+      { kind: 'knowledge', key: 'intro', name: '初识平台', description: '' },
+      { kind: 'practice', key: 'endpoint', name: '接入地址', description: '' },
+    ])
+    const w = mount(ActivityExplorer, {
+      props: { passes: [{ kind: 'knowledge', topic: 'intro' }] },
+    })
+    await flushPromises()
+    await w.get('.task-list-head button').trigger('click')
+    expect(w.findAll('.topic-grid button')).toHaveLength(0)
+    await w.setProps({ group: 'practice' })
+    expect(w.findAll('.topic-grid button')).toHaveLength(1)
+  })
+  it('lists precisely the four first-voyage tasks', async () => {
+    mocks.topics.mockResolvedValue([
+      { kind: 'knowledge', key: 'intro', name: '初识平台', description: '' },
+      ...['endpoint', 'request', 'cost', 'debug'].map((key) => ({
+        kind: 'practice',
+        key,
+        name: key,
+        description: '',
+      })),
+    ])
+    const w = mount(ActivityExplorer, {
+      props: { passes: [], group: 'chapter' },
+    })
+    await flushPromises()
+    expect(w.findAll('.chapter-task')).toHaveLength(4)
+    expect(w.text()).not.toContain('排障演练')
+  })
   it('freezes submitted answers until replay or explicit new attempt', async () => {
     HTMLDialogElement.prototype.showModal = vi.fn()
     mocks.topics.mockResolvedValue([

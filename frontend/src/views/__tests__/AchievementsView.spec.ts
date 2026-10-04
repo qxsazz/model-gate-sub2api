@@ -14,6 +14,10 @@ vi.mock('@/api/achievements', () => ({
   changeAchievement: mocks.change,
   previewAchievementCard: mocks.previewCard,
   useAchievementCard: mocks.useCard,
+  getActivityTopics: vi.fn().mockResolvedValue([]),
+  getActivityQuiz: vi.fn(),
+  submitActivityQuiz: vi.fn(),
+  saveAchievementZodiac: vi.fn(),
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ refreshUser: mocks.refresh }),
@@ -48,6 +52,96 @@ function render() {
   })
 }
 describe('achievement checkin', () => {
+  it('shows a lost claim response inside the detail dialog and retries the same command', async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    HTMLDialogElement.prototype.close = vi.fn()
+    mocks.get.mockResolvedValue({
+      ...state,
+      medals: [
+        {
+          key: 'A-K01',
+          category: 'activity',
+          name: '初识星图',
+          description: '星图渐明',
+          target: 1,
+          reward: 0,
+          card_reward: 1,
+          preview: false,
+          progress: 1,
+          unlocked: true,
+          claim: null,
+          card_claim: null,
+        },
+      ],
+    })
+    mocks.change
+      .mockRejectedValueOnce(new Error('领取响应丢失'))
+      .mockResolvedValue({
+        cards_awarded: 1,
+        card_balance: 1,
+        gross: 0,
+        net: 0,
+        offset_amount: 0,
+      })
+    const w = render()
+    await flushPromises()
+    await w.findAll('.achievement-tabs button')[3].trigger('click')
+    await w.get('.art-button').trigger('click')
+    const dialog = w.get('.detail-dialog:not(.card-dialog)')
+    await dialog.get('.detail-actions .primary').trigger('click')
+    await flushPromises()
+    expect(dialog.get('[role=alert]').text()).toContain('领取响应丢失')
+    const request = mocks.change.mock.calls.at(-1)![1]
+    await dialog.get('.detail-actions .primary').trigger('click')
+    await flushPromises()
+    expect(mocks.change.mock.calls.at(-1)![1]).toEqual(request)
+  })
+  it('shows the actual cash eligibility reason in the medal detail', async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    mocks.get.mockResolvedValue({
+      ...state,
+      milestone_cash_reason: 'recent_activity_required',
+      medals: [
+        {
+          key: 'T01',
+          category: 'token',
+          name: '星火',
+          description: '微光',
+          target: 1000000,
+          reward: 0.1,
+          preview: false,
+          progress: 1000000,
+          unlocked: true,
+          claim: null,
+        },
+      ],
+    })
+    const w = render()
+    await flushPromises()
+    await w.findAll('.achievement-tabs button')[1].trigger('click')
+    await w.get('.art-button').trigger('click')
+    const dialog = w.get('.detail-dialog:not(.card-dialog)')
+    expect(dialog.text()).toContain('暂不可领取')
+    expect(dialog.text()).toContain('近 30 日')
+    expect(
+      dialog.get('.detail-actions .primary').attributes('disabled'),
+    ).toBeDefined()
+  })
+  it('opens the approved read-only date explanation without a financial preview', async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    mocks.get.mockResolvedValue(state)
+    const w = render()
+    await flushPromises()
+    const count = mocks.previewCard.mock.calls.length
+    await w.get('[data-testid="calendar-day-2026-10-07"]').trigger('click')
+    expect(w.get('.card-dialog').text()).toContain('这一天的签到')
+    expect(w.get('.card-dialog').text()).toContain('还未到来的日子，也值得期待')
+    expect(w.get('.card-dialog').text()).toContain('2026-10-07')
+    expect(w.get('.card-dialog').find('.day-inline-tip svg').exists()).toBe(
+      true,
+    )
+    expect(mocks.previewCard.mock.calls.length).toBe(count)
+  })
   it('keeps poetic introductions in details and hides the next goal after completion', async () => {
     HTMLDialogElement.prototype.showModal = vi.fn()
     mocks.get.mockResolvedValue({
@@ -227,7 +321,7 @@ describe('achievement checkin', () => {
     expect(w.get('[data-testid="card-balance"]').text()).toContain('2')
     await w.findAll('.achievement-tabs button')[3].trigger('click')
     expect(w.text()).toContain('1 张补签卡')
-    expect(w.text()).toContain('知识系列')
+    expect(w.text()).toContain('知识挑战')
     expect(w.text()).toContain('$1.40')
     await w.get('[data-testid="claim-A-K01"]').trigger('click')
     await flushPromises()
