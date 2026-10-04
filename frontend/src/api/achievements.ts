@@ -53,6 +53,9 @@ export interface CardHistory {
   day: string | null
 }
 export interface AchievementState {
+  joined_date?: string
+  companionship_days?: number
+  zodiac?: string
   date: string
   timezone: string
   tier: number
@@ -76,6 +79,12 @@ export interface AchievementState {
   card_history?: CardHistory[]
   series?: AchievementSeries[]
 }
+export const saveAchievementZodiac = async (zodiac: string) =>
+  (
+    await apiClient.put<{ zodiac: string }>('/user/achievements/preferences', {
+      zodiac,
+    })
+  ).data
 export interface AchievementConfig {
   cash_scope: 'all' | 'allowlist'
   budget_enabled: boolean

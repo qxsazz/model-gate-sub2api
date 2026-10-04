@@ -1,22 +1,11 @@
 <template>
   <AppLayout
     ><main class="achievement-page">
-      <header class="heading">
-        <div>
-          <p class="eyebrow">A RECORD OF EVERY MILESTONE</p>
-          <h1>成就与签到</h1>
-          <p class="muted">让每一次成长，留下值得收藏的印记。</p>
-        </div>
-        <div class="edition">
-          <span>COLLECTION NO. 001</span><strong>成长印记 · 四个篇章</strong
-          ><span>日序 · 星核 · 铭印 · 探索</span>
-        </div>
-      </header>
       <p v-if="error" class="notice" role="alert">
         {{ error }} <button :disabled="busy" @click="load">重试</button>
       </p>
       <p v-if="message" class="notice" role="status">{{ message }}</p>
-      <p v-if="!state && !error" class="loading">正在读取你的成长印记…</p>
+      <p v-if="!state && !error" class="loading">正在读取你的成就记录…</p>
       <template v-if="state">
         <section class="hero">
           <div class="wear-panel">
@@ -32,7 +21,9 @@
               <h2>{{ equipped?.name ?? '静待第一枚印记' }}</h2>
               <p class="muted">
                 {{
-                  equipped?.description ?? '达成成就后，即可将徽章佩戴于此。'
+                  equipped
+                    ? condition(equipped)
+                    : '达成成就后，即可将徽章佩戴于此。'
                 }}
               </p>
               <button
@@ -53,8 +44,8 @@
                 ><span>已解锁 / 全部收藏</span>
               </div>
               <div>
-                <strong>${{ money(claimed) }}</strong
-                ><span>成就已领奖励</span>
+                <strong>{{ state.card_balance ?? 0 }}</strong
+                ><span>可用补签卡</span>
               </div>
               <div>
                 <strong>{{ pending }}</strong
@@ -81,8 +72,10 @@
           <div class="sign-title">
             <div>
               <p class="eyebrow">THE DAILY CHAPTER</p>
-              <h2>今日留痕</h2>
-              <p class="muted">每日一次，为坚持留下印记。</p>
+              <h2>每日签到</h2>
+              <p class="muted">
+                每日一次，收下今天的奖励，也收下一点向前的能量。
+              </p>
             </div>
             <span class="date-label">{{ state.date }} · 北京时间</span>
           </div>
@@ -129,11 +122,12 @@
                       ? '，已签到'
                       : canBackfillDate(dayString(n))
                         ? '，可补签'
-                        : '，不可补签')
+                        : '，查看小笺')
                   "
-                  :disabled="busy || !canBackfillDate(dayString(n))"
-                  @click="openCardDialog(dayString(n))"
+                  :disabled="busy"
+                  @click="selectCalendarDate(dayString(n))"
                   :class="{
+                    selectedDay: dayString(n) === companionDate,
                     today: dayString(n) === state.date,
                     checked: state.calendar.includes(dayString(n)),
                     backfillable: canBackfillDate(dayString(n)),
@@ -144,21 +138,35 @@
                   ><small v-else-if="canBackfillDate(dayString(n))">补</small>
                 </button>
               </div>
+              <section class="token-inspiration">
+                <div>
+                  <p class="eyebrow">TOKEN · 今日使用灵感</p>
+                  <h4>{{ tokenTheme.name }}</h4>
+                  <p>{{ tokenTheme.text }}</p>
+                </div>
+                <button class="text-button" @click="copyPrompt">
+                  复制提问示例 →
+                </button>
+              </section>
               <p class="calendar-hint">
-                带「补」的日期可使用补签卡；切换月份可查看跨月漏签。
+                点击日期查看小笺；带「补」的漏签日期可使用补签卡。
               </p>
             </div>
             <div class="sign-benefits">
-              <p class="eyebrow">
-                {{
-                  state.tier
-                    ? 'VIP ' + state.tier + ' DAILY PRIVILEGE'
-                    : 'DAILY PRIVILEGE'
-                }}
-              </p>
-              <h3>每天相见，每天成长</h3>
-              <div class="daily-value">
-                ${{ money(state.daily_amount) }}<small>当日签到权益</small>
+              <div class="daily-head">
+                <div>
+                  <p class="eyebrow">
+                    {{
+                      state.tier
+                        ? 'VIP ' + state.tier + ' DAILY PRIVILEGE'
+                        : 'DAILY PRIVILEGE'
+                    }}
+                  </p>
+                  <h3>收下今天的小确幸</h3>
+                </div>
+                <div class="daily-value">
+                  ${{ money(state.daily_amount) }}<small>今日签到奖励</small>
+                </div>
               </div>
               <p class="muted" data-testid="current-cash-status">
                 {{
@@ -174,11 +182,7 @@
                 @click="act('checkin')"
               >
                 {{
-                  busy
-                    ? '正在处理…'
-                    : state.today
-                      ? '今日已签到'
-                      : '留下今日印记 · 签到'
+                  busy ? '正在处理…' : state.today ? '今日已签到' : '立即签到'
                 }}
               </button>
               <p v-if="state.today" class="receipt">
@@ -203,15 +207,61 @@
                   ><strong>{{ state.longest }}</strong
                   >最长连续</span
                 ><span
-                  ><strong>{{ state.total_days }}</strong
-                  >累计签到</span
+                  ><strong>{{ state.card_balance ?? 0 }}</strong
+                  >可用补签卡</span
                 >
+              </div>
+              <div class="companion-time">
+                <div>
+                  <span>我们相伴的第</span>
+                  <p>
+                    从
+                    {{ state.joined_date || '初次相遇' }}
+                    开始，一次次相逢，慢慢变成了日常。
+                  </p>
+                </div>
+                <strong
+                  >{{ state.companionship_days ?? '—'
+                  }}<small> 天</small></strong
+                >
+              </div>
+              <button
+                v-if="nextSignMedal"
+                class="next-sign-medal"
+                @click="openDetail(nextSignMedal)"
+              >
+                <MedalArt
+                  :medal="nextSignMedal.key"
+                  :name="nextSignMedal.name"
+                />
+                <div>
+                  <span class="eyebrow">下一枚签到徽章</span>
+                  <h3>{{ nextSignMedal.name }}</h3>
+                  <p>
+                    {{ condition(nextSignMedal) }} · 历史最长
+                    {{ state.longest }} 天
+                  </p>
+                  <progress
+                    :value="Math.min(state.longest, nextSignMedal.target)"
+                    :max="nextSignMedal.target"
+                  />
+                </div>
+                <span>查看 →</span>
+              </button>
+              <div class="daily-encouragement">
+                <strong>把好奇，交给一次认真提问</strong>
+                <p>从一个真实的问题开始，让 Token 为你的想法添一点光。</p>
               </div>
               <p class="small muted">
                 奖励按签到时的实际成长等级确定，即时到账；同日升级不会重复发奖。签到不增加充值成长。
               </p>
             </div>
           </div>
+          <AchievementCompanion
+            :state="state"
+            :date="companionDate"
+            @updated="load"
+          />
           <details class="vip-plan">
             <summary>查看普通会员与 VIP 签到权益</summary>
             <div>
@@ -265,17 +315,36 @@
             </div>
           </details>
         </section>
-        <ActivityExplorer
+        <nav
           v-if="tab === 'activity'"
-          :passes="state.passes"
-          @updated="load"
-        />
+          class="activity-groups"
+          aria-label="活动类型"
+        >
+          <button
+            v-for="g in activityGroups"
+            :key="g.key"
+            :class="{ active: activityGroup === g.key }"
+            :aria-pressed="activityGroup === g.key"
+            @click="activityGroup = g.key"
+          >
+            {{ g.name }}<small>{{ groupProgress(g.key) }}</small>
+          </button>
+        </nav>
+        <p v-if="tab === 'activity'" class="group-description">
+          {{
+            activityGroup === 'knowledge'
+              ? '通过 1、3、6 个不同知识主题，分别解锁对应勋章。'
+              : activityGroup === 'practice'
+                ? '通过 2、4、6 个不同实践关卡，逐步解锁三枚勋章。'
+                : '按篇章完成指定任务，收藏对应勋章；后续篇章暂未开放。'
+          }}
+        </p>
         <section
           v-if="tab === 'activity'"
           class="series-rewards"
           aria-label="系列收集奖励"
         >
-          <article v-for="s in state.series ?? []" :key="s.key">
+          <article v-for="s in visibleSeries" :key="s.key">
             <p class="eyebrow">COMPLETE THE COLLECTION</p>
             <h3>{{ s.name }}</h3>
             <p class="muted">
@@ -358,7 +427,6 @@
             </button>
             <h3>{{ m.name }}</h3>
             <p class="condition">{{ condition(m) }}</p>
-            <p class="medal-description">{{ m.description }}</p>
             <div class="progress-label">
               <span
                 >{{ formatProgress(m.progress) }} /
@@ -385,6 +453,13 @@
                 ></span
               >
               <div>
+                <button
+                  v-if="!m.unlocked && !m.preview && m.category === 'activity'"
+                  class="text-button"
+                  @click="viewTasks"
+                >
+                  查看任务 →
+                </button>
                 <button
                   class="text-button"
                   :data-testid="'claim-' + m.key"
@@ -431,6 +506,14 @@
             </p>
           </article>
         </section>
+        <ActivityExplorer
+          v-if="tab === 'activity'"
+          id="activity-tasks"
+          :group="activityGroup"
+          :goal="nextActivityMedal"
+          :passes="state.passes"
+          @updated="load"
+        />
         <p v-if="tab === 'token'" class="fine-print">
           成长进度从本功能启用后开始累计，以成功提交的付费文本计费为准，缓存
           Token 按互斥桶计数。图片、视频及未计费调用不计入。
@@ -558,6 +641,8 @@ import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MedalArt from '@/components/achievements/MedalArt.vue'
 import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
+import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
+import { dayIndex, tokenThemes } from '@/components/achievements/companion'
 import {
   getAchievements,
   changeAchievement,
@@ -620,25 +705,72 @@ const captions: Record<string, string> = {
   recharge: '铭印系列 · 珍藏每一份支持',
   activity: '探索系列 · 知识、实践与篇章',
 }
-const visible = computed(
-  () => state.value?.medals.filter((m) => m.category === tab.value) ?? [],
+const selectedCalendarDate = ref('')
+const companionDate = computed(
+  () => selectedCalendarDate.value || state.value?.date || '',
 )
+function selectCalendarDate(date: string) {
+  selectedCalendarDate.value = date
+  if (canBackfillDate(date)) void openCardDialog(date)
+}
+const activityGroup = ref<'knowledge' | 'practice' | 'chapter'>('knowledge')
+const activityGroups = [
+  { key: 'knowledge' as const, name: '知识挑战' },
+  { key: 'practice' as const, name: '实践演练' },
+  { key: 'chapter' as const, name: '篇章收集' },
+]
+const groupPrefix = (group: string) =>
+  group === 'knowledge' ? 'A-K' : group === 'practice' ? 'A-X' : 'A-C'
+const visible = computed(
+  () =>
+    state.value?.medals.filter(
+      (m) =>
+        m.category === tab.value &&
+        (tab.value !== 'activity' ||
+          m.key.startsWith(groupPrefix(activityGroup.value))),
+    ) ?? [],
+)
+const visibleSeries = computed(
+  () =>
+    state.value?.series?.filter(
+      (s) => s.key === groupPrefix(activityGroup.value),
+    ) ?? [],
+)
+const groupProgress = (group: string) =>
+  group === 'chapter'
+    ? `${state.value?.medals.find((m) => m.key === 'A-C01')?.progress ?? 0} / 4`
+    : `${state.value?.passes.filter((p) => p.kind === group).length ?? 0} / 6`
+const nextSignMedal = computed(() =>
+  state.value?.medals.find((m) => m.category === 'sign' && !m.unlocked),
+)
+const nextActivityMedal = computed(
+  () => visible.value.find((m) => !m.unlocked) ?? visible.value.at(-1),
+)
+const tokenTheme = computed(
+  () =>
+    tokenThemes[
+      dayIndex(companionDate.value || '2026-01-01') % tokenThemes.length
+    ],
+)
+async function copyPrompt() {
+  try {
+    await navigator.clipboard.writeText(tokenTheme.value.prompt)
+    message.value = '提问示例已复制，把括号里的内容换成你的问题即可。'
+  } catch {
+    message.value = '复制暂不可用，请稍后重试。'
+  }
+}
+function viewTasks() {
+  document
+    .getElementById('activity-tasks')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 const equipped = computed(() =>
   state.value?.medals.find((m) => m.key === state.value?.equipment),
 )
 const unlocked = computed(
   () => state.value?.medals.filter((m) => m.unlocked).length ?? 0,
-)
-const claimed = computed(
-  () =>
-    (state.value?.medals.reduce(
-      (v, m) => v + (m.claim && !m.claim.revoked_at ? m.claim.gross : 0),
-      0,
-    ) ?? 0) +
-    (state.value?.series?.reduce(
-      (v, s) => v + (s.claim && !s.claim.revoked_at ? s.claim.gross : 0),
-      0,
-    ) ?? 0),
 )
 const pending = computed(
   () =>
@@ -956,13 +1088,7 @@ onMounted(load)
   margin: auto;
   padding: 34px 30px 56px;
 }
-.heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 24px;
-  margin-bottom: 28px;
-}
+
 .eyebrow {
   font:
     10px Consolas,
@@ -1000,21 +1126,7 @@ h3 {
 .gold {
   color: var(--gold);
 }
-.edition {
-  text-align: right;
-  display: grid;
-  gap: 5px;
-  font:
-    10px Consolas,
-    monospace;
-  color: var(--muted);
-}
-.edition strong {
-  font:
-    20px 'SimSun',
-    serif;
-  color: var(--gold);
-}
+
 button {
   cursor: pointer;
 }
@@ -1375,14 +1487,7 @@ summary {
   color: var(--muted);
   margin: 0 0 12px;
 }
-.medal-description {
-  font:
-    13px 'SimSun',
-    serif;
-  line-height: 1.8;
-  color: var(--muted);
-  min-height: 38px;
-}
+
 .progress-label {
   display: flex;
   justify-content: space-between;
@@ -1544,12 +1649,7 @@ progress::-moz-progress-bar {
   .achievement-page {
     padding: 23px 14px;
   }
-  .heading {
-    align-items: start;
-  }
-  .edition {
-    display: none;
-  }
+
   .wear-panel {
     padding: 20px;
     gap: 18px;
@@ -1596,10 +1696,7 @@ progress::-moz-progress-bar {
     font-size: 20px;
     letter-spacing: 1px;
   }
-  .medal-description {
-    font-size: 12px;
-    min-height: 45px;
-  }
+
   .card-top {
     font-size: 9px;
   }
@@ -1619,6 +1716,293 @@ progress::-moz-progress-bar {
   }
   .reward {
     font-size: 18px;
+  }
+}
+
+/* Approved companion palette, shared by all small panels. */
+.achievement-page {
+  --companion-surface: #f7f4ec;
+  --companion-emphasis: #eee4ce;
+  --companion-soft: #f1eadb;
+  --companion-border: #e3d9c4;
+}
+:global(.dark) .achievement-page {
+  --companion-surface: #23231f;
+  --companion-emphasis: #3b3323;
+  --companion-soft: #2d2b23;
+  --companion-border: #45402f;
+}
+.hero {
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.wear-panel {
+  padding: 18px 26px;
+}
+.hero-art {
+  width: 90px;
+}
+.overview {
+  padding: 20px 26px;
+}
+.overview-note {
+  margin-top: 16px;
+}
+.wear-panel h2 {
+  font-size: 24px;
+}
+.achievement-tabs {
+  margin-bottom: 25px;
+}
+.sign-layout {
+  align-items: stretch;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 24px;
+}
+.sign-calendar,
+.sign-benefits {
+  background: var(--companion-surface);
+  border-color: var(--companion-border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+}
+.sign-calendar .days {
+  flex: 1;
+  align-content: space-evenly;
+  min-height: 285px;
+}
+.token-inspiration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--companion-border);
+}
+.token-inspiration h4 {
+  font-family: 'SimSun', serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 7px 0;
+}
+.token-inspiration p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.token-inspiration button {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.daily-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.daily-head h3 {
+  font-size: 26px;
+  margin: 10px 0 18px;
+}
+.daily-head .daily-value {
+  margin: 0;
+  text-align: right;
+}
+.daily-value,
+.companion-time > strong {
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 32px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--gold);
+  line-height: 1.3;
+}
+.daily-value small {
+  font-size: 11px;
+  margin-top: 8px;
+}
+.companion-time > strong small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.companion-time {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 20px 0;
+  border-top: 1px solid var(--companion-border);
+  color: var(--muted);
+  font-size: 12px;
+}
+.companion-time p {
+  max-width: 300px;
+  line-height: 1.9;
+  margin: 8px 0 0;
+}
+.companion-time > strong {
+  white-space: nowrap;
+}
+.next-sign-medal {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid var(--companion-border);
+  background: none;
+  padding: 20px 0;
+  color: var(--gold);
+}
+.next-sign-medal :deep(.medal-art) {
+  width: 62px;
+  flex-shrink: 0;
+}
+.next-sign-medal > div {
+  flex: 1;
+}
+.next-sign-medal h3 {
+  font-size: 22px;
+  margin: 7px 0;
+}
+.next-sign-medal p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 6px 0;
+}
+.next-sign-medal > span {
+  font-size: 11px;
+}
+.next-sign-medal progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--gold);
+}
+.daily-encouragement {
+  border-top: 1px solid var(--companion-border);
+  padding: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.daily-encouragement strong {
+  font-weight: 500;
+  color: var(--gold);
+}
+.daily-encouragement p {
+  line-height: 1.8;
+  margin: 7px 0;
+}
+.sign-benefits .sign-stats {
+  margin: 20px 0;
+}
+.sign-stats strong {
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+}
+.activity-groups {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 15px;
+}
+.activity-groups button {
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 17px;
+  color: var(--muted);
+}
+.activity-groups .active {
+  background: var(--companion-emphasis);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.activity-groups small {
+  margin-left: 12px;
+  font-size: 11px;
+}
+.group-description {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 20px 0;
+}
+.series-rewards {
+  grid-template-columns: 1fr;
+  margin: 15px 0;
+}
+.series-rewards article {
+  border-radius: 10px;
+}
+.medal-card {
+  border-radius: 10px;
+}
+.medal-grid {
+  gap: 22px;
+}
+@media (max-width: 650px) {
+  .sign-layout {
+    grid-template-columns: 1fr;
+  }
+  .sign-calendar,
+  .sign-benefits {
+    padding: 22px;
+  }
+  .daily-value,
+  .companion-time > strong {
+    font-size: 30px;
+  }
+  .daily-head h3 {
+    font-size: 23px;
+  }
+  .activity-groups {
+    gap: 6px;
+  }
+  .activity-groups button {
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+  .activity-groups small {
+    display: block;
+    margin: 4px 0 0;
+  }
+  .token-inspiration {
+    align-items: start;
+  }
+  .hero-art {
+    width: 72px;
+  }
+  .wear-panel {
+    gap: 16px;
+    padding: 18px;
+  }
+  .medal-grid {
+    grid-template-columns: repeat(3, minmax(250px, 1fr));
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 12px;
+  }
+  .medal-card {
+    scroll-snap-align: start;
+  }
+}
+.days button.selectedDay {
+  outline: 1px solid var(--gold);
+  outline-offset: -1px;
+  background: var(--companion-soft);
+}
+.sign-benefits {
+  border: 1px solid var(--companion-border);
+}
+@media (max-width: 850px) {
+  .sign-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>

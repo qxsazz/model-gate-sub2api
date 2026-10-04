@@ -1,5 +1,7 @@
 # VIP staging acceptance
 
+Achievement companion update (2026-10-04): migration 252 adds account-scoped optional zodiac preferences and the approved 21 badge descriptions. Snapshot companion dates use Asia/Shanghai and real registration dates. This UI release preserves VIP daily amounts, immediate credit, historical-tier makeup cards, reward eligibility and accounting. Verify classified activity tasks, one-question navigation, server grading, frozen request retries, cross-account preference isolation, and light/dark mobile layouts on staging before production approval.
+
 This feature is opt-in. The additive migration creates VIP rules, recharge events,
 manual overrides and audit records with automatic benefits disabled.
 

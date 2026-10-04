@@ -13,6 +13,23 @@ import (
 
 var _ service.AchievementRepository = (*userRepository)(nil)
 
+func (r *userRepository) SaveAchievementZodiac(ctx context.Context, id int64, zodiac string) error {
+	result, err := r.sql.ExecContext(ctx, `INSERT INTO achievement_preferences(user_id,zodiac)
+ SELECT id,$2 FROM users WHERE id=$1 AND status='active' AND deleted_at IS NULL AND role IN ('user','admin')
+ ON CONFLICT(user_id) DO UPDATE SET zodiac=EXCLUDED.zodiac,updated_at=clock_timestamp()`, id, zodiac)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return infraerrors.Forbidden("ACHIEVEMENT_ACCOUNT_UNAVAILABLE", "当前账户不可用")
+	}
+	return nil
+}
+
 func achievementError(err error) error {
 	var pg *pq.Error
 	if errors.As(err, &pg) {
@@ -79,6 +96,9 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
 	return r.achievementJSON(ctx, `WITH d AS (SELECT (clock_timestamp() AT TIME ZONE 'Asia/Shanghai')::date AS today),c AS (SELECT * FROM achievement_config WHERE id=true)
  SELECT jsonb_build_object(
  'date',d.today,'timezone','Asia/Shanghai','tier',achievement_tier($1),
+ 'joined_date',(u.created_at AT TIME ZONE 'Asia/Shanghai')::date,
+ 'companionship_days',GREATEST(d.today-(u.created_at AT TIME ZONE 'Asia/Shanghai')::date+1,1),
+ 'zodiac',COALESCE((SELECT zodiac FROM achievement_preferences WHERE user_id=$1),''),
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
  'card_balance',achievement_card_balance($1),

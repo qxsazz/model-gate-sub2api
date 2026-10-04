@@ -31,6 +31,7 @@ func RegisterUserRoutes(
 			user.GET("/profile", h.User.GetProfile)
 			user.GET("/vip", h.User.GetVIP)
 			user.GET("/achievements", h.User.GetAchievements)
+			user.PUT("/achievements/preferences", h.User.SaveAchievementPreferences)
 			user.GET("/achievements/card-preview", h.User.PreviewAchievementCard)
 			user.POST("/achievements/use-card", h.User.UseAchievementCard)
 			user.GET("/achievements/activity/topics", h.User.GetAchievementTopics)

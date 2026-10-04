@@ -74,6 +74,26 @@ func (h *UserHandler) GetAchievementAudit(c *gin.Context) {
 func (h *UserHandler) GetAchievementTopics(c *gin.Context) {
 	response.Success(c, service.AchievementTopics())
 }
+
+func (h *UserHandler) SaveAchievementPreferences(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var body struct {
+		Zodiac *string `json:"zodiac"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.Zodiac == nil {
+		response.BadRequest(c, "请选择星座，或传入空值取消选择")
+		return
+	}
+	if err := h.userService.SaveAchievementZodiac(c.Request.Context(), subject.UserID, *body.Zodiac); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"zodiac": *body.Zodiac})
+}
 func (h *UserHandler) GetAchievementQuiz(c *gin.Context) {
 	v, e := service.AchievementQuiz(c.Param("kind"), c.Param("topic"))
 	if e != nil {

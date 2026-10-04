@@ -3,14 +3,14 @@
     <header>
       <div>
         <p class="eyebrow">THE EXPLORATION ATLAS</p>
-        <h2>从初航开始，收藏探索篇章</h2>
+        <h2>{{ groupTitle }} · 对应任务</h2>
         <p>知识与实践各六个主题，10 题答对 8 题即可通关；不同主题各计一次。</p>
       </div>
-      <span class="stamp"
+      <span v-if="group === 'chapter'" class="stamp"
         >初航篇章<br /><strong>{{ themeProgress }} / 4</strong></span
       >
     </header>
-    <div class="theme-track">
+    <div v-if="group === 'chapter'" class="theme-track">
       <span
         v-for="t in firstVoyage"
         :key="t.key"
@@ -18,34 +18,68 @@
         >{{ hasPass(t.kind, t.key) ? '✓' : '○' }} {{ t.name }}</span
       >
     </div>
-    <p class="theme-note">
+    <p v-if="group === 'chapter'" class="theme-note">
       完成初识平台、选择接入地址、构造首次请求和核对使用成本，即可收藏「初航」篇章。实践为场景演练，不消耗调用额度。后续篇章待开放。
     </p>
     <p v-if="error" role="alert" class="activity-notice">
       {{ error }} <button @click="load">重试</button>
     </p>
-    <div class="topic-grid">
-      <button
-        v-for="t in topics"
-        :key="t.kind + t.key"
-        :disabled="busy"
-        @click="start(t)"
-      >
-        <span class="eyebrow">{{
-          t.kind === 'knowledge' ? 'KNOWLEDGE' : 'PRACTICE'
-        }}</span>
-        <h3>{{ t.name }}</h3>
-        <p>{{ t.description }}</p>
-        <span class="topic-state">{{
-          hasPass(t.kind, t.key) ? '✓ 已通关 · 再次练习' : '开始探索 →'
-        }}</span>
-      </button>
+    <div class="task-layout">
+      <div class="topic-grid">
+        <button
+          v-for="t in visibleTopics"
+          :key="t.kind + t.key"
+          :disabled="busy"
+          @click="start(t)"
+        >
+          <span class="eyebrow">{{
+            t.kind === 'knowledge' ? 'KNOWLEDGE' : 'PRACTICE'
+          }}</span>
+          <h3>{{ t.name }}</h3>
+          <p>{{ t.description }}</p>
+          <span class="topic-state">{{
+            hasPass(t.kind, t.key) ? '✓ 已通关 · 再次练习' : '开始探索 →'
+          }}</span>
+        </button>
+      </div>
+      <aside v-if="goal && group !== 'chapter'" class="next-goal">
+        <p class="eyebrow">
+          {{ goal.unlocked ? '本系列已点亮' : '下一枚徽章' }}
+        </p>
+        <MedalArt :medal="goal.key" :name="goal.name" />
+        <h3>{{ goal.name }}</h3>
+        <p>
+          {{
+            goal.unlocked
+              ? '本系列徽章已全部解锁，可领取尚未领取的奖励。'
+              : `再通过 ${Math.max(0, goal.target - goal.progress)} 个不同${group === 'knowledge' ? '知识主题' : '实践关卡'}即可解锁。`
+          }}
+        </p>
+        <progress
+          :value="Math.min(goal.progress, goal.target)"
+          :max="goal.target"
+        />
+        <p>每个主题分别计入进度，重复练习不会重复增加收集数量。</p>
+        <button
+          v-if="nextTopic"
+          class="submit"
+          :disabled="busy"
+          @click="start(nextTopic)"
+        >
+          继续下个任务 →
+        </button>
+      </aside>
     </div>
-    <dialog ref="dialog" class="quiz-dialog" @close="close">
+    <dialog
+      ref="dialog"
+      class="quiz-dialog"
+      @close="close"
+      @cancel="protectAttempt"
+    >
       <template v-if="quiz"
         ><button
           class="close"
-          :disabled="busy"
+          :disabled="busy || (!!submittedAnswers && !result)"
           aria-label="关闭练习"
           @click="dialog?.close()"
         >
@@ -61,21 +95,48 @@
         </p>
         <form @submit.prevent="submit">
           <fieldset
-            v-for="(q, index) in quiz.questions"
-            :key="index"
+            v-if="quiz.questions[questionIndex]"
+            :key="questionIndex"
             :disabled="busy || !!result || !!submittedAnswers"
           >
-            <legend>{{ index + 1 }}. {{ q.prompt }}</legend>
-            <label v-for="(option, i) in q.options" :key="i"
+            <legend>
+              {{ questionIndex + 1 }} / {{ quiz.questions.length }} ·
+              {{ quiz.questions[questionIndex].prompt }}
+            </legend>
+            <label
+              v-for="(option, i) in quiz.questions[questionIndex].options"
+              :key="i"
               ><input
-                v-model="answers[index]"
+                v-model="answers[questionIndex]"
                 type="radio"
-                :name="'q' + index"
+                :name="'q' + questionIndex"
                 :value="i"
                 required
               />{{ option }}</label
             >
           </fieldset>
+          <div class="question-navigation">
+            <button
+              type="button"
+              :disabled="questionIndex === 0 || busy"
+              @click="questionIndex--"
+            >
+              上一题
+            </button>
+            <span
+              >已完成 {{ answers.filter((a) => a >= 0).length }} /
+              {{ quiz.questions.length }} 题</span
+            >
+            <button
+              v-if="questionIndex < quiz.questions.length - 1"
+              type="button"
+              data-next-question
+              :disabled="answers[questionIndex] < 0 || busy"
+              @click="questionIndex++"
+            >
+              下一题 →
+            </button>
+          </div>
           <p v-if="quizError" class="activity-notice" role="alert">
             {{ quizError }}
             <span v-if="submittedAnswers">重试会核验已提交的同一份答案。</span>
@@ -116,15 +177,25 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import MedalArt from './MedalArt.vue'
 import {
   getActivityTopics,
   getActivityQuiz,
   submitActivityQuiz,
   type ActivityTopic,
   type ActivityQuiz,
+  type Medal,
 } from '@/api/achievements'
-const props = defineProps<{ passes: { kind: string; topic: string }[] }>(),
+const props = withDefaults(
+    defineProps<{
+      passes: { kind: string; topic: string }[]
+      group?: 'knowledge' | 'practice' | 'chapter'
+      goal?: Medal
+    }>(),
+    { group: 'knowledge' },
+  ),
   emit = defineEmits<{ updated: [] }>()
+const questionIndex = ref(0)
 const topics = ref<ActivityTopic[]>([]),
   error = ref(''),
   quizError = ref(''),
@@ -141,6 +212,22 @@ const firstVoyage = [
   { kind: 'practice', key: 'request', name: '构造首次请求' },
   { kind: 'practice', key: 'cost', name: '核对使用成本' },
 ]
+const groupTitle = computed(
+  () =>
+    ({ knowledge: '知识挑战', practice: '实践演练', chapter: '初航篇章' })[
+      props.group
+    ],
+)
+const visibleTopics = computed(() =>
+  topics.value.filter((t) =>
+    props.group === 'chapter'
+      ? firstVoyage.some((v) => v.kind === t.kind && v.key === t.key)
+      : t.kind === props.group,
+  ),
+)
+const nextTopic = computed(() =>
+  visibleTopics.value.find((t) => !hasPass(t.kind, t.key)),
+)
 const hasPass = (kind: string, key: string) =>
   props.passes.some((p) => p.kind === kind && p.topic === key)
 const themeProgress = computed(
@@ -165,7 +252,8 @@ async function start(t: ActivityTopic) {
   busy.value = true
   try {
     quiz.value = await getActivityQuiz(t.kind, t.key)
-    answers.value = Array(10).fill(-1)
+    questionIndex.value = 0
+    answers.value = Array(quiz.value.questions.length).fill(-1)
     submittedAnswers.value = null
     result.value = null
     quizError.value = ''
@@ -178,7 +266,7 @@ async function start(t: ActivityTopic) {
   }
 }
 async function submit() {
-  if (!quiz.value || busy.value) return
+  if (!quiz.value || busy.value || answers.value.some((a) => a < 0)) return
   busy.value = true
   if (!submittedAnswers.value) submittedAnswers.value = [...answers.value]
   try {
@@ -199,8 +287,13 @@ function close() {
   quiz.value = null
   result.value = null
 }
+function protectAttempt(event: Event) {
+  if (busy.value || (submittedAnswers.value && !result.value))
+    event.preventDefault()
+}
 onMounted(load)
 function newAttempt() {
+  questionIndex.value = 0
   submittedAnswers.value = null
   requestKey.value = crypto.randomUUID()
   quizError.value = ''
@@ -270,9 +363,32 @@ p {
 .theme-note {
   margin-top: 12px;
 }
+.task-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 22px;
+  align-items: start;
+}
+.next-goal {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--wash);
+  text-align: center;
+}
+.next-goal .medal-art {
+  width: 120px;
+  margin: 16px auto;
+}
+.next-goal progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--gold);
+}
 .topic-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   margin-top: 22px;
 }
@@ -377,6 +493,9 @@ input:focus-visible {
   --line: #3b4239;
 }
 @media (max-width: 850px) {
+  .task-layout {
+    grid-template-columns: 1fr;
+  }
   .topic-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -394,5 +513,30 @@ input:focus-visible {
   .quiz-dialog {
     padding: 24px 18px;
   }
+}
+.question-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 20px 0;
+  font-size: 12px;
+}
+.question-navigation button {
+  padding: 10px 14px;
+  color: var(--gold);
+  border: 1px solid var(--line);
+  background: var(--wash);
+}
+.topic-grid p,
+.quiz-rule {
+  font-size: 13px;
+}
+.quiz-dialog label {
+  font-size: 14px;
+  min-height: 40px;
+}
+.exploration:has(.theme-track) .task-layout {
+  grid-template-columns: 1fr;
 }
 </style>

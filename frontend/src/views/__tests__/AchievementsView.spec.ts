@@ -48,6 +48,32 @@ function render() {
   })
 }
 describe('achievement checkin', () => {
+  it('keeps poetic introductions in details and hides the next goal after completion', async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    mocks.get.mockResolvedValue({
+      ...state,
+      medals: [100, 199, 365].map((target, index) => ({
+        key: `S0${index + 1}`,
+        category: 'sign',
+        name: `签到${index}`,
+        description: '时光的诗意只在详情出现',
+        target,
+        reward: 5,
+        progress: 365,
+        preview: false,
+        unlocked: true,
+        claim: null,
+      })),
+    })
+    const w = render()
+    await flushPromises()
+    expect(w.text()).not.toContain('下一枚签到徽章')
+    expect(w.get('.medal-grid').text()).not.toContain('时光的诗意')
+    await w.get('.art-button').trigger('click')
+    expect(w.get('.medal-dialog:not(.card-dialog)').text()).toContain(
+      '时光的诗意',
+    )
+  })
   it('uses the previewed historical tier and retries a lost response with the same card request', async () => {
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
@@ -93,7 +119,7 @@ describe('achievement checkin', () => {
     expect(mocks.previewCard).toHaveBeenLastCalledWith('2026-10-02')
     expect(
       w.get('[data-testid="calendar-day-2026-10-01"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(dialog.text()).toContain('2026-10-02')
     await dialog
       .findAll('button')
@@ -134,7 +160,7 @@ describe('achievement checkin', () => {
     await flushPromises()
     expect(
       w.get('[data-testid="calendar-day-2026-03-01"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     await w.get('[aria-label="上个月"]').trigger('click')
     expect(
       w.get('[data-testid="calendar-day-2026-02-28"]').attributes('disabled'),
@@ -145,10 +171,16 @@ describe('achievement checkin', () => {
     ).toBeUndefined()
     expect(
       w.get('[data-testid="calendar-day-2026-01-29"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(
       w.get('[data-testid="calendar-day-2026-01-31"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
+    const previewsBefore = mocks.previewCard.mock.calls.length
+    for (const day of ['2026-01-29', '2026-01-31']) {
+      await w.get(`[data-testid="calendar-day-${day}"]`).trigger('click')
+      await flushPromises()
+    }
+    expect(mocks.previewCard.mock.calls.length).toBe(previewsBefore)
     expect(w.get('[aria-label="上个月"]').attributes('disabled')).toBeDefined()
   })
   it('shows activity card rewards and separate series collection rewards', async () => {
