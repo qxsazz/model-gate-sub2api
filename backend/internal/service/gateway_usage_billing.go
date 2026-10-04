@@ -316,6 +316,10 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		cmd.CacheCreationTokens = usageLog.CacheCreationTokens
 		cmd.CacheReadTokens = usageLog.CacheReadTokens
 		cmd.ImageCount = usageLog.ImageCount
+		cmd.AchievementMedia = usageLog.VideoCount > 0 || usageLog.ImageInputTokens > 0 || usageLog.ImageOutputTokens > 0
+		if usageLog.MediaType != nil {
+			cmd.MediaType = *usageLog.MediaType
+		}
 		if usageLog.ServiceTier != nil {
 			cmd.ServiceTier = *usageLog.ServiceTier
 		}

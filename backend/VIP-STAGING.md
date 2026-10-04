@@ -1,5 +1,7 @@
 # VIP staging acceptance
 
+Achievement companion update (2026-10-04): migration 252 adds account-scoped optional zodiac preferences and the approved 21 badge descriptions. Snapshot companion dates use Asia/Shanghai and real registration dates. This UI release preserves VIP daily amounts, immediate credit, historical-tier makeup cards, reward eligibility and accounting. Verify classified activity tasks, one-question navigation, server grading, frozen request retries, cross-account preference isolation, and light/dark mobile layouts on staging before production approval.
+
 This feature is opt-in. The additive migration creates VIP rules, recharge events,
 manual overrides and audit records with automatic benefits disabled.
 
@@ -52,13 +54,13 @@ VIP 关闭时，鉴权仅查询启用状态，缓存已确认的关闭状态最�
 
 新增回归覆盖关闭时不加载完整权益、配置失效、退款撤权、人工价优先、旧缓存不覆盖 VIP、请求内价格一致、503 协议包装与禁用预留时依然阻止未知价格。此补丁不执行历史回填、不改生产分组映射、不启用生产 VIP。
 
-## 0.075 减免、成长加赠与签到预告
+## 0.075 减免、成长加赠与签到试点
 
 迁移 246 将普通组原满档 0.1 的减免按 75% 缩放为 0.015/0.03/0.045/0.06/0.075，保留小倍率组原规则、私人排除和原倍率下限，不启用关闭中的 VIP、不修改旧订单或余额。新配置和有效自动减免上限为 0.075，人工组定价仍优先。
 
 新字段 `recharge_bonus_enabled` 与各档 `recharge_bonus_percent` 控制未来在线余额充值：普通会员 0%、VIP1–5 为 1%–5%，以下单时实际成长等级而非徽章为准。订单再次确认并保存到账倍率、等级、本金和加赠金额；checkout-info 和用户配置接口返回同一规则的实际预览，不修改共享支付配置。关闭 VIP/成长加赠时沿用原支付设置；订阅及后台手动加款不自动再次加赠。
 
-签到仅为方案：普通/VIP1–5 每日 0.01/0.05/0.10/0.25/0.50/1.00，标注敬请期待，无签到接口或实际入账。活动资格、预算与幂等发奖必须在后续签到实现前确认。文档和 VIP 中心展示以 0.4 自动普通组、普通会员无加赠为基准的持续节省 4.70/9.31/13.83/18.27/22.62%，不含一次性奖励、邀请收入或未上线签到。
+迁移 247–251 接入 `/achievements` 真实签到、收藏和探索；普通/VIP1–5 每日原额 0.01/0.05/0.10/0.25/0.50/1.00，按当天实际成长等级即时入账，已有待追回奖励先抵扣。现金默认关闭，支持全体符合资格账户或核验名单；迁移 250 取消正常账户签到的近期充值或消费要求，成就现金仍需核验近 30 日有效净充值或余额计费使用。日/月实时限额可选，不批量等待发奖；历史回填和 opening 不算成就现金的近期资格。用户可领取活动勋章的补签卡，补最近 30 天漏签并按历史权益即时补发，服务端校验未通过不扣卡，网络中断时按原请求重试或刷新查询回执；活动单枚不再发金额，知识/实践/篇章系列集齐分别可领 1.40/2.30/11.80 USD，篇章后两枚仍预告。管理员核验历史等级、政策与可信事件后可补签即时到账，无法还原时拒绝，同日升级或开通现金不补发，迁移不补发既有零金额签到。管理端支持人工授予、取消、恢复自动条件，取消默认仅撤徽章，可明确追回现金，终身领奖记录不重置。接口、持久化与并发验收见[成就与签到验收](../docs/achievements-checkin.md)。文档和 VIP 中心展示以 0.4 自动普通组、普通会员无加赠为基准的持续节省 4.70/9.31/13.83/18.27/22.62%，不含一次性奖励、邀请收入或签到。
 
 普通用户原全局 5% 不被直接删改，但启用 VIP 成长加赠后会被新阶梯替代；切换前应公告和安排过渡，旧订单保留既有快照。生产仍需独立发布和分组 ID 映射；每组上游成本及倍率下限要核算，不能套用同一成本预算。
 

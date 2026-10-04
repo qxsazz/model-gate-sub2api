@@ -45,7 +45,7 @@ describe('documentation registry', () => {
     expect(next?.slug).toBe('codex')
   })
 
-  it('documents actual VIP rules and labels unreleased activities as upcoming', () => {
+  it('documents actual VIP rules and the staging achievement rollout', () => {
     const vip = resolveDocument('membership', 'vip')
     expect(vip?.document.source).toContain('0.40 − 0.03 = 0.37')
     expect(vip?.document.source).toContain('0.075')
@@ -58,9 +58,13 @@ describe('documentation registry', () => {
     const activities = docsNavigation.find(group => group.slug === 'achievements')!
     expect(activities.articles.length).toBeGreaterThanOrEqual(4)
     for (const entry of activities.articles) {
-      expect(entry).toMatchObject({ status: 'upcoming' })
-      expect(entry.source).toContain('敬请期待')
+      expect(entry).toMatchObject({ status: 'available' })
+      expect(entry.source).toContain('测试环境')
     }
+    expect(resolveDocument('achievements', 'overview')?.document.source).toContain('21 枚')
+    expect(resolveDocument('achievements', 'token')?.document.source).toContain('100 万')
+    expect(resolveDocument('achievements', 'check-in')?.document.source).toContain('北京时间')
+    expect(resolveDocument('achievements', 'activities')?.document.source).toContain('10 题')
     expect(resolveDocument('tools', 'recommended')?.document.source).toContain('CC Switch')
   })
 
