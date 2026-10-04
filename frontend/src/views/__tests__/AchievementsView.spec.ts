@@ -86,23 +86,18 @@ describe('achievement checkin', () => {
       })
     const w = render()
     await flushPromises()
-    await w
-      .findAll('button')
-      .find((b) => b.text() === '使用补签卡')!
-      .trigger('click')
-    const dialog = w.get('.card-dialog')
-    await dialog.get('select').setValue('2026-10-02')
-    expect(
-      dialog.findAll('option').map((o) => o.attributes('value')),
-    ).not.toContain('2026-10-01')
-    await dialog
-      .findAll('button')
-      .find((b) => b.text() === '核验历史权益')!
-      .trigger('click')
+    await w.get('[data-testid="calendar-day-2026-10-02"]').trigger('click')
     await flushPromises()
+    const dialog = w.get('.card-dialog')
+    expect(dialog.find('select').exists()).toBe(false)
+    expect(mocks.previewCard).toHaveBeenLastCalledWith('2026-10-02')
+    expect(
+      w.get('[data-testid="calendar-day-2026-10-01"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(dialog.text()).toContain('2026-10-02')
     await dialog
       .findAll('button')
-      .find((b) => b.text() === '使用 1 张并补签')!
+      .find((b) => b.text() === '补签')!
       .trigger('click')
     await flushPromises()
     const first = mocks.useCard.mock.calls.at(-1)![0]
@@ -113,15 +108,48 @@ describe('achievement checkin', () => {
         expected_gross: 0.05,
       }),
     )
+    expect(dialog.findAll('button').some((b) => b.text() === '重新核验')).toBe(
+      false,
+    )
     await dialog
       .findAll('button')
-      .find((b) => b.text() === '使用 1 张并补签')!
+      .find((b) => b.text() === '重试补签')!
       .trigger('click')
     await flushPromises()
     expect(mocks.useCard.mock.calls.at(-1)![0].request_key).toBe(
       first.request_key,
     )
     expect(w.text()).toContain('补签成功')
+  })
+  it('navigates the calendar across a short month while only allowing the server date window', async () => {
+    mocks.get.mockResolvedValue({
+      ...state,
+      date: '2026-03-01',
+      card_balance: 1,
+      card_min_date: '2026-01-30',
+      card_max_date: '2026-02-28',
+      calendar: ['2026-01-31'],
+    })
+    const w = render()
+    await flushPromises()
+    expect(
+      w.get('[data-testid="calendar-day-2026-03-01"]').attributes('disabled'),
+    ).toBeDefined()
+    await w.get('[aria-label="上个月"]').trigger('click')
+    expect(
+      w.get('[data-testid="calendar-day-2026-02-28"]').attributes('disabled'),
+    ).toBeUndefined()
+    await w.get('[aria-label="上个月"]').trigger('click')
+    expect(
+      w.get('[data-testid="calendar-day-2026-01-30"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      w.get('[data-testid="calendar-day-2026-01-29"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      w.get('[data-testid="calendar-day-2026-01-31"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(w.get('[aria-label="上个月"]').attributes('disabled')).toBeDefined()
   })
   it('shows activity card rewards and separate series collection rewards', async () => {
     mocks.change.mockResolvedValue({

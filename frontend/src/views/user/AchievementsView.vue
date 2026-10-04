@@ -89,10 +89,26 @@
           <div class="sign-layout">
             <div class="sign-calendar">
               <header>
-                <h3>{{ monthTitle }}</h3>
-                <span class="gold">{{
-                  state.today ? '今日已签到' : '等待今日留痕'
-                }}</span>
+                <div class="calendar-month-nav">
+                  <button
+                    type="button"
+                    aria-label="上个月"
+                    :disabled="busy || viewMonth <= minimumMonth"
+                    @click="changeMonth(-1)"
+                  >
+                    ‹
+                  </button>
+                  <h3>{{ monthTitle }}</h3>
+                  <button
+                    type="button"
+                    aria-label="下个月"
+                    :disabled="busy || viewMonth >= state.date.slice(0, 7)"
+                    @click="changeMonth(1)"
+                  >
+                    ›
+                  </button>
+                </div>
+                <span class="gold">点击漏签日期补签</span>
               </header>
               <div class="week">
                 <span
@@ -102,19 +118,35 @@
                 >
               </div>
               <div class="days">
-                <span v-for="n in monthOffset" :key="'blank' + n" /><span
+                <span v-for="n in monthOffset" :key="'blank' + n" /><button
                   v-for="n in daysInMonth"
                   :key="n"
+                  type="button"
+                  :data-testid="'calendar-day-' + dayString(n)"
+                  :aria-label="
+                    dayString(n) +
+                    (state.calendar.includes(dayString(n))
+                      ? '，已签到'
+                      : canBackfillDate(dayString(n))
+                        ? '，可补签'
+                        : '，不可补签')
+                  "
+                  :disabled="busy || !canBackfillDate(dayString(n))"
+                  @click="openCardDialog(dayString(n))"
                   :class="{
                     today: dayString(n) === state.date,
                     checked: state.calendar.includes(dayString(n)),
+                    backfillable: canBackfillDate(dayString(n)),
                   }"
-                  >{{ n
-                  }}<small v-if="state.calendar.includes(dayString(n))"
-                    >✓</small
-                  ></span
                 >
+                  {{ n
+                  }}<small v-if="state.calendar.includes(dayString(n))">✓</small
+                  ><small v-else-if="canBackfillDate(dayString(n))">补</small>
+                </button>
               </div>
+              <p class="calendar-hint">
+                带「补」的日期可使用补签卡；切换月份可查看跨月漏签。
+              </p>
             </div>
             <div class="sign-benefits">
               <p class="eyebrow">
@@ -209,9 +241,9 @@
               <button
                 class="gold-button"
                 :disabled="busy || !(state.card_balance ?? 0)"
-                @click="openCardDialog"
+                @click="focusBackfillCalendar"
               >
-                使用补签卡
+                在日历选择日期
               </button>
               <button class="text-button" @click="tab = 'activity'">
                 前往活动领取
@@ -427,6 +459,7 @@
         ref="cardDialog"
         class="medal-dialog card-dialog"
         @close="clearCardPreview"
+        @cancel="busy && $event.preventDefault()"
       >
         <button
           class="close"
@@ -437,32 +470,24 @@
           ×
         </button>
         <p class="eyebrow">RESTORE YOUR DAILY CHAPTER</p>
-        <h2>使用补签卡</h2>
+        <h2>{{ cardDay }} · 补签</h2>
+        <p class="muted">
+          消耗 1 张补签卡 · 当前剩余 {{ state?.card_balance ?? 0 }} 张
+        </p>
         <p class="muted">
           每次消耗 1
           张。确认前核验历史会员权益，服务端校验未通过不扣卡。网络中断时请按原请求重试或刷新查询回执。
         </p>
-        <label
-          >选择漏签日期<select
-            v-model="cardDay"
-            :disabled="busy"
-            @change="clearCardPreview"
-          >
-            <option value="">请选择</option>
-            <option v-for="d in missingCardDays" :key="d" :value="d">
-              {{ d }}
-            </option>
-          </select></label
-        >
-        <p v-if="!missingCardDays.length" class="muted">
-          可补签范围内没有漏签日期。
+        <p v-if="busy && !cardPreview" class="muted" role="status">
+          正在核验该日历史权益…
         </p>
         <button
+          v-if="cardError && !cardCommand"
           class="text-button"
           :disabled="busy || !cardDay"
           @click="prepareCard"
         >
-          核验历史权益
+          重新核验
         </button>
         <template v-if="cardPreview">
           <p v-if="cardPreview.available">
@@ -488,7 +513,9 @@
           :disabled="busy || !cardPreview?.available || !cardCommand"
           @click="spendCard"
         >
-          {{ busy ? '正在处理…' : '使用 1 张并补签' }}
+          {{
+            busy ? '正在处理…' : cardError && cardCommand ? '重试补签' : '补签'
+          }}
         </button>
       </dialog>
       <dialog ref="detailDialog" class="medal-dialog">
@@ -557,6 +584,16 @@ const cardDay = ref(''),
   cardError = ref('')
 const cardPreview = ref<CardPreview | null>(null)
 const cardCommand = ref<CardCommand | null>(null)
+const calendarMonth = ref('')
+const viewMonth = computed(
+  () => calendarMonth.value || state.value?.date.slice(0, 7) || '2026-01',
+)
+const minimumMonth = computed(
+  () =>
+    state.value?.card_min_date?.slice(0, 7) ||
+    state.value?.date.slice(0, 7) ||
+    viewMonth.value,
+)
 const missingCardDays = computed(() => {
   if (!state.value?.card_min_date || !state.value.card_max_date) return []
   const dates: string[] = []
@@ -608,21 +645,37 @@ const pending = computed(
     (state.value?.medals.filter(canClaim).length ?? 0) +
     (state.value?.series?.filter(canClaimSeries).length ?? 0),
 )
-const monthTitle = computed(
-  () => state.value?.date.slice(0, 7).replace('-', ' 年 ') + ' 月',
-)
+const monthTitle = computed(() => viewMonth.value.replace('-', ' 年 ') + ' 月')
 const monthOffset = computed(() => {
-  const d = new Date(
-    (state.value?.date.slice(0, 7) ?? '2026-01') + '-01T00:00:00Z',
-  )
+  const d = new Date(viewMonth.value + '-01T00:00:00Z')
   return (d.getUTCDay() + 6) % 7
 })
 const daysInMonth = computed(() => {
-  const [y, m] = (state.value?.date ?? '2026-01-01').split('-').map(Number)
+  const [y, m] = viewMonth.value.split('-').map(Number)
   return new Date(Date.UTC(y!, m!, 0)).getUTCDate()
 })
 const dayString = (n: number) =>
-  state.value!.date.slice(0, 8) + String(n).padStart(2, '0')
+  viewMonth.value + '-' + String(n).padStart(2, '0')
+function canBackfillDate(day: string) {
+  return (
+    !!state.value?.card_min_date &&
+    !!state.value.card_max_date &&
+    day >= state.value.card_min_date &&
+    day <= state.value.card_max_date &&
+    !state.value.calendar.includes(day)
+  )
+}
+function changeMonth(offset: number) {
+  const [year, month] = viewMonth.value.split('-').map(Number)
+  const next = new Date(Date.UTC(year!, month! - 1 + offset, 1))
+    .toISOString()
+    .slice(0, 7)
+  if (
+    next >= minimumMonth.value &&
+    next <= (state.value?.date.slice(0, 7) ?? viewMonth.value)
+  )
+    calendarMonth.value = next
+}
 const money = (v: number) => Number(v || 0).toFixed(2)
 const formatProgress = (v: number) =>
   v >= 1e8
@@ -696,10 +749,23 @@ function clearCardPreview() {
   cardCommand.value = null
   cardError.value = ''
 }
-function openCardDialog() {
-  cardDay.value = ''
+async function openCardDialog(day: string) {
+  if (busy.value || !canBackfillDate(day)) return
+  cardDay.value = day
   clearCardPreview()
   cardDialog.value?.showModal()
+  await prepareCard()
+}
+function focusBackfillCalendar() {
+  const day = missingCardDays.value[0]
+  if (!day) {
+    message.value = '最近 30 天内没有可补签的漏签日期。'
+    return
+  }
+  calendarMonth.value = day.slice(0, 7)
+  document
+    .querySelector('.sign-calendar')
+    ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 async function prepareCard() {
   if (busy.value || !cardDay.value) return
@@ -736,6 +802,17 @@ async function spendCard() {
     await load()
   } catch (e) {
     cardError.value = errorMessage(e)
+    const failure = e as {
+      code?: string
+      response?: { data?: { code?: string } }
+    }
+    if (
+      (failure.code ?? failure.response?.data?.code) ===
+      'ACHIEVEMENT_HISTORY_CHANGED'
+    ) {
+      cardCommand.value = null
+      cardPreview.value = null
+    }
   } finally {
     busy.value = false
   }
@@ -750,6 +827,14 @@ const errorMessage = (e: unknown) => {
 async function load() {
   try {
     state.value = await getAchievements()
+    if (
+      calendarMonth.value &&
+      (calendarMonth.value <
+        (state.value.card_min_date?.slice(0, 7) ??
+          state.value.date.slice(0, 7)) ||
+        calendarMonth.value > state.value.date.slice(0, 7))
+    )
+      calendarMonth.value = ''
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -845,20 +930,6 @@ onMounted(load)
 }
 .card-dialog {
   width: min(520px, 92vw);
-}
-.card-dialog label {
-  display: block;
-  margin: 22px 0 12px;
-  font-size: 14px;
-}
-.card-dialog select {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
 }
 .card-dialog .gold-button {
   width: 100%;
@@ -1085,6 +1156,44 @@ summary:focus-visible {
 .sign-calendar header span {
   font-size: 11px;
 }
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.calendar-month-nav button {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  color: var(--gold);
+  background: transparent;
+  font-size: 22px;
+}
+.calendar-month-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.calendar-hint {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+@media (max-width: 720px) {
+  .sign-calendar header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .calendar-month-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .calendar-month-nav h3 {
+    white-space: nowrap;
+  }
+}
 .week,
 .days {
   display: grid;
@@ -1097,13 +1206,36 @@ summary:focus-visible {
   color: var(--muted);
   margin: 18px 0 10px;
 }
-.days > span {
+.days > span,
+.days > button {
   min-height: 40px;
   display: grid;
   place-content: center;
   font: 13px Consolas;
   border: 1px solid transparent;
   position: relative;
+}
+.days > button {
+  color: var(--ink);
+  background: transparent;
+  border-radius: 3px;
+}
+.days > button:disabled {
+  cursor: default;
+}
+.days .backfillable {
+  border-color: var(--line);
+  color: var(--gold);
+  background: var(--wash);
+  cursor: pointer;
+}
+.days .backfillable:hover {
+  border-color: var(--gold);
+}
+.days > button:focus-visible,
+.calendar-month-nav button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 .days .today {
   border-color: var(--gold);
@@ -1474,7 +1606,8 @@ progress::-moz-progress-bar {
   .sign-calendar {
     padding: 15px;
   }
-  .days > span {
+  .days > span,
+  .days > button {
     min-height: 35px;
   }
   .history > div {
