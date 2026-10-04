@@ -1,6 +1,9 @@
 package service
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type VIPRechargeQuote struct {
 	Multiplier float64
@@ -40,11 +43,16 @@ func (s *PaymentService) GetVIPRechargeQuote(ctx context.Context, userID int64, 
 	if !finiteVIP(state.Total) {
 		return quote, ErrVIPRateUnavailable
 	}
-	quote.Multiplier, err = state.Rules.RechargeMultiplier(state.Total, legacy)
+	tier, _, err := state.Rules.EffectiveTier(state.Total, state.Overrides, time.Now())
 	if err != nil {
 		return quote, err
 	}
-	quote.Level = state.Rules.Tier(state.Total).Level
+	// Use the same effective grade for all perks, while principal remains genuine.
+	quote.Multiplier, err = state.Rules.RechargeMultiplier(tier.Threshold, legacy)
+	if err != nil {
+		return quote, err
+	}
+	quote.Level = tier.Level
 	quote.Enabled = state.Rules.Enabled && state.Rules.RechargeBonusEnabled
 	return quote, err
 }

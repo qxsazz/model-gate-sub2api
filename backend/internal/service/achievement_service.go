@@ -23,6 +23,16 @@ type AchievementConfig struct {
 }
 
 func (c AchievementConfig) Validate() error {
+	if len(c.DailyRewards) > 0 {
+		if len(c.DailyRewards) != 6 {
+			return infraerrors.BadRequest("VIP_DAILY_POLICY_INVALID", "请填写普通会员及五个VIP等级的签到金额")
+		}
+		for _, amount := range c.DailyRewards {
+			if !finiteVIP(amount) || amount < 0 || amount > 1000 {
+				return infraerrors.BadRequest("VIP_DAILY_POLICY_INVALID", "签到金额须在0至1000之间")
+			}
+		}
+	}
 	if math.IsNaN(c.DailyBudget) || math.IsInf(c.DailyBudget, 0) || math.IsNaN(c.MonthlyBudget) || math.IsInf(c.MonthlyBudget, 0) || c.DailyBudget < 0 || c.DailyBudget > 1000 || c.MonthlyBudget < c.DailyBudget || c.MonthlyBudget > 10000 || len(c.CashAllowlist) > 100 {
 		return infraerrors.BadRequest("ACHIEVEMENT_CONFIG_INVALID", "试点每日预算 0–1000，月预算不少于日预算且不超过 10000，最多 100 个账户")
 	}
@@ -100,7 +110,6 @@ func (s *UserService) GetAchievementConfig(ctx context.Context) (*AchievementCon
 	return r.AchievementConfig(ctx)
 }
 func (s *UserService) SetAchievementConfig(ctx context.Context, actor int64, c AchievementConfig) error {
-	c.DailyRewards = nil // Read-only policy comes from the persisted tier table.
 	if c.CashScope == "" {
 		c.CashScope = "allowlist"
 	}

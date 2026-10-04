@@ -22,6 +22,7 @@ type VIPGroupRule struct {
 	Discounts []float64 `json:"discounts"`
 }
 type VIPRules struct {
+	DailyRewards         []float64          `json:"daily_rewards,omitempty"`
 	RechargeBonusEnabled bool               `json:"recharge_bonus_enabled"`
 	ExchangeRates        map[string]float64 `json:"exchange_rates"`
 	Enabled              bool               `json:"enabled"`
@@ -37,6 +38,16 @@ func DefaultVIPRules() VIPRules {
 	}}
 }
 func (r VIPRules) Validate() error {
+	if len(r.DailyRewards) > 0 {
+		if len(r.DailyRewards) != 6 {
+			return fmt.Errorf("daily rewards require six grades")
+		}
+		for _, amount := range r.DailyRewards {
+			if !finiteVIP(amount) || amount < 0 || amount > 1000 {
+				return fmt.Errorf("invalid daily reward")
+			}
+		}
+	}
 	for currency, rate := range r.ExchangeRates {
 		if len(currency) != 3 || !finiteVIP(rate) || rate <= 0 {
 			return fmt.Errorf("invalid exchange rate")

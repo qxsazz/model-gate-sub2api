@@ -14,7 +14,7 @@ func TestVIPDisabledAuthRepositoryDoesNotQueryUserOrLedger(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
-	mock.ExpectQuery(`SELECT payload FROM vip_rules`).WillReturnRows(sqlmock.NewRows([]string{"payload"}).AddRow(`{"enabled":false,"tiers":[],"groups":[]}`))
+	mock.ExpectQuery(`SELECT payload`).WillReturnRows(sqlmock.NewRows([]string{"payload"}).AddRow(`{"enabled":false,"tiers":[],"groups":[]}`))
 	snapshot, err := (&userRepository{sql: db}).VIPAuthSnapshot(context.Background(), 7)
 	require.NoError(t, err)
 	require.False(t, snapshot.Enabled)

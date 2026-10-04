@@ -173,10 +173,20 @@ func (r *userRepository) AchievementConfig(ctx context.Context) (*service.Achiev
 	return &c, e
 }
 func (r *userRepository) SaveAchievementConfig(ctx context.Context, actor int64, c service.AchievementConfig) error {
-	raw, e := json.Marshal(c)
+	payload := c
+	payload.DailyRewards = nil
+	raw, e := json.Marshal(payload)
 	if e != nil {
 		return e
 	}
-	_, e = r.sql.ExecContext(ctx, `WITH old AS MATERIALIZED (SELECT payload,revision FROM achievement_config WHERE id=true FOR UPDATE), changed AS (UPDATE achievement_config SET payload=$1::jsonb,revision=achievement_config.revision+1,updated_at=now() FROM old WHERE id=true RETURNING achievement_config.payload,achievement_config.revision) INSERT INTO achievement_admin_audit(actor_id,previous,current,revision) SELECT $2,old.payload,changed.payload,changed.revision FROM old,changed`, string(raw), actor)
+	var daily any
+	if len(c.DailyRewards) > 0 {
+		encoded, err := json.Marshal(c.DailyRewards)
+		if err != nil {
+			return err
+		}
+		daily = string(encoded)
+	}
+	_, e = r.sql.ExecContext(ctx, `SELECT achievement_save_config_with_policy($1,$2::jsonb,$3::jsonb)`, actor, string(raw), daily)
 	return e
 }

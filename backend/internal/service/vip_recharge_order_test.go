@@ -13,13 +13,29 @@ import (
 type vipRechargeOrderRepo struct {
 	UserRepository
 	VIPRepository
-	rules VIPRules
-	total float64
+	rules     VIPRules
+	total     float64
+	overrides []VIPOverride
 }
 
 func (r *vipRechargeOrderRepo) VIPRules(context.Context) (VIPRules, error) { return r.rules, nil }
 func (r *vipRechargeOrderRepo) VIPAuthSnapshot(context.Context, int64) (*VIPSnapshot, error) {
-	return &VIPSnapshot{Enabled: r.rules.Enabled, Rules: r.rules, Total: r.total, BadgeLevel: 5}, nil
+	return &VIPSnapshot{Enabled: r.rules.Enabled, Rules: r.rules, Total: r.total, BadgeLevel: 5, Overrides: r.overrides}, nil
+}
+func TestVIPRechargeQuoteUsesAssignedGradeInsteadOfCosmeticBadge(t *testing.T) {
+	rules := DefaultVIPRules()
+	rules.Enabled = true
+	repo := &vipRechargeOrderRepo{rules: rules, total: 0, overrides: []VIPOverride{{Benefit: "tier", Value: 5, Reason: "指定等级"}}}
+	quote, err := (&PaymentService{userRepo: repo}).GetVIPRechargeQuote(context.Background(), 7, 1)
+	require.NoError(t, err)
+	require.Equal(t, 5, quote.Level)
+	require.Equal(t, 1.05, quote.Multiplier)
+	repo.total = 3000
+	repo.overrides[0].Value = 0
+	quote, err = (&PaymentService{userRepo: repo}).GetVIPRechargeQuote(context.Background(), 7, 1)
+	require.NoError(t, err)
+	require.Zero(t, quote.Level)
+	require.Equal(t, 1.0, quote.Multiplier)
 }
 
 func TestVIPRechargeQuoteMatchesOrderAndOldSnapshotDoesNotChange(t *testing.T) {

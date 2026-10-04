@@ -137,8 +137,8 @@ func (r *userRepository) VIPMembership(ctx context.Context, id int64) (*service.
 	rows, err = r.sql.QueryContext(ctx, `WITH totals AS (
  SELECT user_id,GREATEST(sum(amount),0) total FROM vip_recharge_ledger GROUP BY user_id), ranked AS (
  SELECT u.id,COALESCE(NULLIF(u.username,''),u.email) name,t.total,
- COALESCE((SELECT value::integer FROM vip_overrides WHERE user_id=u.id AND benefit='badge' AND (expires_at IS NULL OR expires_at>now())),
- (SELECT max((tier->>'level')::integer) FROM vip_rules,jsonb_array_elements(payload->'tiers') tier WHERE (tier->>'threshold')::numeric<=COALESCE(t.total,0)),0) level
+ CASE WHEN EXISTS(SELECT 1 FROM vip_user_level_history WHERE user_id=u.id) THEN vip_effective_level(u.id) ELSE COALESCE((SELECT value::integer FROM vip_overrides WHERE user_id=u.id AND benefit='badge' AND (expires_at IS NULL OR expires_at>now())),
+ (SELECT max((tier->>'level')::integer) FROM vip_rules,jsonb_array_elements(payload->'tiers') tier WHERE (tier->>'threshold')::numeric<=COALESCE(t.total,0)),0) END level
  FROM users u LEFT JOIN totals t ON t.user_id=u.id WHERE u.deleted_at IS NULL AND u.status='active' AND u.role='user')
  SELECT name,level FROM ranked WHERE level>0 ORDER BY level DESC,total DESC NULLS LAST,id LIMIT 10`)
 	if err != nil {
