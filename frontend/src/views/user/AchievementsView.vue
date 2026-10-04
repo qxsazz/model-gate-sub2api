@@ -193,12 +193,100 @@
               规则关闭时按普通会员权益计算。签到金额奖励须由管理员开启，并处于开放范围内，无需近期充值或消费；启用金额上限且额度不足时仍记录签到。
             </p>
           </details>
+          <section class="card-panel" aria-label="补签卡">
+            <div>
+              <p class="eyebrow">CHECK-IN CARDS</p>
+              <h3>补上遗漏，继续前行</h3>
+              <p class="muted">
+                可补最近 30 天的漏签，可跨月；按漏签日历史 VIP
+                权益补发金额，并重算连续签到。
+              </p>
+            </div>
+            <div class="card-panel-actions">
+              <strong data-testid="card-balance"
+                >{{ state.card_balance ?? 0 }} <small>张补签卡</small></strong
+              >
+              <button
+                class="gold-button"
+                :disabled="busy || !(state.card_balance ?? 0)"
+                @click="openCardDialog"
+              >
+                使用补签卡
+              </button>
+              <button class="text-button" @click="tab = 'activity'">
+                前往活动领取
+              </button>
+            </div>
+          </section>
+          <details v-if="state.card_history?.length" class="history">
+            <summary>补签卡获取与使用记录</summary>
+            <div v-for="h in state.card_history" :key="h.id">
+              <span>{{
+                h.kind === 'use'
+                  ? '补签 ' + h.day
+                  : h.kind === 'reclaim'
+                    ? '管理员追回'
+                    : '领取 ' +
+                      (state.medals.find((m) => m.key === h.key)?.name ?? h.key)
+              }}</span>
+              <span>{{ h.delta > 0 ? '+' : '' }}{{ h.delta }} 张</span>
+            </div>
+          </details>
         </section>
         <ActivityExplorer
           v-if="tab === 'activity'"
           :passes="state.passes"
           @updated="load"
         />
+        <section
+          v-if="tab === 'activity'"
+          class="series-rewards"
+          aria-label="系列收集奖励"
+        >
+          <article v-for="s in state.series ?? []" :key="s.key">
+            <p class="eyebrow">COMPLETE THE COLLECTION</p>
+            <h3>{{ s.name }}</h3>
+            <p class="muted">
+              收集全部
+              {{ s.total }} 枚成就，领取系列金额奖励。单枚勋章奖励补签卡。
+            </p>
+            <div class="progress-label">
+              <span>{{ s.collected }} / {{ s.total }} 已收集</span
+              ><strong>${{ money(s.reward) }}</strong>
+            </div>
+            <p
+              v-if="s.claim?.prior_amount || s.prior_amount"
+              class="small muted"
+            >
+              已领取的旧活动金额 ${{
+                money(s.claim?.prior_amount ?? s.prior_amount ?? 0)
+              }}
+              已计入系列总奖励。
+              <span v-if="!s.claim"
+                >本次可领 ${{ money(s.claimable_amount ?? s.reward) }}。</span
+              >
+            </p>
+            <button
+              class="text-button"
+              :disabled="busy || !canClaimSeries(s)"
+              @click="act('claim_series', s.key)"
+            >
+              {{
+                s.claim?.revoked_at
+                  ? '已追回'
+                  : s.claim
+                    ? '已领取'
+                    : s.preview
+                      ? '后续篇章待开放'
+                      : !s.unlocked
+                        ? '集齐后领取'
+                        : canClaimSeries(s)
+                          ? '领取系列奖励'
+                          : '金额奖励待开放'
+              }}
+            </button>
+          </article>
+        </section>
         <div class="section-caption">
           <span>{{ captions[tab] }}</span
           ><span
@@ -256,24 +344,41 @@
             />
             <footer>
               <span class="reward"
-                >${{ money(m.reward) }}<small>成就奖励</small></span
+                ><template v-if="m.card_reward"
+                  >{{ m.card_reward }} 张补签卡<small
+                    >活动勋章奖励</small
+                  ></template
+                ><template v-else
+                  >${{ money(m.reward) }}<small>成就奖励</small></template
+                ></span
               >
               <div>
                 <button
                   class="text-button"
+                  :data-testid="'claim-' + m.key"
                   :disabled="busy || !canClaim(m)"
                   @click="act('claim', m.key)"
                 >
                   {{
-                    m.claim?.revoked_at
-                      ? '已追回'
-                      : m.claim
-                        ? '已领取'
-                        : !m.unlocked
-                          ? '尚未达成'
-                          : canClaim(m)
-                            ? '领取奖励'
-                            : '奖励待开放'
+                    m.card_reward
+                      ? m.card_claim
+                        ? m.card_claim.reclaimed
+                          ? '已领取 · 有卡片追回'
+                          : '补签卡已领取'
+                        : m.preview
+                          ? '篇章待开放'
+                          : !m.unlocked
+                            ? '尚未达成'
+                            : '领取补签卡'
+                      : m.claim?.revoked_at
+                        ? '已追回'
+                        : m.claim
+                          ? '已领取'
+                          : !m.unlocked
+                            ? '尚未达成'
+                            : canClaim(m)
+                              ? '领取奖励'
+                              : '奖励待开放'
                   }}</button
                 ><button
                   class="equip-button"
@@ -284,6 +389,14 @@
                 </button>
               </div>
             </footer>
+            <p v-if="m.card_claim" class="small muted">
+              已使用 {{ m.card_claim.used }} 张 · 已追回
+              {{ m.card_claim.reclaimed }} 张 · 可用
+              {{
+                m.card_claim.amount - m.card_claim.used - m.card_claim.reclaimed
+              }}
+              张
+            </p>
           </article>
         </section>
         <p v-if="tab === 'token'" class="fine-print">
@@ -298,12 +411,86 @@
           <div v-for="h in state.history" :key="h.day">
             <span
               >{{ h.day }} ·
-              {{ h.source === 'admin' ? '管理员补签' : '用户签到' }} · 连续
-              {{ h.streak }} 天</span
+              {{
+                h.source === 'admin'
+                  ? '管理员补签'
+                  : h.source === 'card'
+                    ? '补签卡补签'
+                    : '用户签到'
+              }}
+              · 连续 {{ h.streak }} 天</span
             ><span>奖励 ${{ money(h.gross) }} · 到账 ${{ money(h.net) }}</span>
           </div>
         </details>
       </template>
+      <dialog
+        ref="cardDialog"
+        class="medal-dialog card-dialog"
+        @close="clearCardPreview"
+      >
+        <button
+          class="close"
+          :disabled="busy"
+          aria-label="关闭补签"
+          @click="cardDialog?.close()"
+        >
+          ×
+        </button>
+        <p class="eyebrow">RESTORE YOUR DAILY CHAPTER</p>
+        <h2>使用补签卡</h2>
+        <p class="muted">
+          每次消耗 1
+          张。确认前核验历史会员权益，服务端校验未通过不扣卡。网络中断时请按原请求重试或刷新查询回执。
+        </p>
+        <label
+          >选择漏签日期<select
+            v-model="cardDay"
+            :disabled="busy"
+            @change="clearCardPreview"
+          >
+            <option value="">请选择</option>
+            <option v-for="d in missingCardDays" :key="d" :value="d">
+              {{ d }}
+            </option>
+          </select></label
+        >
+        <p v-if="!missingCardDays.length" class="muted">
+          可补签范围内没有漏签日期。
+        </p>
+        <button
+          class="text-button"
+          :disabled="busy || !cardDay"
+          @click="prepareCard"
+        >
+          核验历史权益
+        </button>
+        <template v-if="cardPreview">
+          <p v-if="cardPreview.available">
+            {{ cardDay }} ·
+            {{ cardPreview.tier ? 'VIP ' + cardPreview.tier : '普通会员' }} ·
+            补发 ${{ money(cardPreview.gross) }}
+          </p>
+          <p v-else class="muted">
+            {{
+              cardPreview.existing
+                ? '该日已经签到，无需补签。'
+                : !cardPreview.policy_known
+                  ? '历史权益无法完整核验，不能补签。'
+                  : !cardPreview.card_balance
+                    ? '补签卡不足。'
+                    : cardUnavailableReason(cardPreview.cash_reason)
+            }}
+          </p>
+        </template>
+        <p v-if="cardError" class="notice" role="alert">{{ cardError }}</p>
+        <button
+          class="gold-button"
+          :disabled="busy || !cardPreview?.available || !cardCommand"
+          @click="spendCard"
+        >
+          {{ busy ? '正在处理…' : '使用 1 张并补签' }}
+        </button>
+      </dialog>
       <dialog ref="detailDialog" class="medal-dialog">
         <template v-if="selected"
           ><button
@@ -323,7 +510,12 @@
           <p>{{ selected.description }}</p>
           <p class="muted">{{ condition(selected) }}</p>
           <p>
-            成就奖励 ${{ money(selected.reward) }} ·
+            {{
+              selected.card_reward
+                ? selected.card_reward + ' 张补签卡'
+                : '成就奖励 $' + money(selected.reward)
+            }}
+            ·
             {{ selected.unlocked ? '已解锁' : '尚未达成' }}
           </p>
           <p class="small muted">
@@ -344,6 +536,11 @@ import {
   changeAchievement,
   type AchievementState,
   type Medal,
+  type AchievementSeries,
+  type CardPreview,
+  type CardCommand,
+  previewAchievementCard,
+  useAchievementCard,
 } from '@/api/achievements'
 import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore(),
@@ -355,6 +552,25 @@ const auth = useAuthStore(),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
 const requestKey = ref(crypto.randomUUID())
+const cardDialog = ref<HTMLDialogElement>()
+const cardDay = ref(''),
+  cardError = ref('')
+const cardPreview = ref<CardPreview | null>(null)
+const cardCommand = ref<CardCommand | null>(null)
+const missingCardDays = computed(() => {
+  if (!state.value?.card_min_date || !state.value.card_max_date) return []
+  const dates: string[] = []
+  const date = new Date(state.value.card_max_date + 'T00:00:00Z')
+  while (
+    date.toISOString().slice(0, 10) >= state.value.card_min_date &&
+    dates.length < 30
+  ) {
+    const day = date.toISOString().slice(0, 10)
+    if (!state.value.calendar.includes(day)) dates.push(day)
+    date.setUTCDate(date.getUTCDate() - 1)
+  }
+  return dates
+})
 const tabs = [
   { key: 'sign', name: '签到', count: 3 },
   { key: 'token', name: 'Token 成长', count: 6 },
@@ -378,12 +594,20 @@ const unlocked = computed(
 )
 const claimed = computed(
   () =>
-    state.value?.medals.reduce(
+    (state.value?.medals.reduce(
       (v, m) => v + (m.claim && !m.claim.revoked_at ? m.claim.gross : 0),
       0,
-    ) ?? 0,
+    ) ?? 0) +
+    (state.value?.series?.reduce(
+      (v, s) => v + (s.claim && !s.claim.revoked_at ? s.claim.gross : 0),
+      0,
+    ) ?? 0),
 )
-const pending = computed(() => state.value?.medals.filter(canClaim).length ?? 0)
+const pending = computed(
+  () =>
+    (state.value?.medals.filter(canClaim).length ?? 0) +
+    (state.value?.series?.filter(canClaimSeries).length ?? 0),
+)
 const monthTitle = computed(
   () => state.value?.date.slice(0, 7).replace('-', ' 年 ') + ' 月',
 )
@@ -428,6 +652,7 @@ const cashReason = (reason: string) =>
     budget_exhausted: '本期奖励预算已用完，签到仍计入成长。',
     account_unavailable: '当前账户不可领取签到金额奖励。',
     admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
+    card_backfill: '已使用补签卡，奖励按漏签日历史权益即时补发。',
   })[reason] ?? reason
 const recordedCashReason = (reason: string) =>
   ({
@@ -438,8 +663,10 @@ const recordedCashReason = (reason: string) =>
       '本次签到时未满足近 30 日有效充值或余额计费使用条件，因此未发放金额奖励。',
     budget_exhausted: '本次签到时奖励额度不足，因此未发放金额奖励。',
     admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
+    card_backfill: '已使用补签卡，奖励按漏签日历史权益即时补发。',
   })[reason] ?? reason
 function canClaim(m: Medal) {
+  if (m.card_reward) return m.unlocked && !m.preview && !m.card_claim
   return (
     m.unlocked &&
     !m.claim &&
@@ -447,6 +674,71 @@ function canClaim(m: Medal) {
     (state.value.milestone_cash_reason ?? state.value.cash_reason) ===
       'eligible'
   )
+}
+function canClaimSeries(s: AchievementSeries) {
+  return (
+    s.unlocked &&
+    !s.claim &&
+    state.value?.milestone_cash_enabled &&
+    (state.value.milestone_cash_reason ?? state.value.cash_reason) ===
+      'eligible'
+  )
+}
+function cardUnavailableReason(reason: string) {
+  if (reason === 'cash_disabled')
+    return '签到金额奖励尚未开启，暂不能使用补签卡，卡片保留。'
+  if (reason === 'not_in_cash_pilot')
+    return '账户不在签到奖励开放范围，暂不能使用补签卡，卡片保留。'
+  return '当前无法使用补签卡，请刷新核对状态，卡片保留。'
+}
+function clearCardPreview() {
+  cardPreview.value = null
+  cardCommand.value = null
+  cardError.value = ''
+}
+function openCardDialog() {
+  cardDay.value = ''
+  clearCardPreview()
+  cardDialog.value?.showModal()
+}
+async function prepareCard() {
+  if (busy.value || !cardDay.value) return
+  busy.value = true
+  clearCardPreview()
+  try {
+    const p = await previewAchievementCard(cardDay.value)
+    cardPreview.value = p
+    if (p.available)
+      cardCommand.value = {
+        date: cardDay.value,
+        expected_gross: p.gross,
+        expected_tier: p.tier,
+        request_key: crypto.randomUUID(),
+      }
+  } catch (e) {
+    cardError.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+async function spendCard() {
+  if (busy.value || !cardCommand.value || !cardPreview.value?.available) return
+  busy.value = true
+  cardError.value = ''
+  try {
+    const r = await useAchievementCard(cardCommand.value)
+    message.value = r.existing
+      ? '该日已签到，未扣除补签卡。'
+      : `补签成功：使用 ${r.cards_spent} 张，补发 $${money(r.gross)}，实际到账 $${money(r.net)}。`
+    cardDialog.value?.close()
+    clearCardPreview()
+    await auth.refreshUser()
+    await load()
+  } catch (e) {
+    cardError.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
 }
 const errorMessage = (e: unknown) => {
   const v = e as {
@@ -463,19 +755,29 @@ async function load() {
     error.value = errorMessage(e)
   }
 }
-async function act(action: 'checkin' | 'claim' | 'equip', key?: string) {
+async function act(
+  action: 'checkin' | 'claim' | 'claim_series' | 'equip',
+  key?: string,
+) {
   if (busy.value || !state.value) return
   busy.value = true
   error.value = ''
   message.value = ''
   try {
-    if (action === 'checkin' || action === 'claim') {
+    if (
+      action === 'checkin' ||
+      action === 'claim' ||
+      action === 'claim_series'
+    ) {
       const r = await changeAchievement(action, {
         key,
         date: state.value.date,
         request_key: requestKey.value,
       })
-      message.value = `${action === 'checkin' ? '签到成功' : '奖励已领取'}：奖励 $${money(r.gross)}，实际到账 $${money(r.net)}${r.offset_amount ? '，抵扣待追回金额 $' + money(r.offset_amount) : ''}`
+      message.value =
+        r.cards_awarded !== undefined
+          ? `已领取 ${r.cards_awarded} 张补签卡，剩余 ${r.card_balance} 张。`
+          : `${action === 'checkin' ? '签到成功' : '奖励已领取'}：奖励 $${money(r.gross)}，实际到账 $${money(r.net)}${r.offset_amount ? '，抵扣待追回金额 $' + money(r.offset_amount) : ''}`
       requestKey.value = crypto.randomUUID()
       await auth.refreshUser()
     } else {
@@ -496,6 +798,81 @@ function openDetail(m: Medal) {
 onMounted(load)
 </script>
 <style scoped>
+.card-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  margin-top: 26px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  background: var(--wash);
+}
+.card-panel h3,
+.series-rewards h3 {
+  margin: 8px 0 12px;
+  font-size: 22px;
+}
+.card-panel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.card-panel-actions strong {
+  text-align: center;
+  font-size: 30px;
+  color: var(--gold);
+}
+.card-panel-actions strong small {
+  font-size: 12px;
+  font-weight: normal;
+}
+.series-rewards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 24px 0;
+}
+.series-rewards article {
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--wash);
+}
+.series-rewards .text-button {
+  margin-top: 14px;
+}
+.card-dialog {
+  width: min(520px, 92vw);
+}
+.card-dialog label {
+  display: block;
+  margin: 22px 0 12px;
+  font-size: 14px;
+}
+.card-dialog select {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+.card-dialog .gold-button {
+  width: 100%;
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  .card-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .series-rewards {
+    grid-template-columns: 1fr;
+  }
+}
 .achievement-page {
   --paper: #fffefa;
   --ink: #292c29;

@@ -6,10 +6,14 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   change: vi.fn(),
   refresh: vi.fn(),
+  previewCard: vi.fn(),
+  useCard: vi.fn(),
 }))
 vi.mock('@/api/achievements', () => ({
   getAchievements: mocks.get,
   changeAchievement: mocks.change,
+  previewAchievementCard: mocks.previewCard,
+  useAchievementCard: mocks.useCard,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ refreshUser: mocks.refresh }),
@@ -44,6 +48,135 @@ function render() {
   })
 }
 describe('achievement checkin', () => {
+  it('uses the previewed historical tier and retries a lost response with the same card request', async () => {
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    mocks.get.mockResolvedValue({
+      ...state,
+      card_balance: 1,
+      card_min_date: '2026-09-03',
+      card_max_date: '2026-10-02',
+      calendar: ['2026-10-01'],
+    })
+    mocks.previewCard.mockResolvedValue({
+      day: '2026-10-02',
+      tier: 1,
+      gross: 0.05,
+      policy_known: true,
+      existing: false,
+      available: true,
+      card_balance: 1,
+      cash_reason: 'eligible',
+    })
+    mocks.useCard
+      .mockRejectedValueOnce(new Error('网络中断'))
+      .mockResolvedValue({
+        cards_spent: 1,
+        gross: 0.05,
+        net: 0.05,
+        offset_amount: 0,
+        existing: false,
+        card_balance: 0,
+      })
+    const w = render()
+    await flushPromises()
+    await w
+      .findAll('button')
+      .find((b) => b.text() === '使用补签卡')!
+      .trigger('click')
+    const dialog = w.get('.card-dialog')
+    await dialog.get('select').setValue('2026-10-02')
+    expect(
+      dialog.findAll('option').map((o) => o.attributes('value')),
+    ).not.toContain('2026-10-01')
+    await dialog
+      .findAll('button')
+      .find((b) => b.text() === '核验历史权益')!
+      .trigger('click')
+    await flushPromises()
+    await dialog
+      .findAll('button')
+      .find((b) => b.text() === '使用 1 张并补签')!
+      .trigger('click')
+    await flushPromises()
+    const first = mocks.useCard.mock.calls.at(-1)![0]
+    expect(first).toEqual(
+      expect.objectContaining({
+        date: '2026-10-02',
+        expected_tier: 1,
+        expected_gross: 0.05,
+      }),
+    )
+    await dialog
+      .findAll('button')
+      .find((b) => b.text() === '使用 1 张并补签')!
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.useCard.mock.calls.at(-1)![0].request_key).toBe(
+      first.request_key,
+    )
+    expect(w.text()).toContain('补签成功')
+  })
+  it('shows activity card rewards and separate series collection rewards', async () => {
+    mocks.change.mockResolvedValue({
+      cards_awarded: 1,
+      card_balance: 3,
+      gross: 0,
+      net: 0,
+      offset_amount: 0,
+    })
+    mocks.get.mockResolvedValue({
+      ...state,
+      card_balance: 2,
+      series: [
+        {
+          key: 'A-K',
+          name: '知识系列',
+          reward: 1.4,
+          collected: 1,
+          total: 3,
+          unlocked: false,
+          claim: null,
+        },
+      ],
+      medals: [
+        {
+          key: 'A-K01',
+          category: 'activity',
+          name: '初识星图',
+          description: '知识主题',
+          target: 1,
+          reward: 0,
+          card_reward: 1,
+          progress: 1,
+          unlocked: true,
+          preview: false,
+          claim: null,
+          card_claim: null,
+        },
+      ],
+    })
+    const w = render()
+    await flushPromises()
+    expect(w.get('[data-testid="card-balance"]').text()).toContain('2')
+    await w.findAll('.achievement-tabs button')[3].trigger('click')
+    expect(w.text()).toContain('1 张补签卡')
+    expect(w.text()).toContain('知识系列')
+    expect(w.text()).toContain('$1.40')
+    await w.get('[data-testid="claim-A-K01"]').trigger('click')
+    await flushPromises()
+    expect(mocks.change).toHaveBeenCalledWith(
+      'claim',
+      expect.objectContaining({ key: 'A-K01' }),
+    )
+    expect(w.text()).toContain('已领取 1 张补签卡')
+  })
   it('shows the current cash policy separately from an earlier zero-reward receipt', async () => {
     mocks.get.mockResolvedValue({
       ...state,

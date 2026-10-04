@@ -5,9 +5,14 @@ export interface CashReceipt {
   offset_amount: number
   replayed?: boolean
   revoked_at?: string | null
+  cards_awarded?: number
+  card_balance?: number
+  cards_reclaimed?: number
+  series_recovered?: number
+  series_debt_added?: number
 }
 export interface AchievementReceipt extends CashReceipt {
-  source?: 'user' | 'admin'
+  source?: 'user' | 'admin' | 'card'
   reason: string
   day: string
   tier: number
@@ -25,6 +30,27 @@ export interface Medal {
   unlocked: boolean
   claim: CashReceipt | null
   manual?: 'granted' | 'revoked' | null
+  card_reward?: number
+  card_claim?: { amount: number; used: number; reclaimed: number } | null
+}
+export interface AchievementSeries {
+  key: string
+  name: string
+  reward: number
+  collected: number
+  total: number
+  unlocked: boolean
+  preview?: boolean
+  prior_amount?: number
+  claimable_amount?: number
+  claim: (CashReceipt & { prior_amount: number }) | null
+}
+export interface CardHistory {
+  id: number
+  key: string
+  delta: number
+  kind: 'claim' | 'use' | 'reclaim'
+  day: string | null
 }
 export interface AchievementState {
   date: string
@@ -44,6 +70,11 @@ export interface AchievementState {
   equipment: string | null
   passes: { kind: string; topic: string }[]
   medals: Medal[]
+  card_balance?: number
+  card_min_date?: string
+  card_max_date?: string
+  card_history?: CardHistory[]
+  series?: AchievementSeries[]
 }
 export interface AchievementConfig {
   cash_scope: 'all' | 'allowlist'
@@ -86,6 +117,33 @@ export interface BackfillPreview {
   vip_total?: number
   reason?: string
 }
+export interface CardPreview extends BackfillPreview {
+  card_balance: number
+  cash_reason: string
+  available: boolean
+}
+export interface CardCommand {
+  date: string
+  request_key: string
+  expected_gross: number
+  expected_tier: number
+}
+export const previewAchievementCard = async (date: string) =>
+  (
+    await apiClient.get<CardPreview>('/user/achievements/card-preview', {
+      params: { date },
+    })
+  ).data
+export const useAchievementCard = async (body: CardCommand) =>
+  (
+    await apiClient.post<
+      AchievementReceipt & {
+        cards_spent: number
+        card_balance: number
+        existing: boolean
+      }
+    >('/user/achievements/use-card', body)
+  ).data
 export interface AchievementAdminBody {
   expected_gross?: number
   expected_tier?: number
@@ -135,7 +193,7 @@ export function changeAchievement(
   body: AchievementBody,
 ): Promise<AchievementReceipt>
 export function changeAchievement(
-  action: 'checkin' | 'claim',
+  action: 'checkin' | 'claim' | 'claim_series',
   body: AchievementBody,
 ): Promise<CashReceipt>
 export function changeAchievement(
@@ -143,7 +201,7 @@ export function changeAchievement(
   body: AchievementBody,
 ): Promise<{ saved: boolean }>
 export async function changeAchievement(
-  action: 'checkin' | 'claim' | 'equip',
+  action: 'checkin' | 'claim' | 'claim_series' | 'equip',
   body: AchievementBody,
 ): Promise<CashReceipt | { saved: boolean }> {
   return (await apiClient.post(`/user/achievements/${action}`, body)).data

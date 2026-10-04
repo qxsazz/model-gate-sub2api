@@ -17,6 +17,14 @@ func achievementError(err error) error {
 	var pg *pq.Error
 	if errors.As(err, &pg) {
 		switch pg.Message {
+		case "ACHIEVEMENT_CARD_DATE_INVALID":
+			return infraerrors.BadRequest(pg.Message, "只能补签注册后、最近 30 天内的漏签日期，不含今天")
+		case "ACHIEVEMENT_CARD_INSUFFICIENT":
+			return infraerrors.BadRequest(pg.Message, "补签卡不足，完成活动成就后可领取")
+		case "ACHIEVEMENT_CARD_CONFLICT":
+			return infraerrors.Conflict(pg.Message, "请求编号已用于其他补签，请重新核验日期")
+		case "ACHIEVEMENT_CHECKIN_CASH_UNAVAILABLE":
+			return infraerrors.BadRequest(pg.Message, "当前签到金额奖励未对该账户开放，未扣除补签卡")
 		case "ACHIEVEMENT_ADMIN_FORBIDDEN":
 			return infraerrors.Forbidden(pg.Message, "需要有效管理员权限")
 		case "ACHIEVEMENT_ADMIN_CONFLICT":
@@ -73,17 +81,21 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'date',d.today,'timezone','Asia/Shanghai','tier',achievement_tier($1),
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
+ 'card_balance',achievement_card_balance($1),
+ 'card_min_date',GREATEST((u.created_at AT TIME ZONE 'Asia/Shanghai')::date,d.today-30),'card_max_date',d.today-1,
+ 'card_history',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY id DESC) FROM (SELECT * FROM achievement_card_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 20)l),'[]'::jsonb),
+ 'series',(SELECT jsonb_agg(to_jsonb(s)||jsonb_build_object('total',cardinality(s.members),'preview',EXISTS(SELECT 1 FROM achievement_catalog WHERE key=ANY(s.members) AND preview),'prior_amount',(SELECT COALESCE(sum(gross),0) FROM achievement_claims WHERE user_id=$1 AND key=ANY(s.members)),'claimable_amount',GREATEST(s.reward-(SELECT COALESCE(sum(gross),0) FROM achievement_claims WHERE user_id=$1 AND key=ANY(s.members)),0),'collected',(SELECT count(*) FROM unnest(s.members) AS m(key) JOIN achievement_catalog cat USING(key) WHERE NOT cat.preview AND achievement_is_unlocked($1,m.key)), 'unlocked',NOT EXISTS(SELECT 1 FROM unnest(s.members) AS m(key) LEFT JOIN achievement_catalog cat USING(key) WHERE cat.key IS NULL OR cat.preview OR NOT achievement_is_unlocked($1,m.key)),'claim',(SELECT to_jsonb(cl) FROM achievement_series_claims cl WHERE cl.user_id=$1 AND cl.key=s.key)) ORDER BY s.key) FROM achievement_series s),
  'cash_reason',achievement_checkin_cash_reason($1,c.payload),'milestone_cash_enabled',COALESCE((c.payload->>'milestone_cash_enabled')::boolean,false),
  'milestone_cash_reason',achievement_cash_reason($1,jsonb_set(c.payload,'{cash_enabled}',COALESCE(c.payload->'milestone_cash_enabled','false'))),
  'today',(SELECT to_jsonb(ch) FROM achievement_checkins ch WHERE user_id=$1 AND day=d.today),
  'total_days',(SELECT count(*) FROM achievement_checkins WHERE user_id=$1),
  'streak',COALESCE((SELECT streak FROM achievement_checkins WHERE user_id=$1 AND day>=d.today-1 ORDER BY day DESC LIMIT 1),0),
  'longest',achievement_progress($1,'S01'),
- 'calendar',COALESCE((SELECT jsonb_agg(day ORDER BY day) FROM achievement_checkins WHERE user_id=$1 AND day>=date_trunc('month',d.today)::date),'[]'::jsonb),
+ 'calendar',COALESCE((SELECT jsonb_agg(day ORDER BY day) FROM achievement_checkins WHERE user_id=$1 AND day>=LEAST(date_trunc('month',d.today)::date,d.today-30)),'[]'::jsonb),
  'history',COALESCE((SELECT jsonb_agg(to_jsonb(h) ORDER BY day DESC) FROM (SELECT * FROM achievement_checkins WHERE user_id=$1 ORDER BY day DESC LIMIT 10) h),'[]'::jsonb),
  'equipment',(SELECT eq.key FROM achievement_equipment eq WHERE eq.user_id=$1 AND achievement_is_unlocked($1,eq.key)),
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),
- 'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
+ 'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key),'card_claim',(SELECT to_jsonb(cc) FROM achievement_card_claims cc WHERE cc.user_id=$1 AND cc.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
  ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
 }
 
@@ -113,11 +125,23 @@ func (r *userRepository) AchievementMutation(ctx context.Context, id int64, acti
 		return r.achievementJSON(ctx, `SELECT achievement_checkin($1,$2,$3)`, id, date, idem)
 	case "claim":
 		return r.achievementJSON(ctx, `SELECT achievement_claim($1,$2)`, id, key)
+	case "claim_series":
+		return r.achievementJSON(ctx, `SELECT achievement_claim_series($1,$2)`, id, key)
 	case "equip":
 		return r.achievementJSON(ctx, `SELECT jsonb_build_object('saved',true) FROM achievement_equip($1,$2)`, id, key)
 	default:
 		return nil, fmt.Errorf("unknown achievement action")
 	}
+}
+func (r *userRepository) AchievementCardPreview(ctx context.Context, id int64, date string) (json.RawMessage, error) {
+	return r.achievementJSON(ctx, `SELECT achievement_card_preview($1,$2::date)`, id, date)
+}
+func (r *userRepository) UseAchievementCard(ctx context.Context, id int64, c service.AchievementCardCommand) (json.RawMessage, error) {
+	raw, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	return r.achievementJSON(ctx, `SELECT achievement_use_card($1,$2::jsonb)`, id, string(raw))
 }
 func (r *userRepository) AchievementConfig(ctx context.Context) (*service.AchievementConfig, error) {
 	raw, e := r.achievementJSON(ctx, `SELECT payload||jsonb_build_object('daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy)) FROM achievement_config WHERE id=true`)

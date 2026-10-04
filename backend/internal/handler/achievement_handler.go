@@ -117,6 +117,37 @@ func (h *UserHandler) GetAchievements(c *gin.Context) {
 	}
 	response.Success(c, v)
 }
+func (h *UserHandler) PreviewAchievementCard(c *gin.Context) {
+	s, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	v, e := h.userService.PreviewAchievementCard(c.Request.Context(), s.UserID, c.Query("date"))
+	if e != nil {
+		response.ErrorFrom(c, e)
+		return
+	}
+	response.Success(c, v)
+}
+func (h *UserHandler) UseAchievementCard(c *gin.Context) {
+	s, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var in service.AchievementCardCommand
+	if e := c.ShouldBindJSON(&in); e != nil {
+		response.BadRequest(c, "无效的补签参数")
+		return
+	}
+	v, e := h.userService.UseAchievementCard(c.Request.Context(), s.UserID, in)
+	if e != nil {
+		response.ErrorFrom(c, e)
+		return
+	}
+	response.Success(c, v)
+}
 func (h *UserHandler) ChangeAchievement(c *gin.Context) {
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {

@@ -232,6 +232,11 @@
                 :disabled="busy"
                 placeholder="请说明核验或更正原因"
             /></label>
+            <p class="ach-admin-note">
+              可用补签卡
+              {{ state.card_balance ?? 0 }}
+              张。活动勋章奖励补签卡，系列集齐后另领金额。
+            </p>
             <section class="ach-admin-section">
               <h2>补签并即时补发</h2>
               <div class="flex flex-wrap items-end gap-3">
@@ -360,14 +365,32 @@
                         >
                       </td>
                       <td>
-                        {{ money(m.reward)
+                        {{
+                          m.card_reward
+                            ? m.card_reward + ' 张补签卡'
+                            : money(m.reward)
                         }}<span class="ach-admin-note block">{{
-                          m.claim?.revoked_at
-                            ? '已追回'
-                            : m.claim
-                              ? '已领取'
+                          m.card_reward
+                            ? m.card_claim
+                              ? m.card_claim.reclaimed
+                                ? '已领取 · 有卡片追回'
+                                : '已领取'
                               : '未领取'
+                            : m.claim?.revoked_at
+                              ? '已追回'
+                              : m.claim
+                                ? '已领取'
+                                : '未领取'
                         }}</span>
+                        <span v-if="m.card_claim" class="ach-admin-note block"
+                          >已用 {{ m.card_claim.used }} · 已追回
+                          {{ m.card_claim.reclaimed }} · 可用
+                          {{
+                            m.card_claim.amount -
+                            m.card_claim.used -
+                            m.card_claim.reclaimed
+                          }}</span
+                        >
                       </td>
                       <td>
                         <div class="flex flex-wrap gap-2">
@@ -411,6 +434,57 @@
                 取消后立即停止佩戴及领取，直到授予或恢复自动判定。每枚金额终身只发一次，重新授予不重复发奖。操作原因及金额处理均记录审计。
               </p>
             </section>
+            <section v-if="state.series?.length" class="ach-admin-section">
+              <h2>系列收集与金额回执</h2>
+              <div class="ach-admin-table-wrap">
+                <table class="ach-admin-table">
+                  <thead>
+                    <tr>
+                      <th>系列 / 进度</th>
+                      <th>系列总额</th>
+                      <th>旧活动已领</th>
+                      <th>本次原额 / 净到账 / 抵扣</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in state.series" :key="s.key">
+                      <td>{{ s.name }} · {{ s.collected }}/{{ s.total }}</td>
+                      <td>{{ money(s.reward) }}</td>
+                      <td>
+                        {{
+                          money(s.claim?.prior_amount ?? s.prior_amount ?? 0)
+                        }}
+                      </td>
+                      <td>
+                        {{
+                          s.claim
+                            ? money(s.claim.gross) +
+                              ' / ' +
+                              money(s.claim.net) +
+                              ' / ' +
+                              money(s.claim.offset_amount)
+                            : '—'
+                        }}
+                      </td>
+                      <td>
+                        {{
+                          s.claim?.revoked_at
+                            ? '已追回，领取资格保留'
+                            : s.claim
+                              ? '已领取'
+                              : s.preview
+                                ? '后续篇章待开放'
+                                : s.unlocked
+                                  ? '已集齐，未领取'
+                                  : '未集齐'
+                        }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </template>
         </div>
         <div v-show="tab === 'audit'" role="tabpanel">
@@ -422,7 +496,7 @@
                   <th>操作人 / 账户</th>
                   <th>操作</th>
                   <th>徽章 / 日期</th>
-                  <th>原额 / 净到账</th>
+                  <th>金额 / 补签卡回执</th>
                   <th>原因</th>
                 </tr>
               </thead>
@@ -435,6 +509,26 @@
                   <td>
                     {{ money(r.response?.gross || 0) }} /
                     {{ money(r.response?.net || 0) }}
+                    <span
+                      v-if="r.response?.cards_awarded"
+                      class="ach-admin-note block"
+                      >发放 {{ r.response.cards_awarded }} 张补签卡</span
+                    >
+                    <span
+                      v-if="r.response?.cards_reclaimed"
+                      class="ach-admin-note block"
+                      >回收 {{ r.response.cards_reclaimed }} 张补签卡</span
+                    >
+                    <span
+                      v-if="
+                        r.response?.series_recovered ||
+                        r.response?.series_debt_added
+                      "
+                      class="ach-admin-note block"
+                      >系列扣回 {{ money(r.response.series_recovered || 0) }} ·
+                      待追回
+                      {{ money(r.response.series_debt_added || 0) }}</span
+                    >
                   </td>
                   <td class="ach-admin-reason">{{ r.reason }}</td>
                 </tr>
@@ -684,9 +778,13 @@ function requestMedal(action: 'grant' | 'revoke' | 'restore', m: Medal) {
       m.key +
       '）。' +
       (reward
-        ? '同时立即发放 ' + money(m.reward) + '；已发过则不重复发放。'
+        ? '同时立即发放 ' +
+          (m.card_reward ? m.card_reward + ' 张补签卡' : money(m.reward)) +
+          '；已发过则不重复发放。'
         : reclaim
-          ? '同时追回该枚已发奖励。'
+          ? m.card_reward
+            ? '追回该枚未使用补签卡及已领取的对应系列金额；已使用卡片及补签记录保留。'
+            : '同时追回该枚已发奖励。'
           : '变更徽章状态，保留已有领取记录。'),
     {
       key: m.key,
@@ -713,17 +811,24 @@ async function confirmAction() {
           ? '该日已签到，没有重复补发'
           : p.action === 'revoke' && p.body.reclaim_reward
             ? '取消已完成，扣回 ' +
-              money(result.recovered || 0) +
+              money((result.recovered || 0) + (result.series_recovered || 0)) +
               '，新增待追回 ' +
-              money(result.debt_added || 0)
+              money(
+                (result.debt_added || 0) + (result.series_debt_added || 0),
+              ) +
+              (result.cards_reclaimed
+                ? '，回收 ' + result.cards_reclaimed + ' 张补签卡'
+                : '')
             : actionNames[p.action] +
               '已完成' +
-              (result.gross
-                ? '，原额 ' +
-                  money(result.gross) +
-                  '，净到账 ' +
-                  money(result.net)
-                : ''),
+              (result.cards_awarded
+                ? '，发放 ' + result.cards_awarded + ' 张补签卡'
+                : result.gross
+                  ? '，原额 ' +
+                    money(result.gross) +
+                    '，净到账 ' +
+                    money(result.net)
+                  : ''),
     )
     state.value = await getAdminAchievements(p.id)
     preview.value = null

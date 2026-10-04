@@ -80,7 +80,7 @@ func (s *UserService) ChangeAchievement(ctx context.Context, id int64, action, k
 		return nil, e
 	}
 	result, e := r.AchievementMutation(ctx, id, action, key, date, idem)
-	if e == nil && (action == "checkin" || action == "claim") {
+	if e == nil && (action == "checkin" || action == "claim" || action == "claim_series") {
 		if s.authCacheInvalidator != nil {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
 		}
