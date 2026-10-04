@@ -461,6 +461,7 @@
                   查看任务 →
                 </button>
                 <button
+                  v-if="m.category !== 'activity' || m.unlocked"
                   class="text-button"
                   :data-testid="'claim-' + m.key"
                   :disabled="busy || !canClaim(m)"
@@ -488,6 +489,7 @@
                               : '奖励待开放'
                   }}</button
                 ><button
+                  v-if="m.unlocked"
                   class="equip-button"
                   :disabled="busy || !m.unlocked"
                   @click="act('equip', state.equipment === m.key ? '' : m.key)"
@@ -1726,7 +1728,7 @@ progress::-moz-progress-bar {
   --companion-soft: #f1eadb;
   --companion-border: #e3d9c4;
 }
-:global(.dark) .achievement-page {
+:global(.dark .achievement-page) {
   --companion-surface: #23231f;
   --companion-emphasis: #3b3323;
   --companion-soft: #2d2b23;
@@ -1999,6 +2001,19 @@ progress::-moz-progress-bar {
 }
 .sign-benefits {
   border: 1px solid var(--companion-border);
+}
+.medal-card footer {
+  flex-wrap: wrap;
+}
+.reward {
+  white-space: nowrap;
+  font-size: 18px;
+}
+.medal-card footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 @media (max-width: 850px) {
   .sign-layout {
