@@ -55,7 +55,9 @@
                 </button>
               </div>
               <div class="metric">
-                <strong>{{ state.card_balance ?? 0 }}</strong
+                <strong data-testid="card-balance">{{
+                  state.card_balance ?? 0
+                }}</strong
                 ><span>可用补签卡</span
                 ><button @click="goBackfill">去补签</button>
               </div>
@@ -293,29 +295,6 @@
               规则关闭时按普通会员权益计算，签到不增加充值成长。
             </p>
           </details>
-          <section class="card-panel" aria-label="补签卡">
-            <div>
-              <p class="eyebrow">补签卡</p>
-              <h3>补上遗漏，继续前行</h3>
-              <p>
-                可补最近 30 天的漏签，可跨月；按漏签日历史 VIP
-                权益补发金额，并重算连续签到。
-              </p>
-            </div>
-            <div class="card-panel-actions">
-              <strong data-testid="card-balance"
-                >{{ state.card_balance ?? 0 }} <small>张补签卡</small></strong
-              ><button
-                class="small-button"
-                :disabled="busy || !(state.card_balance ?? 0)"
-                @click="focusBackfillCalendar"
-              >
-                在日历选择日期</button
-              ><button class="text-link" @click="tab = 'activity'">
-                前往活动领取 <AchievementIcon name="arrow" />
-              </button>
-            </div>
-          </section>
           <details v-if="state.card_history?.length" class="history">
             <summary>补签卡获取与使用记录</summary>
             <div v-for="h in state.card_history" :key="h.id">
