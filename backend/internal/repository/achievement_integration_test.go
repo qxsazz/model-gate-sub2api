@@ -14,6 +14,33 @@ import (
 	"time"
 )
 
+func TestAchievementCheckinPaysActiveAccountWithoutRecentActivity(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var id int64
+	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	_, err = tx.ExecContext(ctx, `UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false}'::jsonb`)
+	require.NoError(t, err)
+	r := &userRepository{sql: tx}
+	raw, err := r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-account")
+	require.NoError(t, err)
+	var receipt map[string]any
+	require.NoError(t, json.Unmarshal(raw, &receipt))
+	require.Equal(t, "eligible", receipt["reason"])
+	require.Equal(t, .01, receipt["gross"])
+	require.Equal(t, .01, receipt["net"])
+	raw, err = r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-retry")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &receipt))
+	require.Equal(t, true, receipt["replayed"])
+	var balance float64
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, id).Scan(&balance))
+	require.Equal(t, .01, balance)
+}
+
 func TestAchievementCheckinAccountingAndLifetimeClaim(t *testing.T) {
 	_ = testEntClient(t)
 	ctx := context.Background()

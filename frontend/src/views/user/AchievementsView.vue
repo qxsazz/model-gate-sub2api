@@ -128,8 +128,12 @@
               <div class="daily-value">
                 ${{ money(state.daily_amount) }}<small>当日签到权益</small>
               </div>
-              <p class="muted">
-                {{ cashReason(state.today?.reason ?? state.cash_reason) }}
+              <p class="muted" data-testid="current-cash-status">
+                {{
+                  state.today && state.cash_reason === 'eligible'
+                    ? '当前签到金额奖励已开放。'
+                    : cashReason(state.cash_reason)
+                }}
               </p>
               <button
                 data-testid="checkin"
@@ -151,6 +155,13 @@
                 }}<span v-if="state.today.offset_amount">
                   · 抵扣 ${{ money(state.today.offset_amount) }}</span
                 >
+              </p>
+              <p
+                v-if="state.today"
+                class="small muted"
+                data-testid="checkin-receipt-reason"
+              >
+                {{ recordedCashReason(state.today.reason) }}
               </p>
               <div class="sign-stats">
                 <span
@@ -178,8 +189,8 @@
               >
             </div>
             <p class="small muted">
-              VIP 规则关闭时按普通会员权益计算。现金试点须由管理员开通，并满足近
-              30 日有效充值或余额计费使用；预算不足时仍记录签到。
+              VIP
+              规则关闭时按普通会员权益计算。签到金额奖励须由管理员开启，并处于开放范围内，无需近期充值或消费；启用金额上限且额度不足时仍记录签到。
             </p>
           </details>
         </section>
@@ -415,6 +426,17 @@ const cashReason = (reason: string) =>
     recent_activity_required:
       '近 30 日需有有效充值或余额计费使用，签到仍计入成长。',
     budget_exhausted: '本期奖励预算已用完，签到仍计入成长。',
+    account_unavailable: '当前账户不可领取签到金额奖励。',
+    admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
+  })[reason] ?? reason
+const recordedCashReason = (reason: string) =>
+  ({
+    eligible: '本次签到奖励已处理，到账金额以回执为准。',
+    cash_disabled: '本次签到时金额奖励尚未开启，因此未发放金额奖励。',
+    not_in_cash_pilot: '本次签到时账户不在奖励开放名单，因此未发放金额奖励。',
+    recent_activity_required:
+      '本次签到时未满足近 30 日有效充值或余额计费使用条件，因此未发放金额奖励。',
+    budget_exhausted: '本次签到时奖励额度不足，因此未发放金额奖励。',
     admin_backfill: '管理员已补签，奖励按核验的历史权益即时补发。',
   })[reason] ?? reason
 function canClaim(m: Medal) {

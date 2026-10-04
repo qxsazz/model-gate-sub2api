@@ -44,6 +44,29 @@ function render() {
   })
 }
 describe('achievement checkin', () => {
+  it('shows the current cash policy separately from an earlier zero-reward receipt', async () => {
+    mocks.get.mockResolvedValue({
+      ...state,
+      cash_reason: 'eligible',
+      today: {
+        day: state.date,
+        gross: 0,
+        net: 0,
+        offset_amount: 0,
+        reason: 'cash_disabled',
+        streak: 1,
+      },
+    })
+    const w = render()
+    await flushPromises()
+    expect(w.get('[data-testid="current-cash-status"]').text()).toContain(
+      '已开放',
+    )
+    expect(w.get('[data-testid="checkin-receipt-reason"]').text()).toContain(
+      '签到时金额奖励尚未开启',
+    )
+    expect(w.text()).not.toContain('当前现金奖励未开放')
+  })
   it('shows the administrator backfill source in readable Chinese', async () => {
     const receipt = {
       day: state.date,
@@ -122,7 +145,9 @@ describe('achievement checkin', () => {
     })
     const w = render()
     await flushPromises()
-    expect(w.text()).toContain('本期奖励预算已用完')
+    expect(w.get('[data-testid="checkin-receipt-reason"]').text()).toContain(
+      '本次签到时奖励额度不足',
+    )
     expect(
       w.get('[data-testid="checkin"]').attributes('disabled'),
     ).toBeDefined()

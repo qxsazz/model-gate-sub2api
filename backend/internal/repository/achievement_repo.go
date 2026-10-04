@@ -73,7 +73,7 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'date',d.today,'timezone','Asia/Shanghai','tier',achievement_tier($1),
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
- 'cash_reason',achievement_cash_reason($1,c.payload),'milestone_cash_enabled',COALESCE((c.payload->>'milestone_cash_enabled')::boolean,false),
+ 'cash_reason',achievement_checkin_cash_reason($1,c.payload),'milestone_cash_enabled',COALESCE((c.payload->>'milestone_cash_enabled')::boolean,false),
  'milestone_cash_reason',achievement_cash_reason($1,jsonb_set(c.payload,'{cash_enabled}',COALESCE(c.payload->'milestone_cash_enabled','false'))),
  'today',(SELECT to_jsonb(ch) FROM achievement_checkins ch WHERE user_id=$1 AND day=d.today),
  'total_days',(SELECT count(*) FROM achievement_checkins WHERE user_id=$1),
