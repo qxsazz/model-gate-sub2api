@@ -6,9 +6,10 @@ import (
 )
 
 type VIPRechargeQuote struct {
-	Multiplier float64
-	Level      int
-	Enabled    bool
+	Multiplier  float64
+	Level       int
+	Enabled     bool
+	GrowthRates map[string]float64
 }
 
 // Checkout and order creation use the same rule; order creation rechecks and
@@ -54,5 +55,6 @@ func (s *PaymentService) GetVIPRechargeQuote(ctx context.Context, userID int64, 
 	}
 	quote.Level = tier.Level
 	quote.Enabled = state.Rules.Enabled && state.Rules.RechargeBonusEnabled
+	quote.GrowthRates = state.Rules.ExchangeRates
 	return quote, err
 }

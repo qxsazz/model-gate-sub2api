@@ -64,6 +64,7 @@ export interface MethodLimitsResponse {
 export interface CheckoutInfoResponse {
   vip_recharge_bonus_enabled?: boolean
   vip_recharge_bonus_level?: number
+  vip_growth_rates?: Record<string, number>
   methods: Record<string, MethodLimit>
   global_min: number
   global_max: number
