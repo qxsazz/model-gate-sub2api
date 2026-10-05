@@ -313,6 +313,7 @@ func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*Ref
 				return nil, fmt.Errorf("deduction: %w", err)
 			}
 			p.BalanceToDeduct = deducted
+			s.invalidateRefundBalanceCaches(ctx, p.Order)
 		} else {
 			slog.Warn("skipping balance deduction on retry (previous rollback failed)", "orderID", p.OrderID)
 			p.BalanceToDeduct = 0
@@ -505,6 +506,7 @@ func (s *PaymentService) finalizePendingRefundSuccess(ctx context.Context, p *Re
 	if err = tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit refund finalization: %w", err)
 	}
+	s.invalidateRefundBalanceCaches(ctx, p.Order)
 	return result, nil
 }
 
@@ -615,6 +617,7 @@ func (s *PaymentService) markRefundOk(ctx context.Context, p *RefundPlan) (*Refu
 	if err != nil {
 		return nil, fmt.Errorf("mark refund: %w", err)
 	}
+	s.invalidateRefundBalanceCaches(ctx, p.Order)
 	s.writeAuditLog(ctx, p.OrderID, "REFUND_SUCCESS", "admin", map[string]any{"refundAmount": p.RefundAmount, "reason": p.Reason, "balanceDeducted": p.BalanceToDeduct, "force": p.Force})
 	return &RefundResult{Success: true, BalanceDeducted: p.BalanceToDeduct, SubDaysDeducted: p.SubDaysToDeduct}, nil
 }
@@ -700,6 +703,7 @@ func (s *PaymentService) RollbackRefund(ctx context.Context, p *RefundPlan, gErr
 			s.writeAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED", "admin", map[string]any{"gatewayError": psErrMsg(gErr), "rollbackError": psErrMsg(err), "balanceDeducted": p.BalanceToDeduct})
 			return false
 		}
+		s.invalidateRefundBalanceCaches(ctx, p.Order)
 	}
 	if p.DeductionType == payment.DeductionTypeSubscription && p.SubDaysToDeduct > 0 && p.SubscriptionID > 0 {
 		if _, err := s.subscriptionSvc.ExtendSubscription(ctx, p.SubscriptionID, p.SubDaysToDeduct); err != nil {
@@ -709,6 +713,25 @@ func (s *PaymentService) RollbackRefund(ctx context.Context, p *RefundPlan, gErr
 		}
 	}
 	return true
+}
+
+// Refund SQL can reclaim rewards in addition to the planned deduction. Clear
+// both caches after each committed balance change, using the same dependencies
+// already injected for payment fulfillment through RedeemService.
+func (s *PaymentService) invalidateRefundBalanceCaches(ctx context.Context, order *dbent.PaymentOrder) {
+	if order == nil || order.UserID <= 0 || order.OrderType != payment.OrderTypeBalance || s.redeemService == nil {
+		return
+	}
+	cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if invalidator := s.redeemService.authCacheInvalidator; invalidator != nil {
+		invalidator.InvalidateAuthCacheByUserID(cacheCtx, order.UserID)
+	}
+	if cache := s.redeemService.billingCacheService; cache != nil {
+		if err := cache.InvalidateUserBalance(cacheCtx, order.UserID); err != nil {
+			slog.Error("refund balance cache invalidation failed", "orderID", order.ID, "userID", order.UserID, "error", err)
+		}
+	}
 }
 
 func (s *PaymentService) restoreStatus(ctx context.Context, p *RefundPlan) {
