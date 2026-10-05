@@ -8,6 +8,8 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
 import type { CheckoutInfoResponse, MethodLimit, SubscriptionPlan } from '@/types/payment'
+const getVIPRequest = vi.hoisted(() => vi.fn().mockResolvedValue(null))
+vi.mock('@/api/vip', () => ({ getVIP: getVIPRequest }))
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -297,6 +299,22 @@ async function mountSubscriptionPlanList(planCount: number) {
 }
 
 describe('PaymentView luxury surface', () => {
+  it('starts VIP and checkout reads together and retains the new layout before VIP resolves', async () => {
+    let resolveCheckout!: (value: ReturnType<typeof checkoutInfoFixture>) => void
+    let resolveVIP!: (value: null) => void
+    getCheckoutInfo.mockReset().mockReturnValue(new Promise(done=>{resolveCheckout=done}))
+    getVIPRequest.mockClear().mockReturnValueOnce(new Promise(done=>{resolveVIP=done}))
+    const wrapper=shallowMount(PaymentView,{global:{stubs:{AppLayout:{template:'<div><slot /></div>'},Teleport:true,Transition:false}}})
+    expect(getCheckoutInfo).toHaveBeenCalled()
+    expect(getVIPRequest).toHaveBeenCalled()
+    expect(wrapper.get('.payment-page-inner').classes()).toContain('with-vip')
+    expect(wrapper.get('.payment-loading').attributes('aria-busy')).toBe('true')
+    resolveCheckout(checkoutInfoFixture());await flushPromises()
+    expect(wrapper.get('.recharge-workspace').classes()).toContain('vip-ready')
+    resolveVIP(null);await flushPromises()
+    expect(wrapper.get('.payment-page-inner').classes()).toContain('with-vip')
+    expect(wrapper.get('.recharge-workspace').classes()).toContain('vip-ready')
+  })
   it('marks the main payment page with the shared luxury theme container', async () => {
     const wrapper = await mountSubscriptionPlanList(0)
 

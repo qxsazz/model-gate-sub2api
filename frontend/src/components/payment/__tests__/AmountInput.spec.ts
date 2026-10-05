@@ -10,6 +10,14 @@ function mountInput(value: number | null = null) {
 }
 
 describe('recharge amount input', () => {
+  it('uses the selected payment currency without changing the principal', async () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: 200, currency: 'CNY' } })
+    expect(wrapper.text()).toContain('¥')
+    await wrapper.setProps({ currency: 'USD' })
+    expect(wrapper.text()).toContain('$')
+    expect((wrapper.get('input').element as HTMLInputElement).value).toBe('200')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
   it.each(['10abc', '10.555', '-10', '1e2'])('restores the accepted amount after rejecting %s', async (value) => {
     const wrapper = mountInput(10)
     const input = wrapper.get('input')

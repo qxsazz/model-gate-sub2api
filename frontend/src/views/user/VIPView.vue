@@ -171,6 +171,9 @@
               <p class="muted">累计有效充值，逐级开启更多权益</p>
             </div>
           </div>
+          <div class="tier-journey-mobile" aria-label="会员成长摘要">
+            <div v-for="item in journeys" :key="item.title"><h3>{{ item.title }}</h3><p>{{ item.mobile }}</p></div>
+          </div>
           <div class="tier-grid">
             <VIPMembershipCard
               class="tier-card"
@@ -179,9 +182,10 @@
               name="普通会员"
               threshold-label="注册即享 · 无充值门槛"
               :benefits="[
-                '普通分组维持原价',
+                '普通分组维持原价' + (bonusActive ? ' · 加赠 0%' : ''),
                 '原有并发额度 · 邀请返利 0%',
                 '累计充值成长记录',
+                `签到 $${money(signInPlan[0] ?? 0)} / 日`,
               ]"
               :current="state.tier.level === 0"
             />
@@ -198,6 +202,9 @@
               :benefits="tierBenefits(tier)"
               :current="state.tier.level === tier.level"
             />
+            <aside v-for="(item, index) in journeys" :key="item.title" class="tier-journey" :style="{ gridRow: index + 1 }">
+              <div class="journey-content"><span class="journey-node">{{ String(index + 1).padStart(2, '0') }}</span><h3>{{ item.title }}</h3><strong class="vip-number">{{ item.value }}</strong><small>{{ item.caption }}</small><p v-for="line in item.lines" :key="line">{{ line }}</p></div>
+            </aside>
           </div>
           <p class="fine-print">
             倍率为绝对值减免，部分分组维持原价。专属分组独立定价；人工授权与定价优先。请求仍受渠道自身容量与限额约束。
@@ -222,31 +229,31 @@
                     <th>等级</th>
                     <th>充值加赠</th>
                     <th>每日签到方案</th>
-                    <th>参考使用节省</th>
+                    <th>示例节省 · 0.4 倍率</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>普通会员</td>
-                    <td>{{ bonusActive ? '0%' : '按充值页现行规则' }}</td>
-                    <td>${{ money(signInPlan[0] ?? 0) }} · 以签到页为准</td>
+                    <td><span :class="{ 'vip-number': bonusActive }">{{ bonusActive ? '0%' : '按充值页现行规则' }}</span></td>
+                    <td><span class="vip-number">${{ money(signInPlan[0] ?? 0) }}</span> · 以签到页为准</td>
                     <td>对照基准</td>
                   </tr>
                   <tr v-for="tier in state.rules.tiers" :key="tier.level">
-                    <td>VIP {{ tier.level }} · {{ levelName(tier.level) }}</td>
-                    <td>{{ bonusActive ? bonus(tier) + '%' : '未启用' }}</td>
+                    <td><span class="vip-number">VIP {{ tier.level }}</span> · {{ levelName(tier.level) }}</td>
+                    <td><span :class="{ 'vip-number': bonusActive }">{{ bonusActive ? bonus(tier) + '%' : '未启用' }}</span></td>
                     <td>
-                      ${{ money(signInPlan[tier.level] ?? 0) }} · 以签到页为准
+                      <span class="vip-number">${{ money(signInPlan[tier.level] ?? 0) }}</span> · 以签到页为准
                     </td>
-                    <td>{{ referenceSaving(tier) }}</td>
+                    <td class="vip-number example-saving">{{ referenceSaving(tier) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p class="fine-print">
-              节省比例以 0.4
-              普通分组的自动规则、普通会员无加赠为参考；不含人工价、高峰因子、邀请返利、一次性累充奖励及签到奖励。实际以对应分组和下单时权益为准。
+              文档示例测算：基础倍率 0.4，普通会员无加赠；VIP 1–5 分别减免 0.015 / 0.03 / 0.045 / 0.06 / 0.075，加赠 1%–5%。计算方式：1 −（会员倍率 ÷ 0.4）÷（1 + 加赠比例）。不含人工价、高峰因子、邀请收入、一次性奖励或签到，不代表所有分组实际折扣；实际价格与签到资格以对应页面为准。
             </p>
+            <router-link to="/docs?cat=membership&amp;page=vip" class="text-link">查看会员权益文档</router-link>
           </section>
         </section>
         <section
@@ -465,23 +472,20 @@ const bonusActive = computed(
 )
 const bonus = (tier: VIPTier) => tier.recharge_bonus_percent ?? 0
 function referenceSaving(tier: VIPTier) {
-  if (!bonusActive.value) return '方案未启用'
-  const group = state.value?.groups.find(
-    (g) => !g.exclusive && g.base_rate === 0.4 && g.participating,
-  )
-  const rule = state.value?.rules.groups?.find((g) => g.group_id === group?.id)
-  if (!group || !rule) return '以实际分组为准'
-  const multiplier = Math.max(
-    Math.min(rule.floor, group.base_rate),
-    group.base_rate - Math.min(0.075, rule.discounts[tier.level - 1] ?? 0),
-  )
-  return (
-    Math.max(
-      0,
-      (1 - multiplier / group.base_rate / (1 + bonus(tier) / 100)) * 100,
-    ).toFixed(2) + '%'
-  )
+  // Documentation illustration, not the user's effective or manually overridden price.
+  const discount = [0, 0.015, 0.03, 0.045, 0.06, 0.075][tier.level]
+  if (discount === undefined) return '—'
+  return ((1 - (0.4 - discount) / 0.4 / (1 + tier.level / 100)) * 100).toFixed(2) + '%'
 }
+const journeys = computed(() => {
+  const top = state.value?.rules.tiers.at(-1)
+  const threshold = state.value?.rules.access_threshold ?? 100
+  return [
+    { title: '入会礼遇', value: '$' + money(threshold), caption: '累计有效充值起', lines: ['开启 VIP 专属分组资格', '每笔充值积累成长'], mobile: '$' + money(threshold) + ' 起 · 专属资格' },
+    { title: '成长回馈', value: '13.83%', caption: 'VIP 3 · 文档示例节省', lines: ['倍率减免与充值加赠', '共同提升使用价值'], mobile: '倍率减免 · 充值加赠' },
+    { title: '尊享权益', value: (top?.concurrency ?? 30) + ' 并发', caption: '最高档 · 并发目标', lines: ['邀请返利最高 ' + (top?.rebate_percent ?? 10) + '%', '签到余额按等级提升'], mobile: '并发 · 邀请 · 签到' },
+  ]
+})
 function discountText(level: number) {
   const cuts = membership.value?.discount_summaries[level] || []
   if (!cuts.length)
@@ -501,6 +505,7 @@ function tierBenefits(tier: VIPTier) {
       (bonusActive.value ? ` · 加赠 ${bonus(tier)}%` : ''),
     `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`,
     `本档奖励 $${money(rewardAmount)} · 签到 $${money(signInPlan.value[tier.level] ?? 0)} / 日`,
+    'VIP 专属分组资格 · 以开放规则为准',
   ]
 }
 const ownerThreshold = computed(() => {
@@ -518,11 +523,13 @@ const ownerBenefits = computed(() => {
   if (!s) return []
   const access = exclusiveAccess.value ? '专属分组' : '分组待解锁'
   const rewardText = `${access} · 签到 $${money(signInPlan.value[s.tier.level] ?? 0)} / 日`
+  const reward = membership.value?.rewards.find(item => item.level === s.tier.level)
   return [
     discountText(s.tier.level).replace('普通分组最高', '最高') +
       (bonusActive.value ? ` · 加赠 ${bonus(s.tier)}%` : ''),
     `${s.concurrency} 并发 · 邀请返利 ${s.rebate_percent}%`,
     rewardText,
+    reward ? `本档奖励 $${money(reward.amount)}` : '累计充值成长记录',
   ]
 })
 const statusLabel = (status: VIPReward['status']) =>
@@ -844,9 +851,18 @@ progress::-moz-progress-bar {
 }
 .tier-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, calc((100% - 24px) * 0.4)));
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 180px minmax(0, 1fr);
+  column-gap: 28px;
+  row-gap: 32px;
+  justify-content: space-between;
 }
+.tier-card.palette-0{grid-row:1;grid-column:1}.tier-card.palette-1{grid-row:1;grid-column:3}.tier-card.palette-2{grid-row:2;grid-column:1}.tier-card.palette-3{grid-row:2;grid-column:3}.tier-card.palette-4{grid-row:3;grid-column:1}.tier-card.palette-5{grid-row:3;grid-column:3}
+.vip-number{font-family:'DM Mono','SFMono-Regular',Consolas,monospace;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:'lnum' 1,'tnum' 1}
+.tier-journey{grid-column:2;position:relative;display:flex;align-items:center;justify-content:center;text-align:center;min-width:0}
+.tier-journey:before{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px solid var(--mg-line-warm,#d7c9a8)}
+.journey-content{position:relative;background:var(--mg-pearl-50,#faf9f6);padding:18px 4px;width:100%}
+.journey-node{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto 14px;border:1px solid var(--mg-gold-700,#aa8c47);border-radius:50%;font:12px 'DM Mono',Consolas,monospace;color:var(--mg-gold-700,#aa8c47)}
+.journey-content h3{font-size:16px;margin-bottom:12px}.journey-content strong{display:block;font-size:22px;font-weight:500;color:var(--mg-gold-700,#aa8c47);margin:12px 0}.journey-content small{font-size:11px;color:var(--mg-muted,#777b73)}.journey-content p{font-size:12px;line-height:1.7;margin-top:8px}.tier-journey-mobile{display:none}.example-saving{color:var(--mg-gold-700,#aa8c47)}
 .tier-card.current {
   outline: 1px solid #aa8c47;
   outline-offset: 3px;
@@ -1011,6 +1027,10 @@ td:last-child {
   .tier-grid {
     grid-template-columns: minmax(0, min(100%, 560px));
   }
+  .tier-card{grid-column:auto!important;grid-row:auto!important}
+  .tier-journey{display:none}
+  .tier-journey-mobile{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 0;margin-bottom:24px;border-block:1px solid var(--mg-line-warm,#e7e1d4)}
+  .tier-journey-mobile h3{font-size:13px;margin-bottom:6px}.tier-journey-mobile p{font-size:11px;line-height:1.6;color:var(--mg-muted,#777b73)}
 }
 @media (max-width: 1240px) {
   .reward-row {
