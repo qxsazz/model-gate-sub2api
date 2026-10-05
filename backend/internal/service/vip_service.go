@@ -33,6 +33,7 @@ type VIPLedgerEntry struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 type VIPSnapshot struct {
+	ManualGroups    []int64          `json:"-"`
 	User            *VIPUserSummary  `json:"user,omitempty"`
 	BaseConcurrency int              `json:"base_concurrency"`
 	BaseRPM         int              `json:"base_rpm"`

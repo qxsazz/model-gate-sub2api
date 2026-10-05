@@ -53,30 +53,81 @@ func (r *userRepository) VIPMode(ctx context.Context) (bool, error) {
 func (r *userRepository) VIPAuthSnapshot(ctx context.Context, id int64) (*service.VIPSnapshot, error) {
 	return r.vipSnapshot(ctx, id, true)
 }
-func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly bool) (*service.VIPSnapshot, error) {
-	rules, err := r.VIPRules(ctx)
+
+type vipSnapshotGroup struct {
+	service.VIPGroupView
+	ManualRate *float64 `json:"manual_rate"`
+}
+type vipSnapshotInput struct {
+	Rules          service.VIPRules        `json:"rules"`
+	User           *service.VIPUserSummary `json:"user"`
+	Concurrency    int                     `json:"concurrency"`
+	RPM            int                     `json:"rpm"`
+	Total          float64                 `json:"total"`
+	RestrictPublic bool                    `json:"restrict_public"`
+	Managed        bool                    `json:"managed"`
+	ManualGroups   []int64                 `json:"manual_groups"`
+	Overrides      []service.VIPOverride   `json:"overrides"`
+	Groups         []vipSnapshotGroup      `json:"groups"`
+}
+
+// Every entitlement input is read from one fresh statement snapshot. No enabled
+// grants are cached, so refunds, expiry and manual revocations remain immediate.
+func (r *userRepository) loadVIPSnapshot(ctx context.Context, id int64, authOnly bool) (*vipSnapshotInput, error) {
+	rows, err := r.sql.QueryContext(ctx, `SELECT jsonb_build_object(
+ 'rules',cfg.payload||jsonb_build_object('daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy)),
+ 'user',CASE WHEN u.id IS NOT NULL THEN jsonb_build_object('id',u.id,'email',u.email,'username',COALESCE(u.username,'')) END,
+ 'concurrency',u.concurrency,'rpm',u.rpm_limit,'restrict_public',u.restrict_public_groups,
+ 'total',GREATEST(COALESCE((SELECT sum(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),
+ 'managed',EXISTS(SELECT 1 FROM vip_user_level_history WHERE user_id=u.id),
+ 'manual_groups',COALESCE((SELECT jsonb_agg(group_id ORDER BY group_id) FROM user_allowed_groups WHERE user_id=u.id),'[]'::jsonb),
+ 'overrides',COALESCE((SELECT jsonb_agg(jsonb_build_object('benefit',benefit,'value',value,'expires_at',expires_at,'reason',reason)) FROM vip_overrides WHERE user_id=u.id AND (expires_at IS NULL OR expires_at>now())),'[]'::jsonb),
+ 'groups',CASE WHEN u.id IS NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(jsonb_build_object(
+ 'id',g.id,'name',g.name,'platform',g.platform,'exclusive',g.is_exclusive,'subscription',g.subscription_type,'base_rate',g.rate_multiplier,
+ 'granted',EXISTS(SELECT 1 FROM user_allowed_groups WHERE user_id=u.id AND group_id=g.id),'manual_rate',ur.rate_multiplier) ORDER BY g.sort_order,g.id)
+ FROM groups g LEFT JOIN user_group_rate_multipliers ur ON ur.group_id=g.id AND ur.user_id=u.id WHERE g.deleted_at IS NULL AND g.status='active'),'[]'::jsonb) END)
+ FROM vip_rules cfg LEFT JOIN users u ON u.id=$1 AND u.deleted_at IS NULL AND (NOT $2 OR COALESCE((cfg.payload->>'enabled')::boolean,false)) WHERE cfg.id=true`, id, authOnly)
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("VIP configuration missing")
+	}
+	var raw []byte
+	if err := rows.Scan(&raw); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	var input vipSnapshotInput
+	if err := json.Unmarshal(raw, &input); err != nil {
+		return nil, err
+	}
+	return &input, nil
+}
+
+func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly bool) (*service.VIPSnapshot, error) {
+	input, err := r.loadVIPSnapshot(ctx, id, authOnly)
+	if err != nil {
+		return nil, err
+	}
+	rules := input.Rules
 	result := &service.VIPSnapshot{Enabled: rules.Enabled, Rules: rules, Groups: []service.VIPGroupView{}, Ledger: []service.VIPLedgerEntry{}, Overrides: []service.VIPOverride{}}
 	if authOnly && !rules.Enabled {
 		return result, nil
 	}
-	var restrictPublic, unifiedManaged bool
-	result.User = &service.VIPUserSummary{}
-	rows, err := r.sql.QueryContext(ctx, `SELECT u.concurrency,u.rpm_limit,GREATEST(COALESCE((SELECT SUM(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),u.restrict_public_groups,u.id,u.email,COALESCE(u.username,''),EXISTS(SELECT 1 FROM vip_user_level_history WHERE user_id=u.id) FROM users u WHERE id=$1 AND deleted_at IS NULL`, id)
-	if err != nil {
-		return nil, err
-	}
-	if !rows.Next() {
-		_ = rows.Close()
+	if input.User == nil {
 		return nil, service.ErrUserNotFound
 	}
-	err = rows.Scan(&result.Concurrency, &result.RPM, &result.Total, &restrictPublic, &result.User.ID, &result.User.Email, &result.User.Username, &unifiedManaged)
-	_ = rows.Close()
-	if err != nil {
-		return nil, err
-	}
+	result.User = input.User
+	result.Concurrency, result.RPM, result.Total = input.Concurrency, input.RPM, input.Total
+	result.ManualGroups = input.ManualGroups
+	restrictPublic, unifiedManaged := input.RestrictPublic, input.Managed
 	growthRules := rules
 	growthRules.Enabled = true
 	result.GrowthTier = growthRules.Tier(result.Total)
@@ -90,27 +141,11 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 		}
 	}
 	overrides := map[string]float64{}
-	rows, err = r.sql.QueryContext(ctx, `SELECT benefit,value,expires_at,reason FROM vip_overrides WHERE user_id=$1 AND (expires_at IS NULL OR expires_at>now())`, id)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var o service.VIPOverride
-		if err = rows.Scan(&o.Benefit, &o.Value, &o.ExpiresAt, &o.Reason); err != nil {
-			break
-		}
+	for _, o := range input.Overrides {
 		result.Overrides = append(result.Overrides, o)
 		if rules.Enabled {
 			overrides[o.Benefit] = o.Value
 		}
-	}
-	rowErr := rows.Err()
-	_ = rows.Close()
-	if err != nil {
-		return nil, err
-	}
-	if rowErr != nil {
-		return nil, rowErr
 	}
 	tier, manualTier, err := rules.EffectiveTier(result.Total, result.Overrides, time.Now())
 	if err != nil {
@@ -162,19 +197,8 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 	for _, g := range rules.Groups {
 		byGroup[g.GroupID] = g
 	}
-	rows, err = r.sql.QueryContext(ctx, `SELECT g.id,g.name,g.platform,g.is_exclusive,g.subscription_type,g.rate_multiplier,
- EXISTS(SELECT 1 FROM user_allowed_groups WHERE user_id=$1 AND group_id=g.id),ur.rate_multiplier
- FROM groups g LEFT JOIN user_group_rate_multipliers ur ON ur.group_id=g.id AND ur.user_id=$1
- WHERE g.deleted_at IS NULL AND g.status='active' ORDER BY g.sort_order,g.id`, id)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var g service.VIPGroupView
-		var manual *float64
-		if err = rows.Scan(&g.ID, &g.Name, &g.Platform, &g.Exclusive, &g.Subscription, &g.BaseRate, &g.Granted, &manual); err != nil {
-			break
-		}
+	for _, entry := range input.Groups {
+		g, manual := entry.VIPGroupView, entry.ManualRate
 		rule, has := byGroup[g.ID]
 		autoAccess := rules.Enabled && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard" && benefitTotal >= rules.AccessThreshold
 		if v, ok := overrides["access"]; ok {
@@ -207,18 +231,10 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 		}
 		result.Groups = append(result.Groups, g)
 	}
-	rowErr = rows.Err()
-	_ = rows.Close()
-	if err != nil {
-		return nil, err
-	}
-	if rowErr != nil {
-		return nil, rowErr
-	}
 	if authOnly {
 		return result, nil
 	}
-	rows, err = r.sql.QueryContext(ctx, `SELECT id,source,amount,reason,created_at FROM vip_recharge_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 50`, id)
+	rows, err := r.sql.QueryContext(ctx, `SELECT id,source,amount,reason,created_at FROM vip_recharge_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 50`, id)
 	if err != nil {
 		return nil, err
 	}

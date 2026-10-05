@@ -111,7 +111,7 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'total_days',(SELECT count(*) FROM achievement_checkins WHERE user_id=$1),
  'streak',COALESCE((SELECT streak FROM achievement_checkins WHERE user_id=$1 AND day>=d.today-1 ORDER BY day DESC LIMIT 1),0),
  'longest',achievement_progress($1,'S01'),
- 'calendar',COALESCE((SELECT jsonb_agg(day ORDER BY day) FROM achievement_checkins WHERE user_id=$1 AND day>=LEAST(date_trunc('month',d.today)::date,d.today-30)),'[]'::jsonb),
+ 'calendar',COALESCE((SELECT jsonb_agg(day ORDER BY day) FROM achievement_checkins WHERE user_id=$1 AND day>=LEAST((date_trunc('month',d.today)-interval '1 month')::date,d.today-30)),'[]'::jsonb),
  'history',COALESCE((SELECT jsonb_agg(to_jsonb(h) ORDER BY day DESC) FROM (SELECT * FROM achievement_checkins WHERE user_id=$1 ORDER BY day DESC LIMIT 10) h),'[]'::jsonb),
  'equipment',(SELECT eq.key FROM achievement_equipment eq WHERE eq.user_id=$1 AND achievement_is_unlocked($1,eq.key)),
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),

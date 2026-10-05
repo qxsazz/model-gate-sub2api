@@ -554,6 +554,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { formatMoneyFixed } from '@/utils/format'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
@@ -644,7 +645,7 @@ const actionNames: Record<string, string> = {
   revoke: '取消成就',
   restore: '恢复自动判定',
 }
-const money = (v: number) => '$' + Number(v || 0).toFixed(2)
+const money = (v: number) => formatMoneyFixed(v, '$')
 const err = (e: unknown) => {
   const v = e as {
     message?: string

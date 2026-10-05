@@ -81,16 +81,19 @@ func (s *APIKeyService) applyVIP(ctx context.Context, key *APIKey) error {
 		return nil
 	}
 	copy := *key.User
-	copy.AllowedGroups = append([]int64{}, copy.AllowedGroups...)
-	// Reload manual grants as well so revoked cache entries cannot retain access.
-	current, err := s.userRepo.GetByID(ctx, key.UserID)
-	if err != nil {
-		return ErrVIPUnavailable.WithCause(err)
+	manualGroups := state.ManualGroups
+	if manualGroups == nil {
+		// Repositories without fresh grant inputs retain the original reload path.
+		current, err := s.userRepo.GetByID(ctx, key.UserID)
+		if err != nil {
+			return ErrVIPUnavailable.WithCause(err)
+		}
+		if current == nil {
+			return ErrVIPUnavailable
+		}
+		manualGroups = current.AllowedGroups
 	}
-	if current == nil {
-		return ErrVIPUnavailable
-	}
-	copy.AllowedGroups = append([]int64{}, current.AllowedGroups...)
+	copy.AllowedGroups = append([]int64{}, manualGroups...)
 	copy.Concurrency = state.Concurrency
 	copy.RPMLimit = state.RPM
 	for _, g := range state.Groups {
