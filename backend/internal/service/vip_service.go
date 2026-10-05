@@ -33,18 +33,29 @@ type VIPLedgerEntry struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 type VIPSnapshot struct {
-	Enabled       bool             `json:"enabled"`
-	Total         float64          `json:"total"`
-	Tier          VIPTier          `json:"tier"`
-	BadgeLevel    int              `json:"badge_level"`
-	Concurrency   int              `json:"concurrency"`
-	RPM           int              `json:"rpm"`
-	RebatePercent float64          `json:"rebate_percent"`
-	Next          *VIPTier         `json:"next"`
-	Rules         VIPRules         `json:"rules"`
-	Groups        []VIPGroupView   `json:"groups"`
-	Ledger        []VIPLedgerEntry `json:"ledger"`
-	Overrides     []VIPOverride    `json:"overrides"`
+	User            *VIPUserSummary  `json:"user,omitempty"`
+	BaseConcurrency int              `json:"base_concurrency"`
+	BaseRPM         int              `json:"base_rpm"`
+	GrowthTier      VIPTier          `json:"growth_tier"`
+	TierSource      string           `json:"tier_source"`
+	LevelOverride   *VIPOverride     `json:"level_override"`
+	Enabled         bool             `json:"enabled"`
+	Total           float64          `json:"total"`
+	Tier            VIPTier          `json:"tier"`
+	BadgeLevel      int              `json:"badge_level"`
+	Concurrency     int              `json:"concurrency"`
+	RPM             int              `json:"rpm"`
+	RebatePercent   float64          `json:"rebate_percent"`
+	Next            *VIPTier         `json:"next"`
+	Rules           VIPRules         `json:"rules"`
+	Groups          []VIPGroupView   `json:"groups"`
+	Ledger          []VIPLedgerEntry `json:"ledger"`
+	Overrides       []VIPOverride    `json:"overrides"`
+}
+type VIPUserSummary struct {
+	ID       int64  `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
 }
 type VIPRepository interface {
 	VIPSnapshot(context.Context, int64) (*VIPSnapshot, error)
@@ -130,6 +141,9 @@ func (s *UserService) SetVIPOverride(ctx context.Context, actor, id int64, o VIP
 	return r.VIPSetOverride(ctx, actor, id, o)
 }
 func (s *UserService) ClearVIPOverride(ctx context.Context, actor, id int64, benefit string) error {
+	if benefit == "tier" {
+		return s.RestoreVIPLevel(ctx, actor, id, "兼容入口恢复自动等级")
+	}
 	r, e := s.vipRepository()
 	if e != nil {
 		return e

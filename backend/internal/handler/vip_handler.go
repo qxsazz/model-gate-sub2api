@@ -7,6 +7,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"strconv"
+	"time"
 )
 
 func (h *UserHandler) GetVIPMembership(c *gin.Context) {
@@ -80,6 +81,9 @@ func (h *UserHandler) GetVIP(c *gin.Context) {
 	if c.Param("id") == "" {
 		data.Rules.Groups = nil
 		data.Rules.ExchangeRates = nil
+		if data.LevelOverride != nil {
+			data.LevelOverride.Reason = ""
+		}
 		for i := range data.Overrides {
 			data.Overrides[i].Reason = ""
 		}
@@ -88,6 +92,56 @@ func (h *UserHandler) GetVIP(c *gin.Context) {
 		}
 	}
 	response.Success(c, data)
+}
+func (h *UserHandler) SetVIPLevel(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthenticated")
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	var body struct {
+		Level     *int       `json:"level"`
+		ExpiresAt *time.Time `json:"expires_at"`
+		Reason    string     `json:"reason"`
+	}
+	if err = c.ShouldBindJSON(&body); err != nil || body.Level == nil {
+		response.BadRequest(c, "请选择VIP等级")
+		return
+	}
+	if err = h.userService.SetVIPLevel(c.Request.Context(), subject.UserID, id, service.VIPLevelCommand{Level: *body.Level, ExpiresAt: body.ExpiresAt, Reason: body.Reason}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"saved": true})
+}
+func (h *UserHandler) RestoreVIPLevel(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Unauthenticated")
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err = c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "请填写恢复原因")
+		return
+	}
+	if err = h.userService.RestoreVIPLevel(c.Request.Context(), subject.UserID, id, body.Reason); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"saved": true})
 }
 func (h *UserHandler) GetVIPConfig(c *gin.Context) {
 	data, err := h.userService.VIPConfig(c.Request.Context())

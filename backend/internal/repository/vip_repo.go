@@ -3,13 +3,16 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
+	"time"
 )
 
 func (r *userRepository) VIPRules(ctx context.Context) (service.VIPRules, error) {
-	rows, err := r.sql.QueryContext(ctx, "SELECT payload FROM vip_rules WHERE id=true")
+	rows, err := r.sql.QueryContext(ctx, `SELECT payload||jsonb_build_object('daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy)) FROM vip_rules WHERE id=true`)
 	if err != nil {
 		return service.VIPRules{}, err
 	}
@@ -59,8 +62,9 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 	if authOnly && !rules.Enabled {
 		return result, nil
 	}
-	var restrictPublic bool
-	rows, err := r.sql.QueryContext(ctx, `SELECT u.concurrency,u.rpm_limit,GREATEST(COALESCE((SELECT SUM(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),u.restrict_public_groups FROM users u WHERE id=$1 AND deleted_at IS NULL`, id)
+	var restrictPublic, unifiedManaged bool
+	result.User = &service.VIPUserSummary{}
+	rows, err := r.sql.QueryContext(ctx, `SELECT u.concurrency,u.rpm_limit,GREATEST(COALESCE((SELECT SUM(amount) FROM vip_recharge_ledger WHERE user_id=u.id),0),0),u.restrict_public_groups,u.id,u.email,COALESCE(u.username,''),EXISTS(SELECT 1 FROM vip_user_level_history WHERE user_id=u.id) FROM users u WHERE id=$1 AND deleted_at IS NULL`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -68,21 +72,16 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 		_ = rows.Close()
 		return nil, service.ErrUserNotFound
 	}
-	err = rows.Scan(&result.Concurrency, &result.RPM, &result.Total, &restrictPublic)
+	err = rows.Scan(&result.Concurrency, &result.RPM, &result.Total, &restrictPublic, &result.User.ID, &result.User.Email, &result.User.Username, &unifiedManaged)
 	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}
-	result.Tier = rules.Tier(result.Total)
-	result.BadgeLevel = result.Tier.Level
-	result.RebatePercent = result.Tier.RebatePercent
-	if result.Tier.Concurrency > result.Concurrency {
-		result.Concurrency = result.Tier.Concurrency
-	}
-	// Preserve existing unlimited defaults; VIP must not introduce a new restriction.
-	if result.RPM > 0 && result.Tier.RPM > result.RPM {
-		result.RPM = result.Tier.RPM
-	}
+	growthRules := rules
+	growthRules.Enabled = true
+	result.GrowthTier = growthRules.Tier(result.Total)
+	result.BaseConcurrency = result.Concurrency
+	result.BaseRPM = result.RPM
 	for _, t := range rules.Tiers {
 		if t.Threshold > result.Total {
 			copy := t
@@ -112,6 +111,40 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 	}
 	if rowErr != nil {
 		return nil, rowErr
+	}
+	tier, manualTier, err := rules.EffectiveTier(result.Total, result.Overrides, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	result.Tier = tier
+	result.TierSource = "growth"
+	if !rules.Enabled {
+		result.TierSource = "disabled"
+	} else if manualTier {
+		result.TierSource = "manual"
+	}
+	for _, o := range result.Overrides {
+		if o.Benefit == "tier" {
+			copy := o
+			result.LevelOverride = &copy
+			break
+		}
+	}
+	benefitTotal := result.Total
+	if unifiedManaged {
+		overrides = map[string]float64{}
+	}
+	if manualTier {
+		overrides = map[string]float64{}
+		benefitTotal = tier.Threshold
+	}
+	result.BadgeLevel = tier.Level
+	result.RebatePercent = tier.RebatePercent
+	if tier.Concurrency > result.Concurrency {
+		result.Concurrency = tier.Concurrency
+	}
+	if result.RPM > 0 && tier.RPM > result.RPM {
+		result.RPM = tier.RPM
 	}
 	if v, ok := overrides["badge"]; ok {
 		result.BadgeLevel = int(v)
@@ -143,7 +176,7 @@ func (r *userRepository) vipSnapshot(ctx context.Context, id int64, authOnly boo
 			break
 		}
 		rule, has := byGroup[g.ID]
-		autoAccess := rules.Enabled && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard" && result.Total >= rules.AccessThreshold
+		autoAccess := rules.Enabled && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard" && benefitTotal >= rules.AccessThreshold
 		if v, ok := overrides["access"]; ok {
 			autoAccess = v == 1 && has && rule.Access && !rule.Private && g.Exclusive && g.Subscription == "standard"
 		}
@@ -260,17 +293,25 @@ func (r *userRepository) VIPSaveRules(ctx context.Context, actor int64, rules se
 	if err != nil {
 		return err
 	}
-	_, err = r.sql.ExecContext(ctx, `WITH updated AS (
- UPDATE vip_rules SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=true RETURNING id)
- INSERT INTO vip_audit(actor_id,action,detail) SELECT $2,'rules',$1::jsonb FROM updated`, string(raw), actor)
+	var daily any
+	if len(rules.DailyRewards) > 0 {
+		encoded, e := json.Marshal(rules.DailyRewards)
+		if e != nil {
+			return e
+		}
+		daily = string(encoded)
+	}
+	_, err = r.sql.ExecContext(ctx, `SELECT vip_save_rules_with_daily($1,$2::jsonb,$3::jsonb)`, actor, string(raw), daily)
 	return err
 }
 func (r *userRepository) VIPSetOverride(ctx context.Context, actor, id int64, o service.VIPOverride) error {
 	raw, _ := json.Marshal(o)
-	_, err := r.sql.ExecContext(ctx, `WITH changed AS (
- INSERT INTO vip_overrides(user_id,benefit,value,expires_at,reason,actor_id) VALUES($1,$2,$3,$4,$5,$6)
- ON CONFLICT(user_id,benefit) DO UPDATE SET value=excluded.value,expires_at=excluded.expires_at,reason=excluded.reason,actor_id=excluded.actor_id,updated_at=now() RETURNING user_id)
- INSERT INTO vip_audit(actor_id,user_id,action,detail) SELECT $6,user_id,'override',$7::jsonb FROM changed`, id, o.Benefit, o.Value, o.ExpiresAt, o.Reason, actor, string(raw))
+	_, err := r.sql.ExecContext(ctx, `SELECT vip_set_legacy_override($1,$2,$3,$4,$5,$6,$7::jsonb)`, id, o.Benefit, o.Value, o.ExpiresAt, o.Reason, actor, string(raw))
+	var db *pq.Error
+	if errors.As(err, &db) && db.Message == "VIP_LEVEL_MANAGED" {
+		return infraerrors.BadRequest(db.Message, "该用户已使用统一VIP等级，请通过等级设置更新整套权益")
+	}
+
 	return err
 }
 func (r *userRepository) VIPClearOverride(ctx context.Context, actor, id int64, benefit string) error {

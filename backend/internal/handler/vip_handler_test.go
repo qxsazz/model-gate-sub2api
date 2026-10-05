@@ -49,3 +49,19 @@ func TestVIPAdminResponseRetainsConfigurationForReview(t *testing.T) {
 		t.Fatal(recorder.Body.String())
 	}
 }
+func TestVIPLevelHandlerRejectsMissingOrFractionalGrade(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := &UserHandler{userService: service.NewUserService(&vipPrivacyRepository{}, nil, nil, nil)}
+	for _, body := range []string{`{"reason":"管理员调整"}`, `{"level":1.5,"reason":"管理员调整"}`, `{"level":6,"reason":"管理员调整"}`} {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/vip/users/7/level", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{{Key: "id", Value: "7"}}
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
+		handler.SetVIPLevel(c)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatal(body, recorder.Code, recorder.Body.String())
+		}
+	}
+}
