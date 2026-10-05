@@ -403,6 +403,7 @@
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { formatMoneyFixed as money } from '@/utils/format'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
@@ -435,7 +436,6 @@ const tabs = [
 ]
 const levelName = (level: number) =>
   ['普通会员', '青铜', '白银', '黄金', '铂金', '黑钻'][level] || '会员'
-const money = (value: number) => value.toFixed(2)
 const rate = (value: number) =>
   value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 const exclusiveAccess = computed(

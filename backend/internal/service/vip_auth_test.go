@@ -14,6 +14,7 @@ type vipAuthTestRepository struct {
 	err      error
 	calls    int
 	rulesErr error
+	getCalls int
 }
 
 func (r *vipAuthTestRepository) VIPRules(context.Context) (VIPRules, error) {
@@ -75,8 +76,33 @@ func TestVIPDisabledCacheIsBoundedAndInvalidatedOnConfigChange(t *testing.T) {
 	}
 }
 func (r *vipAuthTestRepository) GetByID(context.Context, int64) (*User, error) {
+	r.getCalls++
 	copy := *r.original
 	return &copy, nil
+}
+
+func TestVIPAuthUsesFreshSnapshotGrantsWithoutReload(t *testing.T) {
+	base := &User{ID: 1, Concurrency: 5, AllowedGroups: []int64{21}}
+	repo := &vipAuthTestRepository{original: base, state: &VIPSnapshot{Enabled: true, Concurrency: 8, ManualGroups: []int64{}, Groups: []VIPGroupView{{ID: 32, Exclusive: true, Granted: true}}}}
+	svc := &APIKeyService{userRepo: repo}
+	key := &APIKey{UserID: 1, User: base}
+	if err := svc.applyVIP(context.Background(), key); err != nil {
+		t.Fatal(err)
+	}
+	if repo.getCalls != 0 || key.User.CanBindGroup(21, true) || !key.User.CanBindGroup(32, true) {
+		t.Fatal("fresh grants were not used directly")
+	}
+	if !base.CanBindGroup(21, true) {
+		t.Fatal("shared cache was mutated")
+	}
+	repo.state.ManualGroups = []int64{21}
+	repo.state.Groups = nil
+	if err := svc.applyVIP(context.Background(), key); err != nil {
+		t.Fatal(err)
+	}
+	if repo.getCalls != 0 || !key.User.CanBindGroup(21, true) || key.User.CanBindGroup(32, true) {
+		t.Fatal("refund or manual grant change retained stale rights")
+	}
 }
 func TestVIPAuthPreservesManualGrantsAndDoesNotMutateCache(t *testing.T) {
 	base := &User{ID: 1, Concurrency: 5, AllowedGroups: []int64{21}}

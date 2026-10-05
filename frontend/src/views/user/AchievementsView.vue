@@ -762,6 +762,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { formatMoneyFixed as money } from '@/utils/format'
 import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
 import '@/components/achievements/achievement-ui.css'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -960,7 +961,6 @@ function changeMonth(offset: number) {
   if (next >= minimumMonth.value && next <= maximumMonth.value)
     calendarMonth.value = next
 }
-const money = (v: number) => Number(v || 0).toFixed(2)
 const formatProgress = (v: number) =>
   v >= 1e8
     ? (v / 1e8).toLocaleString('zh-CN') + ' 亿'

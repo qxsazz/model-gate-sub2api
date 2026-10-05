@@ -413,7 +413,7 @@
                     userState.growth_tier?.level ?? userState.tier.level,
                   )
                 }}</strong
-                ><small>累计有效充值 ${{ userState.total.toFixed(2) }}</small>
+                ><small>累计有效充值 ${{ money(userState.total) }}</small>
               </div>
               <div>
                 <span>指定等级有效期</span
@@ -518,11 +518,11 @@
                   <span>每日签到权益</span
                   ><strong
                     >${{
-                      (
+                      money(
                         userState.rules?.daily_rewards?.[selectedLevel] ??
                         rules.daily_rewards?.[selectedLevel] ??
                         0
-                      ).toFixed(2)
+                      )
                     }}</strong
                   >
                 </div>
@@ -545,13 +545,13 @@
                   >每日签到
                   <strong
                     >${{
-                      (
+                      money(
                         userState.rules?.daily_rewards?.[
                           userState.tier.level
                         ] ??
                         rules.daily_rewards?.[userState.tier.level] ??
                         0
-                      ).toFixed(2)
+                      )
                     }}</strong
                   ></span
                 >
@@ -630,6 +630,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
+import { formatMoneyFixed as money } from '@/utils/format'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
@@ -909,7 +910,7 @@ function requestOpening() {
     reason = openingReason.value
   confirmation.value = {
     title: '确认历史充值初始额',
-    message: `为用户 ID ${id} 记录 $${Number(amount).toFixed(2)} 的一次性初始额，不改变余额。请确认已核对历史流水、不会重复计入充值。`,
+    message: `为用户 ID ${id} 记录 $${money(Number(amount))} 的一次性初始额，不改变余额。请确认已核对历史流水、不会重复计入充值。`,
     execute: async () => {
       await action(async () => {
         await createVIPOpening(id, amount, reason)
