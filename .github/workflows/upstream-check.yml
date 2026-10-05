@@ -6,71 +6,31 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: staging
-          fetch-depth: 0
-
-      - name: Check the latest upstream release
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Check report safety
+        run: python -m unittest discover -s tools -p test_upstream_release_report.py
+      - name: Read the latest upstream release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-
-          upstream_repo='https://github.com/Wei-Shaw/sub2api.git'
-          upstream_web='https://github.com/Wei-Shaw/sub2api'
-          upstream_tag="$(gh api repos/Wei-Shaw/sub2api/releases/latest --jq '.tag_name')"
-          case "$upstream_tag" in
-            v[0-9]*.[0-9]*.[0-9]*) ;;
-            *)
-              echo "Latest upstream release is not a semantic version tag: $upstream_tag" >&2
-              exit 1
-              ;;
-          esac
-
-          git remote add upstream "$upstream_repo" 2>/dev/null || git remote set-url upstream "$upstream_repo"
-          git fetch --no-tags upstream "refs/tags/$upstream_tag"
-          upstream_commit="$(git rev-parse FETCH_HEAD^{commit})"
-          git fetch origin staging --quiet
-
-          branch="upgrade/upstream-${upstream_tag#v}"
-          if git merge-base --is-ancestor "$upstream_commit" origin/staging; then
-            echo "staging already contains upstream $upstream_tag ($upstream_commit)"
-            exit 0
-          fi
-
-          open_prs="$(gh pr list --base staging --head "$branch" --state open --json number --jq 'length')"
-          if [ "$open_prs" -gt 0 ]; then
-            echo "An open pull request already exists for $branch"
-            exit 0
-          fi
-
-          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null 2>&1; then
-            echo "Remote branch $branch already exists without an open pull request" >&2
-            exit 1
-          fi
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -b "$branch" origin/staging
-
-          if ! git merge --no-ff --no-edit "$upstream_commit"; then
-            git merge --abort || true
-            echo "Unable to merge upstream $upstream_tag automatically; resolve it manually on $branch" >&2
-            exit 1
-          fi
-
-          git push origin "$branch"
-          gh pr create \
-            --base staging \
-            --head "$branch" \
-            --title "upgrade: sync upstream $upstream_tag" \
-            --body "Automated upstream release check.\n\nSource: $upstream_web/releases/tag/$upstream_tag\nCommit: $upstream_commit\n\nThis pull request targets staging for CI and manual verification. It does not deploy directly to production."
+          gh api repos/Wei-Shaw/sub2api/releases/latest > "$RUNNER_TEMP/upstream-release.json"
+          gh api "repos/$GITHUB_REPOSITORY/contents/backend/cmd/server/VERSION?ref=main" --jq '.content' \
+            | base64 --decode > "$RUNNER_TEMP/main-version.txt"
+          python tools/upstream_release_report.py \
+            --release "$RUNNER_TEMP/upstream-release.json" \
+            --version "$RUNNER_TEMP/main-version.txt" \
+            --summary "$GITHUB_STEP_SUMMARY"
