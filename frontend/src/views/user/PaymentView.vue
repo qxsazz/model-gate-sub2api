@@ -1,9 +1,9 @@
 <template>
   <AppLayout>
     <div data-testid="payment-luxury-page" class="payment-luxury-page">
-      <div class="payment-page-inner mx-auto max-w-4xl space-y-6" :class="{ 'with-vip': vipReady }">
-      <div v-if="loading" class="flex items-center justify-center py-20">
-        <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+      <div class="payment-page-inner with-vip mx-auto max-w-4xl space-y-6">
+      <div v-if="loading" class="payment-loading" aria-busy="true" aria-label="正在加载充值信息">
+        <div class="loading-account" /><div class="loading-workspace"><div class="loading-control" /><div class="loading-control" /></div><div class="loading-levels"><span v-for="n in 6" :key="n" /></div>
       </div>
       <template v-else>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
@@ -46,7 +46,7 @@
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
               <p class="payment-balance-text mt-0.5 text-sm font-medium">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
-            <div class="recharge-workspace" :class="{ 'vip-ready': vipReady }">
+            <div class="recharge-workspace vip-ready">
             <div class="recharge-controls space-y-6">
             <div v-if="enabledMethods.length === 0" class="card payment-empty-state py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -106,7 +106,7 @@
             </button>
             </template>
             </div>
-            <RechargeVIPBenefits :amount="validAmount" :currency="selectedCurrency" :growth-rates="checkout.vip_growth_rates" :current-level="checkout.vip_recharge_bonus_level ?? 0" :current-multiplier="balanceRechargeMultiplier" :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" @ready="vipReady = $event" />
+            <RechargeVIPBenefits :amount="validAmount" :currency="selectedCurrency" :growth-rates="checkout.vip_growth_rates" :current-level="checkout.vip_recharge_bonus_level ?? 0" :current-multiplier="balanceRechargeMultiplier" :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" />
             </div>
           </template>
           <!-- Subscribe Tab -->
@@ -273,9 +273,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, shallowRef, computed, onMounted, watch } from 'vue'
 import RechargeVIPBenefits from '@/components/payment/RechargeVIPBenefits.vue'
-const vipReady = ref(false)
+import { getVIP, type VIPSnapshot } from '@/api/vip'
+const vipInitialRequest = shallowRef<Promise<VIPSnapshot|null>>()
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -1137,6 +1138,7 @@ async function resumeWechatPaymentFromQuery() {
 }
 
 onMounted(async () => {
+  vipInitialRequest.value = getVIP().catch(() => null)
   try {
     const res = await paymentAPI.getCheckoutInfo()
     checkout.value = res.data
@@ -1217,6 +1219,7 @@ onMounted(async () => {
   position: relative;
 }
 .payment-page-inner.with-vip{max-width:1140px}
+.payment-loading{padding-top:8px}.loading-account{height:110px;background:var(--payment-line);opacity:.4;border-radius:5px}.loading-workspace{display:grid;grid-template-columns:1.12fr 1fr;gap:36px;margin-top:28px}.loading-control{height:540px;border-radius:5px;background:var(--payment-line);opacity:.35}.loading-levels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:28px}.loading-levels span{display:block;height:148px;background:var(--payment-line);opacity:.35;border-radius:5px}
 .recharge-workspace.vip-ready{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:28px 36px}
 .vip-ready .recharge-controls{grid-row:2;grid-column:1;min-width:0;padding-right:30px;border-right:1px solid var(--payment-line)}
 .vip-ready .recharge-controls .payment-panel{border:0!important;border-radius:0;box-shadow:none!important;background:transparent!important;padding:0}
@@ -1224,7 +1227,7 @@ onMounted(async () => {
 .with-vip .payment-account-card p.text-gray-900{color:var(--payment-ink-soft)!important}
 .with-vip .payment-account-card::after{display:none}
 .vip-ready :deep(button[class*='bg-primary-50']){background:var(--payment-champagne)!important;border-color:var(--payment-gold)!important;color:var(--payment-gold)!important}
-@media(max-width:1000px){.recharge-workspace.vip-ready{display:flex;flex-direction:column}.vip-ready .recharge-controls{padding-right:0;border-right:0}}
+@media(max-width:1000px){.recharge-workspace.vip-ready{display:flex;flex-direction:column}.vip-ready .recharge-controls{padding-right:0;border-right:0;order:1}.loading-workspace{grid-template-columns:1fr}.loading-levels{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 .payment-luxury-page :deep(.card) {
   border: 1px solid var(--payment-line);

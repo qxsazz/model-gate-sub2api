@@ -7,7 +7,33 @@ const tiers = [100,300,600,1500,3000].map((threshold,index) => ({ level:index+1,
 const snapshot = () => ({ enabled:true,total:400,tier:tiers[1],growth_tier:tiers[1],tier_source:'growth',rules:{enabled:true,recharge_bonus_enabled:true,access_threshold:100,tiers,daily_rewards:[.01,.05,.1,.25,.5,1]},next:tiers[2] })
 const render = (extra = {}) => mount(RechargeVIPBenefits, { props:{amount:200,currency:'CNY',growthRates:{CNY:1},currentLevel:2,currentMultiplier:1.02,bonusEnabled:true,...extra},global:{stubs:{RouterLink:{template:'<a><slot /></a>'}}} })
 describe('recharge VIP benefits', () => {
- beforeEach(() => { api.getVIP.mockResolvedValue(snapshot());api.getVIPMembership.mockResolvedValue({discount_summaries:{3:[.045]}}) })
+ beforeEach(() => { api.getVIP.mockReset().mockResolvedValue(snapshot());api.getVIPMembership.mockReset().mockResolvedValue({discount_summaries:{3:[.045]}}) })
+ it('uses the parallel parent request instead of fetching the VIP snapshot twice',async()=>{
+  const wrapper=render({initialRequest:Promise.resolve(snapshot())});await flushPromises()
+  expect(api.getVIP).not.toHaveBeenCalled()
+  expect(wrapper.get('[data-projected-tier]').text()).toContain('VIP 3')
+ })
+ it('reserves the current, projection and comparison regions while VIP data is pending',async()=>{
+  let resolve!: (value: ReturnType<typeof snapshot>) => void
+  api.getVIP.mockReturnValue(new Promise(done=>{resolve=done}))
+  const wrapper=render()
+  expect(wrapper.get('[data-vip-skeleton]').attributes('aria-busy')).toBe('true')
+  expect(wrapper.find('.vip-current').exists()).toBe(true)
+  expect(wrapper.find('.vip-projection').exists()).toBe(true)
+  expect(wrapper.find('.vip-comparison').exists()).toBe(true)
+  resolve(snapshot());await flushPromises()
+  expect(wrapper.find('[data-vip-skeleton]').exists()).toBe(false)
+  expect(wrapper.find('.vip-projection').exists()).toBe(true)
+ })
+ it('provides readable grade cards without miniature artwork and a VIP center link',async()=>{
+  const wrapper=render();await flushPromises()
+  expect(wrapper.find('.metal').exists()).toBe(false)
+  expect(wrapper.findAll('.level-number')).toHaveLength(6)
+  expect(wrapper.find('[data-vip-center]').exists()).toBe(true)
+  expect(wrapper.get('[data-vip-center]').attributes('to')).toBe('/vip')
+  await wrapper.get('.levels button.palette-5').trigger('click')
+  expect(wrapper.get('.tier-details').text()).toContain('22.62%')
+ })
  it('forecasts growth from principal only and keeps this order at the server bonus',async()=>{
   const wrapper=render();await flushPromises()
   expect(wrapper.get('[data-projected-tier]').text()).toContain('VIP 3')
