@@ -8,7 +8,7 @@
     <span v-if="current" class="vip-card-current">当前等级</span>
     <div class="vip-card-rule" />
     <h3 class="vip-card-heading"><span class="vip-card-latin">VIP <span class="vip-card-number">{{ level }}</span></span><span class="vip-card-divider">·</span>{{ memberTitle }}</h3>
-    <div class="vip-card-description"><p>{{ thresholdLabel }}</p><p v-for="(benefit, index) in benefits" :key="index">{{ benefit }}</p></div>
+    <div class="vip-card-description"><p v-for="(line, index) in [thresholdLabel, ...benefits]" :key="index"><span v-for="(part, partIndex) in textParts(line)" :key="partIndex" :class="{ 'vip-card-numeric': part.numeric }">{{ part.value }}</span></p></div>
     <footer v-if="ownerName" class="vip-card-footer member-owner"><strong :title="ownerName">{{ ownerName }}</strong><span v-if="ownerId != null">UID {{ ownerId }}</span></footer>
     <footer v-else class="vip-card-footer"><span>MODEL-GATE MEMBERSHIP</span><span>VIP {{ level }}</span></footer>
   </article>
@@ -27,6 +27,9 @@ const props = defineProps<{
 }>()
 const material = computed(() => ['silver', 'bronze', 'pearl', 'gold', 'platinum', 'black-diamond'][props.level] || 'silver')
 const memberTitle = computed(() => props.name.endsWith('会员') ? props.name : props.name + '会员')
+function textParts(text: string) {
+  return text.split(/([$]?\d+(?:[.,]\d+)*(?:%|\s*\/\s*日)?)/g).filter(Boolean).map(value => ({ value, numeric: /^\$?\d/.test(value) }))
+}
 function reflect(event: PointerEvent) {
   if (event.pointerType !== 'mouse' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
   const card = event.currentTarget as HTMLElement
@@ -61,7 +64,8 @@ function resetReflection(event: PointerEvent) {
 .vip-card-current{position:absolute;top:8%;right:6%;font:500 clamp(8px,1.6cqi,10px)/1.4 'Noto Sans SC',sans-serif}
 .vip-card-rule{position:absolute;left:6%;top:27%;width:15%;height:1px;background:var(--vip-accent)}
 .vip-card-heading{position:absolute;left:6%;top:31%;max-width:54%;margin:0;color:inherit;font:400 clamp(17px,4.8cqi,30px)/1.2 'Noto Serif SC',SimSun,serif;white-space:nowrap}
-.vip-card-latin{font-family:'Bodoni MT','Bodoni Moda','Times New Roman',serif;font-weight:400;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:'lnum' 1,'tnum' 1}
+.vip-card-latin{font-family:'DM Mono','SFMono-Regular',Consolas,monospace;font-weight:400;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:'lnum' 1,'tnum' 1}
+.vip-card-numeric,.vip-card-footer>span{font-family:'DM Mono','SFMono-Regular',Consolas,monospace;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:'lnum' 1,'tnum' 1}
 .vip-card-divider{display:inline-block;margin:0 .2em}
 .vip-card-description{position:absolute;left:6%;top:44%;width:53%;color:inherit;font:400 clamp(10px,2.12cqi,14px)/1.65 'Noto Serif SC',SimSun,serif}
 .vip-card-description p{margin:0 0 3px}
