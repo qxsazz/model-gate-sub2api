@@ -83,6 +83,8 @@ describe('VIP center', () => {
   expect(wrapper.text()).toContain('成就与签到页为准')
   expect(wrapper.get('.membership-rules').text()).toContain('不重复发放')
   expect(wrapper.get('.membership-rules').text()).not.toContain('7 天')
+  expect(wrapper.get('.tier-card.palette-0').text()).toContain('签到 $0.01 / 日')
+  expect(wrapper.get('.tier-card.palette-0').text()).toContain('累计充值成长记录')
   authMock.user.username=''
   const fallback=render(); await flushPromises()
   expect(fallback.get('.member-owner').text()).toContain('vip@example.com')

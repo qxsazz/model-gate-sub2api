@@ -179,9 +179,10 @@
               name="普通会员"
               threshold-label="注册即享 · 无充值门槛"
               :benefits="[
-                '普通分组维持原价',
+                '普通分组维持原价' + (bonusActive ? ' · 加赠 0%' : ''),
                 '原有并发额度 · 邀请返利 0%',
                 '累计充值成长记录',
+                `签到 $${money(signInPlan[0] ?? 0)} / 日`,
               ]"
               :current="state.tier.level === 0"
             />
@@ -501,6 +502,7 @@ function tierBenefits(tier: VIPTier) {
       (bonusActive.value ? ` · 加赠 ${bonus(tier)}%` : ''),
     `${tier.concurrency} 并发 · 邀请返利 ${tier.rebate_percent}%`,
     `本档奖励 $${money(rewardAmount)} · 签到 $${money(signInPlan.value[tier.level] ?? 0)} / 日`,
+    'VIP 专属分组资格 · 以开放规则为准',
   ]
 }
 const ownerThreshold = computed(() => {
@@ -518,11 +520,13 @@ const ownerBenefits = computed(() => {
   if (!s) return []
   const access = exclusiveAccess.value ? '专属分组' : '分组待解锁'
   const rewardText = `${access} · 签到 $${money(signInPlan.value[s.tier.level] ?? 0)} / 日`
+  const reward = membership.value?.rewards.find(item => item.level === s.tier.level)
   return [
     discountText(s.tier.level).replace('普通分组最高', '最高') +
       (bonusActive.value ? ` · 加赠 ${bonus(s.tier)}%` : ''),
     `${s.concurrency} 并发 · 邀请返利 ${s.rebate_percent}%`,
     rewardText,
+    reward ? `本档奖励 $${money(reward.amount)}` : '累计充值成长记录',
   ]
 })
 const statusLabel = (status: VIPReward['status']) =>
@@ -845,7 +849,9 @@ progress::-moz-progress-bar {
 .tier-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, calc((100% - 24px) * 0.4)));
-  gap: 24px;
+  column-gap: 56px;
+  row-gap: 32px;
+  justify-content: space-between;
 }
 .tier-card.current {
   outline: 1px solid #aa8c47;
