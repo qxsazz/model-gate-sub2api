@@ -85,14 +85,7 @@ func (s *UserService) ControlAdminAchievement(ctx context.Context, actor, id int
 	}
 	result, e := r.AdminAchievementMutation(ctx, actor, id, action, c)
 	if e == nil {
-		if s.authCacheInvalidator != nil {
-			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
-		}
-		if s.billingCache != nil {
-			cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			defer cancel()
-			_ = s.billingCache.InvalidateUserBalance(cacheCtx, id)
-		}
+		s.invalidateAchievementBalanceCaches(ctx, id)
 	}
 	return result, e
 }

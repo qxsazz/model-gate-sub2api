@@ -56,14 +56,7 @@ func (s *UserService) UseAchievementCard(ctx context.Context, id int64, c Achiev
 	}
 	result, err := r.UseAchievementCard(ctx, id, c)
 	if err == nil {
-		if s.authCacheInvalidator != nil {
-			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
-		}
-		if s.billingCache != nil {
-			cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			defer cancel()
-			_ = s.billingCache.InvalidateUserBalance(cacheCtx, id)
-		}
+		s.invalidateAchievementBalanceCaches(ctx, id)
 	}
 	return result, err
 }

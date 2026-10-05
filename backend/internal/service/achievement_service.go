@@ -91,16 +91,20 @@ func (s *UserService) ChangeAchievement(ctx context.Context, id int64, action, k
 	}
 	result, e := r.AchievementMutation(ctx, id, action, key, date, idem)
 	if e == nil && (action == "checkin" || action == "claim" || action == "claim_series") {
-		if s.authCacheInvalidator != nil {
-			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
-		}
-		if s.billingCache != nil {
-			cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			defer cancel()
-			_ = s.billingCache.InvalidateUserBalance(cacheCtx, id)
-		}
+		s.invalidateAchievementBalanceCaches(ctx, id)
 	}
 	return result, e
+}
+
+func (s *UserService) invalidateAchievementBalanceCaches(ctx context.Context, id int64) {
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
+	}
+	if s.billingCache != nil {
+		cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = s.billingCache.InvalidateUserBalance(cacheCtx, id)
+	}
 }
 func (s *UserService) GetAchievementConfig(ctx context.Context) (*AchievementConfig, error) {
 	r, e := s.achievementRepo()
