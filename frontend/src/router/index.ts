@@ -58,11 +58,29 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'Login',
     component: () => import('@/views/auth/LoginView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'Login',
-      titleKey: 'home.login'
-    }
+    meta: { requiresAuth: false, title: 'Login', titleKey: 'home.login' }
+  },
+  {
+    path: '/vip',
+    name: 'VIP',
+    component: () => import('@/views/user/VIPView.vue'),
+    meta: { requiresAuth: true, title: 'VIP 中心' }
+  },
+  {
+    path: '/achievements', name: 'Achievements',
+    component: () => import('@/views/user/AchievementsView.vue'),
+    meta: { requiresAuth: true, title: '成就与签到' }
+  },
+  {
+    path: '/admin/achievements', name: 'AdminAchievements',
+    component: () => import('@/views/admin/AchievementSettingsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '成就与签到管理' }
+  },
+  {
+    path: '/admin/vip',
+    name: 'AdminVIP',
+    component: () => import('@/views/admin/VIPRulesView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'VIP 权益', description: '管理会员等级、分组优惠与用户专属权益' }
   },
   {
     path: '/register',

@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,6 +23,29 @@ func TestOpenAIWSTurnPricingCurrentOr(t *testing.T) {
 		var p openAIWSTurnPricing
 		require.Equal(t, fallback, p.currentOr(fallback))
 	})
+}
+
+func TestVIPWSTurnReauthRejectsRevokedGroupGrant(t *testing.T) {
+	groupID := int64(2)
+	key := &service.APIKey{ID: 1, UserID: 7, GroupID: &groupID, User: &service.User{ID: 7, AllowedGroups: []int64{groupID}}, Group: &service.Group{ID: groupID, IsExclusive: true, Platform: service.PlatformOpenAI, RateMultiplier: .3}}
+	h := &OpenAIGatewayHandler{apiKeyService: newWSReauthFixtureService(key, 5)}
+	_, err := h.refreshWSTurnKey(context.Background(), key)
+	require.NoError(t, err)
+	key.User.AllowedGroups = nil
+	_, err = h.refreshWSTurnKey(context.Background(), key)
+	require.Error(t, err, "next logical turn must not retain a revoked private grant")
+}
+
+func TestOpenAIWSTurnPricingKeepsEachSubmittedKeySnapshot(t *testing.T) {
+	var p openAIWSTurnPricing
+	first := &service.APIKey{ID: 1, User: &service.User{Concurrency: 8}}
+	second := &service.APIKey{ID: 1, User: &service.User{Concurrency: 5}}
+	p.freezeKey(first)
+	submitted := p.keyOr(nil)
+	p.freezeKey(second)
+	require.Same(t, first, submitted)
+	require.Equal(t, 8, submitted.User.Concurrency)
+	require.Same(t, second, p.keyOr(nil))
 }
 
 // TestOpenAIWSTurnPricingFreezePerTurn 钉死每个 turn 的 BeforeTurn 都会覆盖

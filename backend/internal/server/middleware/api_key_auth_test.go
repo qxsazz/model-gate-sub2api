@@ -638,6 +638,11 @@ func TestAPIKeyAuthMarksOnlyExpectedIngressRejections(t *testing.T) {
 			wantCode:   "INTERNAL_ERROR",
 		},
 		{
+			name: "VIP failure is temporary unavailability, not an invalid key",
+			path: "/t", key: "valid-shape", repoErr: service.ErrVIPUnavailable,
+			wantStatus: http.StatusServiceUnavailable, wantCode: "VIP_UNAVAILABLE",
+		},
+		{
 			name:       "auth lookup bulkhead rejection is an admission rejection",
 			path:       "/t",
 			key:        "valid-shape",

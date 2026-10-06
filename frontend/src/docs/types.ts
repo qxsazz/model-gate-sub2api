@@ -9,6 +9,8 @@ export interface DocArticle {
   description: string
   updatedAt: string
   source: string
+  status?: 'available' | 'upcoming'
+  collapsedHeadings?: string[]
 }
 
 export interface DocGroup {

@@ -232,10 +232,10 @@ func TestGatewayHandlerKeyBillingInfoErrorsAreSafe(t *testing.T) {
 			Group:   &service.Group{ID: groupID, RateMultiplier: 1},
 		})
 		(&GatewayHandler{}).KeyBillingInfo(c)
-		require.Equal(t, http.StatusInternalServerError, w.Code)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	})
 
-	t.Run("rate lookup failure matches billing fallback", func(t *testing.T) {
+	t.Run("rate lookup failure cannot invent a billing price", func(t *testing.T) {
 		groupID := int64(7)
 		c, w := newKeyBillingContext(&service.APIKey{
 			UserID:  11,
@@ -243,15 +243,12 @@ func TestGatewayHandlerKeyBillingInfoErrorsAreSafe(t *testing.T) {
 			Group:   &service.Group{ID: groupID, RateMultiplier: 1},
 		})
 		newKeyBillingHandler(&keyBillingUserGroupRateRepo{err: errors.New("database password leaked")}).KeyBillingInfo(c)
-		require.Equal(t, http.StatusOK, w.Code)
-		var got keyBillingInfoResponse
-		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
-		require.Equal(t, 1.0, got.ResolvedRateMultiplier)
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
 		require.NotContains(t, w.Body.String(), "database password leaked")
 	})
 }
 
-func TestGatewayHandlerKeyBillingInfoSharesBillingResolverCacheByPlatform(t *testing.T) {
+func TestGatewayHandlerKeyBillingInfoSharesRequestRateSnapshotByPlatform(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		platform string
@@ -281,11 +278,14 @@ func TestGatewayHandlerKeyBillingInfoSharesBillingResolverCacheByPlatform(t *tes
 				},
 			}
 
+			var ctx context.Context
+			var err error
 			if tc.openAI {
-				require.Equal(t, oldRate, openAIGatewayService.ResolveUserGroupRateMultiplier(context.Background(), apiKey.UserID, groupID, apiKey.Group.RateMultiplier))
+				ctx, err = openAIGatewayService.CaptureRequestRate(context.Background(), apiKey)
 			} else {
-				require.Equal(t, oldRate, gatewayService.ResolveUserGroupRateMultiplier(context.Background(), apiKey.UserID, groupID, apiKey.Group.RateMultiplier))
+				ctx, err = gatewayService.CaptureRequestRate(context.Background(), apiKey)
 			}
+			require.NoError(t, err)
 			repo.rate = &newRate
 
 			for range 2 {
@@ -300,9 +300,9 @@ func TestGatewayHandlerKeyBillingInfoSharesBillingResolverCacheByPlatform(t *tes
 
 			var billedRate float64
 			if tc.openAI {
-				billedRate = openAIGatewayService.ResolveUserGroupRateMultiplier(context.Background(), apiKey.UserID, groupID, apiKey.Group.RateMultiplier)
+				billedRate = openAIGatewayService.ResolveUserGroupRateMultiplier(ctx, apiKey.UserID, groupID, apiKey.Group.RateMultiplier)
 			} else {
-				billedRate = gatewayService.ResolveUserGroupRateMultiplier(context.Background(), apiKey.UserID, groupID, apiKey.Group.RateMultiplier)
+				billedRate = gatewayService.ResolveUserGroupRateMultiplier(ctx, apiKey.UserID, groupID, apiKey.Group.RateMultiplier)
 			}
 			require.Equal(t, oldRate, billedRate)
 			require.Equal(t, 1, repo.lookupCalls)

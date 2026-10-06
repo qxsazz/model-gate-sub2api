@@ -46,6 +46,7 @@ Navigation sidebar with user and admin sections.
   - Usage
   - Redeem
   - Profile
+  - Documentation (`/docs`, labelled 文档): opens the existing public documentation page.
 - Admin navigation links (shown only if user is admin):
   - Admin Dashboard
   - Users

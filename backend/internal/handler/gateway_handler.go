@@ -1024,6 +1024,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 							return
 						}
 						fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
+						fallbackCtx, rateErr := h.gatewayService.CaptureFallbackRequestRate(c.Request.Context(), fallbackAPIKey)
+						if rateErr != nil {
+							status, code, message, retryAfter := billingErrorDetails(rateErr)
+							if retryAfter > 0 {
+								c.Header("Retry-After", strconv.Itoa(retryAfter))
+							}
+							h.handleStreamingAwareError(c, status, code, message, streamStarted)
+							return
+						}
+						c.Request = c.Request.WithContext(fallbackCtx)
 						if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformFromAPIKey(fallbackAPIKey)); err != nil {
 							status, code, message, retryAfter := billingErrorDetails(err)
 							if retryAfter > 0 {
@@ -2454,6 +2464,9 @@ func extractQuotaResetSeconds(err error) int {
 }
 
 func billingErrorDetails(err error) (status int, code, message string, retryAfter int) {
+	if errors.Is(err, service.ErrVIPUnavailable) || errors.Is(err, service.ErrVIPRateUnavailable) {
+		return http.StatusServiceUnavailable, "billing_service_error", pkgerrors.Message(err), 1
+	}
 	if errors.Is(err, service.ErrBillingServiceUnavailable) {
 		msg := pkgerrors.Message(err)
 		if msg == "" {

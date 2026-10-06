@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
 
@@ -474,8 +475,9 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 				PeakRateMultiplier: 3.0,
 			},
 		},
-		User:    &User{ID: 2004},
-		Account: &Account{ID: 3004},
+		User:      &User{ID: 2004},
+		Account:   &Account{ID: 3004},
+		PricingAt: time.Date(2026, time.October, 2, 12, 0, 0, 0, timezone.Location()),
 	})
 
 	require.NoError(t, err)
@@ -673,7 +675,7 @@ func TestOpenAIGatewayServiceRecordUsage_IncludesEndpointMetadata(t *testing.T) 
 	require.Equal(t, "/v1/responses", *usageRepo.lastLog.UpstreamEndpoint)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_FallsBackToGroupDefaultRateOnResolverError(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_RejectsUnknownRateWithoutSettlement(t *testing.T) {
 	groupID := int64(12)
 	groupRate := 1.6
 	usage := OpenAIUsage{InputTokens: 10, OutputTokens: 5, CacheReadInputTokens: 2}
@@ -703,13 +705,10 @@ func TestOpenAIGatewayServiceRecordUsage_FallsBackToGroupDefaultRateOnResolverEr
 		Account: &Account{ID: 3002},
 	})
 
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrVIPRateUnavailable)
 	require.Equal(t, 1, rateRepo.calls)
-	require.NotNil(t, usageRepo.lastLog)
-	require.Equal(t, groupRate, usageRepo.lastLog.RateMultiplier)
-
-	expected := expectedOpenAICost(t, svc, "gpt-5.1", usage, groupRate)
-	require.InDelta(t, expected.ActualCost, userRepo.lastAmount, 1e-12)
+	require.Nil(t, usageRepo.lastLog)
+	require.Zero(t, userRepo.lastAmount)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_FallsBackToGroupDefaultRateWhenResolverMissing(t *testing.T) {

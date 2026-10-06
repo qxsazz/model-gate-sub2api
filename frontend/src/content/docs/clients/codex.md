@@ -1,25 +1,55 @@
 # Codex 接入
 
-本指南说明如何让兼容 OpenAI API 的 Codex 客户端通过 Model-Gate 发起请求。
+为 Codex CLI 配置独立的 MODEL-GATE 服务商。保留原有安全和审批设置，只替换模型、服务地址与凭据来源。
 
-## 获取凭据
+## 准备工作
 
-在 Model-Gate 控制台创建独立 API Key，例如专门用于本机 Codex 的密钥。
+从 [Codex 官方文档](https://developers.openai.com/codex/)安装客户端。创建支持 Responses 协议的 API Key，并取得该分组实际可用的模型标识。
 
-## 配置 API 地址
+## 设置密钥
 
-将客户端的 OpenAI 兼容 Base URL 指向：
+PowerShell：
 
-```text
-https://model-gate.cc/v1
+```powershell
+$env:MODEL_GATE_API_KEY = "YOUR_MODEL_GATE_KEY"
 ```
 
-将 API Key 设置为环境变量或 Codex 支持的安全凭据配置，示例值为 `mg_sk_example`。
+macOS / Linux：
 
-## 选择模型
+```bash
+export MODEL_GATE_API_KEY="YOUR_MODEL_GATE_KEY"
+```
 
-先请求 `/v1/models` 或查看控制台，再填写当前账户可用的模型标识。不要根据旧截图猜测模型名。
+## 配置用户级文件
 
-## 验证配置
+编辑用户目录的 `~/.codex/config.toml`；Windows 对应 `%USERPROFILE%\.codex\config.toml`。修改前备份原文件，合并以下字段，不要直接覆盖全部已有配置。
 
-启动 Codex 后先执行只读任务。如果收到认证错误，检查密钥和 Base URL；如果收到模型错误，重新确认模型列表；如果收到限流错误，降低并发并稍后重试。
+```toml
+model_provider = "modelgate"
+model = "YOUR_AVAILABLE_MODEL"
+
+[model_providers.modelgate]
+name = "MODEL-GATE"
+base_url = "https://model-gate.cc/v1"
+env_key = "MODEL_GATE_API_KEY"
+wire_api = "responses"
+```
+
+将模型占位符替换为实际标识。不要使用官方保留的服务商名称作为自定义 ID，也不要重复创建同名 TOML 表。
+
+## 验证连接
+
+从设置了环境变量的终端启动 `codex`，先执行只读任务，再在使用记录中核对模型、密钥和费用。
+
+此配置用于 API Key 接入，不是使用 MODEL-GATE 的账号密码登录 Codex，也不会将你的官方订阅转换为本站余额。
+
+## 常见问题
+
+| 现象 | 检查方向 |
+| --- | --- |
+| 仍连接官方地址 | 用户级配置是否生效、客户端是否需要重新启动 |
+| 找不到环境变量 | 是否从同一终端启动、`env_key` 是否完全一致 |
+| 404 或协议错误 | `/v1` 是否重复、分组是否支持 Responses |
+| 模型不存在 | 用该密钥重新查询模型列表 |
+
+配置字段依据 [官方配置参考](https://developers.openai.com/codex/config-reference/)。桌面客户端与 CLI 的配置生效方式可能不同，请按所用版本核对。

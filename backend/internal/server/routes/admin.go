@@ -30,6 +30,26 @@ func RegisterAdminRoutes(
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
 	admin.Use(middleware.AdminComplianceGuard(settingService))
+	admin.GET("/vip/rules", h.User.GetVIPConfig)
+	admin.GET("/achievements/config", h.User.GetAchievementConfig)
+	admin.PUT("/achievements/config", gin.HandlerFunc(stepUpAuth), h.User.SaveAchievementConfig)
+	admin.GET("/achievements/audit", h.User.GetAchievementAudit)
+	admin.GET("/achievements/users/:id", h.User.GetAdminAchievements)
+	admin.GET("/achievements/users/:id/backfill-preview", h.User.PreviewAchievementBackfill)
+	for _, action := range []string{"backfill", "grant", "revoke", "restore"} {
+		action := action
+		admin.POST("/achievements/users/:id/"+action, gin.HandlerFunc(stepUpAuth), func(c *gin.Context) {
+			c.Params = append(c.Params, gin.Param{Key: "action", Value: action})
+			h.User.ControlAdminAchievement(c)
+		})
+	}
+	admin.PUT("/vip/rules", gin.HandlerFunc(stepUpAuth), h.User.SaveVIPConfig)
+	admin.GET("/vip/users/:id", h.User.GetVIP)
+	admin.PUT("/vip/users/:id/level", gin.HandlerFunc(stepUpAuth), h.User.SetVIPLevel)
+	admin.DELETE("/vip/users/:id/level", gin.HandlerFunc(stepUpAuth), h.User.RestoreVIPLevel)
+	admin.PUT("/vip/users/:id/overrides", gin.HandlerFunc(stepUpAuth), h.User.SetVIPOverride)
+	admin.DELETE("/vip/users/:id/overrides/:benefit", gin.HandlerFunc(stepUpAuth), h.User.ClearVIPOverride)
+	admin.POST("/vip/users/:id/opening", gin.HandlerFunc(stepUpAuth), h.User.InitialVIPCredit)
 	{
 		// 部署与运营合规确认
 		registerAdminComplianceRoutes(admin, h)

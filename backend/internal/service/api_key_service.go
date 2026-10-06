@@ -312,6 +312,9 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
+	vipModeMu                 sync.Mutex
+	vipDisabledUntil          time.Time
+	vipModeGeneration         uint64
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -485,7 +488,7 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 		return err == nil // 有有效订阅则允许
 	}
 	// 标准类型分组：使用原有逻辑
-	return user.CanBindGroup(group.ID, group.IsExclusive)
+	return user.CanBindGroup(group.ID, group.IsExclusive) || s.vipCanBind(ctx, user.ID, group.ID)
 }
 
 // Create 创建API Key
@@ -736,7 +739,19 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 }
 
 // GetByKey 根据Key字符串获取API Key（用于认证）
-func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, error) {
+func (s *APIKeyService) GetByKey(ctx context.Context, key string) (result *APIKey, resultErr error) {
+	defer func() {
+		if resultErr == nil && result != nil {
+			copy := *result
+			result = &copy
+			result.requestRates = nil
+			result.vipDisabled = false
+			if err := s.applyVIP(ctx, result); err != nil {
+				result = nil
+				resultErr = err
+			}
+		}
+	}()
 	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {
 		return nil, ErrAPIKeyNotFound
 	}
@@ -1052,6 +1067,19 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
+	if repo, ok := s.userRepo.(VIPRepository); ok {
+		state, e := repo.VIPSnapshot(ctx, userID)
+		if e != nil {
+			return nil, e
+		}
+		if state.Enabled {
+			for _, g := range state.Groups {
+				if g.Exclusive && g.Granted {
+					user.AllowedGroups = append(user.AllowedGroups, g.ID)
+				}
+			}
+		}
+	}
 
 	// 获取所有活跃分组
 	allGroups, err := s.groupRepo.ListActive(ctx)
@@ -1114,6 +1142,19 @@ func (s *APIKeyService) GetUserGroupVisibility(ctx context.Context, userID int64
 	for _, id := range user.AllowedGroups {
 		allowed[id] = struct{}{}
 	}
+	if repo, ok := s.userRepo.(VIPRepository); ok {
+		state, e := repo.VIPSnapshot(ctx, userID)
+		if e != nil {
+			return nil, false, e
+		}
+		if state.Enabled {
+			for _, g := range state.Groups {
+				if g.Exclusive && g.Granted {
+					allowed[g.ID] = struct{}{}
+				}
+			}
+		}
+	}
 	subscriptions, err := s.userSubRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
 		return nil, false, fmt.Errorf("list active subscriptions: %w", err)
@@ -1133,6 +1174,22 @@ func (s *APIKeyService) GetUserGroupRates(ctx context.Context, userID int64) (ma
 	rates, err := s.userGroupRateRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user group rates: %w", err)
+	}
+	if repo, ok := s.userRepo.(VIPRepository); ok {
+		state, e := repo.VIPSnapshot(ctx, userID)
+		if e != nil {
+			return nil, e
+		}
+		if state.Enabled {
+			if rates == nil {
+				rates = map[int64]float64{}
+			}
+			for _, g := range state.Groups {
+				if g.Granted {
+					rates[g.ID] = g.Rate
+				}
+			}
+		}
 	}
 	return rates, nil
 }

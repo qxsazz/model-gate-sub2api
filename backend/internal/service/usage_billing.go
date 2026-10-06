@@ -36,6 +36,8 @@ type UsageBillingCommand struct {
 	CacheReadTokens     int
 	ImageCount          int
 	MediaType           string
+	// Growth excludes multimodal/media requests even when no media_type label is set.
+	AchievementMedia bool
 
 	BalanceCost         float64
 	SubscriptionCost    float64

@@ -21,7 +21,7 @@ const FORBIDDEN_TAGS = [
   'select',
 ]
 
-export function renderMarkdown(source: string): RenderedMarkdown {
+export function renderMarkdown(source: string, options: { collapsedHeadings?: readonly string[] } = {}): RenderedMarkdown {
   const parsed = marked.parse(source) as string
   const sanitized = DOMPurify.sanitize(parsed, {
     FORBID_TAGS: FORBIDDEN_TAGS,
@@ -58,6 +58,13 @@ export function renderMarkdown(source: string): RenderedMarkdown {
     }
   })
 
+  container.querySelectorAll('table').forEach((table) => {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'docs-table-wrap'
+    table.replaceWith(wrapper)
+    wrapper.append(table)
+  })
+
   container.querySelectorAll<HTMLPreElement>('pre').forEach((pre) => {
     const code = pre.querySelector('code')
     const languageClass = Array.from(code?.classList ?? []).find((name) => name.startsWith('language-'))
@@ -77,6 +84,25 @@ export function renderMarkdown(source: string): RenderedMarkdown {
     pre.replaceWith(wrapper)
     wrapper.append(toolbar, pre)
   })
+
+  for (const heading of Array.from(container.querySelectorAll('h2'))) {
+    if (!options.collapsedHeadings?.includes(heading.textContent || '')) continue
+    const sections: Element[] = []
+    let next = heading.nextElementSibling
+    while (next && next.tagName !== 'H2' && next.tagName !== 'H1') {
+      sections.push(next)
+      next = next.nextElementSibling
+    }
+    const detail = document.createElement('details')
+    detail.className = 'docs-disclosure'
+    const summary = document.createElement('summary')
+    const body = document.createElement('div')
+    body.className = 'docs-disclosure-content'
+    heading.replaceWith(detail)
+    summary.append(heading)
+    body.append(...sections)
+    detail.append(summary, body)
+  }
 
   return { html: container.innerHTML, headings }
 }

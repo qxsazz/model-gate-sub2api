@@ -119,6 +119,7 @@
         </div>
 
         <!-- User Dropdown -->
+        <router-link v-if="user && isUserConsole" to="/vip" aria-label="VIP 中心"><VIPBadge :key="user.id" /></router-link>
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             @click="toggleDropdown"
@@ -277,6 +278,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
+import VIPBadge from '@/components/user/VIPBadge.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'

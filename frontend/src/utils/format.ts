@@ -353,6 +353,11 @@ export function formatCostFixed(amount: number, fractionDigits: number = 4): str
   return amount.toFixed(fractionDigits)
 }
 
+/** Fixed two-decimal amounts used by membership and achievement pages. */
+export function formatMoneyFixed(amount: number | null | undefined, prefix = ''): string {
+  return prefix + formatCostFixed(Number(amount || 0), 2)
+}
+
 /**
  * 格式化 token 数量（>=1M 显示为 M，>=1K 显示为 K，保留 1 位小数）
  * @param tokens token 数量

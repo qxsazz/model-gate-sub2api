@@ -305,6 +305,8 @@ export default {
     amountLabel: 'Amount',
     paymentAmount: 'Payment Amount',
     creditedBalance: 'Credited Balance',
+    vipRechargeBonus: 'VIP {level} recharge bonus',
+    vipRechargeBonusNote: 'Based on your recharge tier when ordering. Bonuses do not count toward growth; upgrades apply to the next order.',
     quickAmounts: 'Quick Amounts',
     customAmount: 'Custom Amount',
     enterAmount: 'Enter amount',

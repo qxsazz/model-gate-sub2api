@@ -1054,6 +1054,18 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*User, error) {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 	normalizeLoadedUserTokenVersion(user)
+	if vip, ok := s.userRepo.(VIPRepository); ok {
+		state, e := vip.VIPSnapshot(ctx, id)
+		if e != nil {
+			return nil, e
+		}
+		if state.Enabled {
+			copy := *user
+			copy.Concurrency = state.Concurrency
+			copy.RPMLimit = state.RPM
+			user = &copy
+		}
+	}
 	if err := s.hydrateUserAvatar(ctx, user); err != nil {
 		return nil, fmt.Errorf("get user avatar: %w", err)
 	}

@@ -33,6 +33,18 @@ func TestDeriveAuditAction(t *testing.T) {
 	}
 }
 
+func TestVIPAuditExtraAllowsOnlySafeClaimSummaries(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	SetAuditExtra(c, map[string]any{"reward_level": 2, "reward_amount": 3.0, "result": "credited", "sql_error": "password=SECRET"})
+	raw, ok := c.Get(auditCtxKeyExtra)
+	require.True(t, ok)
+	extra, typed := raw.(map[string]any)
+	require.True(t, typed)
+	require.Equal(t, 2, extra["reward_level"])
+	require.Equal(t, 3.0, extra["reward_amount"])
+	require.NotContains(t, extra, "sql_error")
+}
+
 type auditCaptureRepository struct {
 	mu   sync.Mutex
 	logs []*service.AuditLog
