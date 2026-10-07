@@ -245,6 +245,12 @@ func CanonicalizeReturnURL(raw string, srcHost string, srcURL string) (string, e
 		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "return_url must use http or https")
 	}
 	parsed.Fragment = ""
+	// The result page does not consume caller-provided query parameters. Keeping
+	// them would allow a value such as trade_status=TRADE_SUCCESS to be embedded
+	// in EasyPay's signed return_url and later promoted to a top-level callback
+	// parameter, making the exposed popup signature reusable as a success
+	// notification signature.
+	parsed.RawQuery = ""
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
