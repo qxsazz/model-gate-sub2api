@@ -33,6 +33,19 @@ const (
 	deviceMobile           = "mobile"
 )
 
+var easyPayNotifyAllowedParams = map[string]struct{}{
+	"pid":          {},
+	"trade_no":     {},
+	"out_trade_no": {},
+	"type":         {},
+	"name":         {},
+	"money":        {},
+	"trade_status": {},
+	"param":        {},
+	"sign":         {},
+	"sign_type":    {},
+}
+
 // EasyPay implements payment.Provider for the EasyPay aggregation platform.
 type EasyPay struct {
 	instanceID string
@@ -376,6 +389,9 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 	// url.ParseQuery already decodes values — no additional decode needed.
 	params := make(map[string]string)
 	for k := range values {
+		if _, ok := easyPayNotifyAllowedParams[k]; !ok {
+			return nil, fmt.Errorf("unexpected notify param: %s", k)
+		}
 		params[k] = values.Get(k)
 	}
 	sign := params["sign"]
