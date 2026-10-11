@@ -33,6 +33,8 @@ const (
 	deviceMobile           = "mobile"
 )
 
+// Only accept genuine callback fields, preventing signed order-URL replay.
+// Exotic provider variants can still be recovered by QueryOrder reconciliation.
 var easyPayNotifyAllowedParams = map[string]struct{}{
 	"pid":          {},
 	"trade_no":     {},
