@@ -80,3 +80,32 @@ describe('UserBalanceHistoryModal request ordering', () => {
     expect(wrapper.find('svg.animate-spin').exists()).toBe(false)
   })
 })
+
+describe('reward balance history', () => {
+  it('shows distinct reward sources, full reference codes and precise amounts alongside existing recharge', async () => {
+    const notes = '每日签到 · 2026-10-16 · VIP1；奖励 $0.01；实际入账 $0.005；抵扣奖励欠款 $0.005'
+    mocks.getUserBalanceHistory.mockResolvedValue({
+      items: [
+        { id: 1, code: 'PAY-existing', type: 'balance', value: 10, notes: '' },
+        { id: -1, code: 'SIGN-42-20261016', type: 'checkin_balance', value: .005, notes },
+        { id: -2, code: 'ACH-42-T01', type: 'achievement_balance', value: .1, notes: '成就奖励 · 星火' },
+        { id: -3, code: 'SERIES-42-A-K', type: 'achievement_series_balance', value: 1.4, notes: '系列成就奖励 · 知识系列' }
+      ], total: 4, total_recharged: 10
+    })
+    const wrapper = await openDialog()
+    await flushPromises()
+    for (const key of ['balanceAddedRedeem', 'balanceAddedCheckin', 'balanceAddedAchievement', 'balanceAddedAchievementSeries']) {
+      expect(wrapper.text()).toContain(`redeem.${key}`)
+    }
+    for (const code of ['SIGN-42-20261016', 'ACH-42-T01', 'SERIES-42-A-K']) expect(wrapper.text()).toContain(code)
+    expect(wrapper.text()).toContain(notes)
+    expect(wrapper.text()).toContain('+$0.005')
+    expect(wrapper.text()).toContain('+$0.10')
+    const select = wrapper.findComponent({ name: 'Select' })
+    select.vm.$emit('update:modelValue', 'checkin_balance')
+    await wrapper.vm.$nextTick()
+    select.vm.$emit('change')
+    await flushPromises()
+    expect(mocks.getUserBalanceHistory).toHaveBeenLastCalledWith(1, 1, 15, 'checkin_balance')
+  })
+})

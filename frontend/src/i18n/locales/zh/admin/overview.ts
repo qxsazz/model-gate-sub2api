@@ -722,18 +722,21 @@ export default {
       useDepositWithdrawButtons: '请使用充值/退款按钮调整余额',
       // 余额变动记录
       balanceHistory: '充值记录',
-      balanceHistoryTip: '点击查看充值记录',
+      balanceHistoryTip: '点击查看余额变动记录',
       columnAlwaysVisible: '该列固定显示，不可隐藏',
       // 平台用量明细（悬浮显示）
       platformBreakdown: '按平台拆分',
       platformBreakdownEmpty: '暂无平台明细',
       platformBreakdownHint: '悬浮查看各平台用量',
       platformOther: '其他',
-      balanceHistoryTitle: '用户充值和并发变动记录',
+      balanceHistoryTitle: '用户余额和并发变动记录',
       noBalanceHistory: '暂无变动记录',
       allTypes: '全部类型',
       typeBalance: '余额（兑换码）',
       typeAffiliateBalance: '余额（返利转入）',
+      typeCheckinBalance: '余额（签到奖励）',
+      typeAchievementBalance: '余额（成就奖励）',
+      typeAchievementSeriesBalance: '余额（系列成就奖励）',
       typeAdminBalance: '余额（管理员调整）',
       typeConcurrency: '并发（兑换码）',
       typeAdminConcurrency: '并发（管理员调整）',
@@ -905,7 +908,7 @@ export default {
         descriptionLabel: '描述',
         descriptionPlaceholder: '请输入描述（可选）',
         rateMultiplierLabel: '费率倍数',
-        rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+        rateMultiplierHint: '0 = 该倍率项免费，1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
@@ -965,7 +968,7 @@ export default {
         exampleContent:
           '公开分组费率 0.8，您可以创建一个费率 0.7 的专属分组，手动分配给 VIP 用户，让他们享受更优惠的价格。'
       },
-      rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+      rateMultiplierHint: '0 = 该倍率项免费，1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
       platforms: {
         all: '全部平台',
         anthropic: 'Anthropic',

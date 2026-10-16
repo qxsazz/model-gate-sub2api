@@ -307,3 +307,26 @@ func TestGroupHandlerSimpleModeBlocksAdvancedOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestGroupHandlerCreateDistinguishesOmittedAndZeroRate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		body string
+		want float64
+	}{
+		{`{"name":"standard","platform":"anthropic"}`, 1},
+		{`{"name":"free","platform":"anthropic","rate_multiplier":0}`, 0},
+	} {
+		svc := newStubAdminService()
+		handler := NewGroupHandlerWithConfig(svc, nil, nil, &config.Config{RunMode: "standard"})
+		router := gin.New()
+		router.POST("/groups", handler.Create)
+		req := httptest.NewRequest(http.MethodPost, "/groups", bytes.NewBufferString(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		require.Len(t, svc.createdGroups, 1)
+		require.Equal(t, tc.want, svc.createdGroups[0].RateMultiplier)
+	}
+}

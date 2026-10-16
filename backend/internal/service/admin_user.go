@@ -705,6 +705,14 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 // GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
 func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
+	if isRewardBalanceHistoryType(codeType) {
+		codes, total, err := s.listRewardBalanceHistory(ctx, userID, params, codeType)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
+		return codes, total, totalRecharged, err
+	}
 	if codeType == RedeemTypeAffiliateBalance {
 		codes, total, err := s.listAffiliateBalanceHistory(ctx, userID, params)
 		if err != nil {
@@ -748,13 +756,18 @@ func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID 
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	codes := mergeBalanceHistoryCodes(redeemCodes, affiliateCodes, params)
+	rewardCodes, rewardTotal, err := s.listRewardBalanceHistory(ctx, userID, pagination.PaginationParams{Page: 1, PageSize: needed}, "")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	otherCodes := append(affiliateCodes, rewardCodes...)
+	codes := mergeBalanceHistoryCodes(redeemCodes, otherCodes, params)
 
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return codes, redeemTotal + affiliateTotal, totalRecharged, nil
+	return codes, redeemTotal + affiliateTotal + rewardTotal, totalRecharged, nil
 }
 
 func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
@@ -894,7 +907,27 @@ WHERE user_id = $1
 func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams) []RedeemCode {
 	combined := append(append([]RedeemCode{}, redeemCodes...), affiliateCodes...)
 	sort.SliceStable(combined, func(i, j int) bool {
-		return redeemCodeHistoryTime(combined[i]).After(redeemCodeHistoryTime(combined[j]))
+		left, right := redeemCodeHistoryTime(combined[i]), redeemCodeHistoryTime(combined[j])
+		if left.Equal(right) {
+			// Match each source's SQL order so fetching its first N rows is
+			// sufficient even when many records share the same timestamp.
+			leftSource, rightSource := balanceHistorySourceOrder(combined[i]), balanceHistorySourceOrder(combined[j])
+			if leftSource != rightSource {
+				return leftSource < rightSource
+			}
+			switch leftSource {
+			case 0:
+				return combined[i].ID > combined[j].ID
+			case 1:
+				return combined[i].ID < combined[j].ID // affiliate IDs are negated
+			default:
+				if combined[i].Type != combined[j].Type {
+					return combined[i].Type < combined[j].Type
+				}
+				return combined[i].Code > combined[j].Code
+			}
+		}
+		return left.After(right)
 	})
 	offset := params.Offset()
 	if offset >= len(combined) {
@@ -905,6 +938,16 @@ func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params p
 		end = len(combined)
 	}
 	return combined[offset:end]
+}
+
+func balanceHistorySourceOrder(code RedeemCode) int {
+	if isRewardBalanceHistoryType(code.Type) {
+		return 2
+	}
+	if code.Type == RedeemTypeAffiliateBalance {
+		return 1
+	}
+	return 0
 }
 
 func redeemCodeHistoryTime(code RedeemCode) time.Time {

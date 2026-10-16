@@ -94,12 +94,12 @@
       <div v-else class="max-h-[28rem] space-y-3 overflow-y-auto">
         <div
           v-for="item in history"
-          :key="item.id"
+          :key="`${item.type}:${item.code || item.id}`"
           class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800"
         >
           <div class="flex items-start justify-between">
             <!-- Left: type icon + description -->
-            <div class="flex items-start gap-3">
+            <div class="flex min-w-0 flex-1 items-start gap-3">
               <div
                 :class="[
                   'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg',
@@ -108,17 +108,17 @@
               >
                 <Icon :name="getIconName(item)" size="sm" :class="getIconColor(item)" />
               </div>
-              <div>
+              <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
                   {{ getItemTitle(item) }}
                 </p>
-                <!-- Notes (admin adjustment reason) -->
+                <!-- Adjustment reason or reward source / debt-offset explanation -->
                 <p
                   v-if="item.notes"
                   class="mt-0.5 text-xs text-gray-500 dark:text-dark-400"
                   :title="item.notes"
                 >
-                  {{ item.notes.length > 60 ? item.notes.substring(0, 55) + '...' : item.notes }}
+                  {{ isRewardType(item.type) ? item.notes : (item.notes.length > 60 ? item.notes.substring(0, 55) + '...' : item.notes) }}
                 </p>
                 <p class="mt-0.5 text-xs text-gray-400 dark:text-dark-500">
                   {{ formatDateTime(item.used_at || item.created_at) }}
@@ -126,7 +126,7 @@
               </div>
             </div>
             <!-- Right: value -->
-            <div class="text-right">
+            <div class="ml-3 max-w-[45%] flex-shrink-0 text-right">
               <p :class="['text-sm font-semibold', getValueColor(item)]">
                 {{ formatValue(item) }}
               </p>
@@ -138,9 +138,10 @@
               </p>
               <p
                 v-else
-                class="font-mono text-xs text-gray-400 dark:text-dark-500"
+                class="max-w-56 break-all font-mono text-xs text-gray-400 dark:text-dark-500"
+                :title="item.code"
               >
-                {{ item.code.slice(0, 8) }}...
+                {{ isRewardType(item.type) ? item.code : item.code.slice(0, 8) + '...' }}
               </p>
             </div>
           </div>
@@ -203,6 +204,9 @@ const typeOptions = computed(() => [
   { value: '', label: t('admin.users.allTypes') },
   { value: 'balance', label: t('admin.users.typeBalance') },
   { value: 'affiliate_balance', label: t('admin.users.typeAffiliateBalance') },
+  { value: 'checkin_balance', label: t('admin.users.typeCheckinBalance') },
+  { value: 'achievement_balance', label: t('admin.users.typeAchievementBalance') },
+  { value: 'achievement_series_balance', label: t('admin.users.typeAchievementSeriesBalance') },
   { value: 'admin_balance', label: t('admin.users.typeAdminBalance') },
   { value: 'concurrency', label: t('admin.users.typeConcurrency') },
   { value: 'admin_concurrency', label: t('admin.users.typeAdminConcurrency') },
@@ -245,8 +249,10 @@ const loadHistory = async (page: number) => {
 // Helper: check if admin type
 const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
 
+const isRewardType = (type: string) => ['checkin_balance', 'achievement_balance', 'achievement_series_balance'].includes(type)
+
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance' || isRewardType(type)
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
@@ -302,6 +308,12 @@ const getItemTitle = (item: BalanceHistoryItem) => {
   switch (item.type) {
     case 'balance':
       return t('redeem.balanceAddedRedeem')
+    case 'checkin_balance':
+      return t('redeem.balanceAddedCheckin')
+    case 'achievement_balance':
+      return t('redeem.balanceAddedAchievement')
+    case 'achievement_series_balance':
+      return t('redeem.balanceAddedAchievementSeries')
     case 'affiliate_balance':
       return t('redeem.balanceAddedAffiliate')
     case 'admin_balance':
@@ -321,7 +333,10 @@ const getItemTitle = (item: BalanceHistoryItem) => {
 const formatValue = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) {
     const sign = item.value >= 0 ? '+' : ''
-    return `${sign}$${item.value.toFixed(2)}`
+    const amount = isRewardType(item.type)
+      ? item.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8, useGrouping: false })
+      : item.value.toFixed(2)
+    return `${sign}$${amount}`
   }
   if (isSubscriptionType(item.type)) {
     const days = item.validity_days || Math.round(item.value)

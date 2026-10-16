@@ -79,9 +79,12 @@ func (r VIPRules) Validate() error {
 			return fmt.Errorf("private groups cannot be VIP groups")
 		}
 		prev := 0.0
-		for _, d := range g.Discounts {
-			if !finiteVIP(d) || d < prev || d > 0.075 {
-				return fmt.Errorf("invalid group discount")
+		for level, d := range g.Discounts {
+			if !finiteVIP(d) || d < 0 {
+				return fmt.Errorf("分组 ID %d 的 VIP %d 减免必须为有效的非负数", g.GroupID, level+1)
+			}
+			if d < prev {
+				return fmt.Errorf("分组 ID %d 的 VIP %d 减免不能低于 VIP %d", g.GroupID, level+1, level)
 			}
 			prev = d
 		}
@@ -109,10 +112,9 @@ func (r VIPRules) Tier(total float64) VIPTier {
 	return result
 }
 func VIPDiscountedRate(base, floor, discount float64) float64 {
-	discount = math.Min(discount, .075)
-	if floor > base {
-		floor = base
-	}
+	// The configured group floor bounds the result, including free groups.
+	// Keep legacy rules valid even if their nominal discount exceeds the gap.
+	floor = math.Max(0, math.Min(floor, base))
 	v := decimal.NewFromFloat(base).Sub(decimal.NewFromFloat(discount))
 	return decimal.Max(decimal.NewFromFloat(floor), v).InexactFloat64()
 }
