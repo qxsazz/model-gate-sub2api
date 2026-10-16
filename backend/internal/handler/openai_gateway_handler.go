@@ -2171,11 +2171,8 @@ type openAIWSTurnAPIKeyLookup interface {
 // 在客户端重连前一直按旧价计费、按旧售价过利润门，而 HTTP 请求每次都经认证缓存
 // 取快照，缓存失效后即生效。
 //
-// 因此后续 turn 在 BeforeTurn（与 HTTP 请求进入认证中间件同位）经同一认证缓存
-// 重取快照，只采用其中的分组，作为该 turn 利润门准入与用量计费共同的分组；用户、
-// Key 限额、订阅仍沿用建连快照。只在同一把 Key、同一分组且平台与订阅类型未变时
-// 采用：Key 换组或分组改平台/订阅类型不是调价，该连接按建连分组调度，继续按建连
-// 快照计费；重取失败同样保留建连快照，不断连。
+// BeforeTurn 通过 refreshWSTurnKey 校验最新鉴权快照，再捕获请求倍率；准入和
+// 计费共用该快照。换组、权限失效或鉴权刷新失败时要求重连，不回退旧权限。
 //
 // 首轮沿用刚经认证中间件取得的建连快照；没有经过 BeforeTurn 的 turn 回退建连
 // 快照。只保留当前与上一个 turn：下一 turn 的 BeforeTurn 先于上一 turn 的
@@ -2183,17 +2180,6 @@ type openAIWSTurnAPIKeyLookup interface {
 type openAIWSTurnBillingAPIKeys struct {
 	mu   sync.Mutex
 	keys map[int]*service.APIKey
-}
-
-// begin 在 BeforeTurn 重装利润门前调用：后续 turn 重取计费分组并按 turn 记下，
-// 返回换入该分组的上下文供本 turn 的利润门使用。
-func (k *openAIWSTurnBillingAPIKeys) begin(ctx context.Context, apiKeyService *service.APIKeyService, turn int, conn *service.APIKey) context.Context {
-	turnKey := conn
-	if turn > 1 && apiKeyService != nil {
-		turnKey = refreshOpenAIWSTurnBillingAPIKey(ctx, apiKeyService, conn)
-	}
-	k.set(turn, turnKey)
-	return withOpenAIWSTurnBillingGroup(ctx, turnKey)
 }
 
 func (k *openAIWSTurnBillingAPIKeys) set(turn int, key *service.APIKey) {
@@ -2238,19 +2224,6 @@ func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAP
 	turnKey := *conn
 	turnKey.Group = group
 	return &turnKey
-}
-
-// withOpenAIWSTurnBillingGroup 把本 turn 的计费分组换进认证分组上下文，使利润门
-// 的售价与本 turn 计费同源。上下文里没有同 ID 的认证分组时不改动。
-func withOpenAIWSTurnBillingGroup(ctx context.Context, turnKey *service.APIKey) context.Context {
-	if turnKey == nil || turnKey.Group == nil {
-		return ctx
-	}
-	current, ok := ctx.Value(ctxkey.Group).(*service.Group)
-	if !ok || current == nil || current == turnKey.Group || current.ID != turnKey.Group.ID {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxkey.Group, turnKey.Group)
 }
 
 // recordOpenAIProfitVeto 记录 OpenAI 侧选号循环的一次利润门终检否决：把账号
