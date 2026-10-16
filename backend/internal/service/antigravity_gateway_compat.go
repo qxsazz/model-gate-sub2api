@@ -72,7 +72,7 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 	}
 
-	responsesRequest, err := apicompat.ChatCompletionsToResponses(&request)
+	responsesRequest, err := chatCompletionsToResponses(settingServiceConfig(s.settingService), &request)
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
@@ -271,10 +271,7 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
-		body, err = configureGeminiThinking(body, mappedModel, geminiThinkingLevelFromClaudeBody(claudeBody))
-		if err != nil {
-			return nil, err
-		}
+		body = applyModelGateGeminiThinkingConfig(body, claudeBody, mappedModel)
 		body, err = enableMixedGeminiToolInvocations(body)
 		if err != nil {
 			return nil, err
@@ -295,62 +292,36 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 	return antigravity.TransformClaudeToGeminiWithOptions(claudeRequest, projectID, mappedModel, options)
 }
 
-// configureGeminiThinking asks Gemini thinking models to return
-// thought summaries as parts marked with thought=true. The downstream
-// Antigravity stream transformer already maps those parts to Anthropic
-// thinking blocks, which the Chat Completions adapter exposes as
-// reasoning_content instead of mixing them into content.
+// configureGeminiThinking adapts the legacy native-body helper contract to the
+// same mapper used by Gemini and Antigravity compatibility entrypoints.
 func configureGeminiThinking(body []byte, mappedModel string, requestedLevels ...string) ([]byte, error) {
-	model := strings.ToLower(strings.TrimSpace(mappedModel))
-	model = strings.TrimPrefix(model, "models/")
-	if !strings.HasPrefix(model, "gemini-3") && !antigravity.IsGeminiReasoningModel(model) {
+	if geminiThinkingParamForModel(mappedModel) == geminiThinkingParamNone {
 		return body, nil
 	}
-
-	var request map[string]any
-	if err := json.Unmarshal(body, &request); err != nil {
+	var native map[string]any
+	if err := json.Unmarshal(body, &native); err != nil {
 		return nil, err
 	}
-
-	generationConfig, _ := request["generationConfig"].(map[string]any)
-	if generationConfig == nil {
-		generationConfig = make(map[string]any)
-		request["generationConfig"] = generationConfig
+	intent := make(map[string]any)
+	if budget := gjson.GetBytes(body, "generationConfig.thinkingConfig.thinkingBudget"); budget.Exists() {
+		intent["thinking"] = map[string]any{"type": "enabled", "budget_tokens": budget.Int()}
 	}
-	thinkingConfig, _ := generationConfig["thinkingConfig"].(map[string]any)
-	if thinkingConfig == nil {
-		thinkingConfig = make(map[string]any)
-		generationConfig["thinkingConfig"] = thinkingConfig
-	}
-	thinkingConfig["includeThoughts"] = true
-
-	// Gemini 3 uses thinkingLevel rather than a token budget. Translate a
-	// compatibility client's Anthropic budget when no explicit model suffix
-	// supplies the level, and never send both mutually exclusive controls.
-	if strings.HasPrefix(model, "gemini-3") {
-		if _, hasLevel := thinkingConfig["thinkingLevel"]; !hasLevel {
-			level := geminiThinkingLevel(model)
-			if level == "" {
-				for _, requestedLevel := range requestedLevels {
-					if normalized := normalizeGeminiThinkingLevel(requestedLevel); normalized != "" {
-						level = normalized
-						break
-					}
-				}
-			}
-			if level == "" {
-				if budget, ok := asInt(thinkingConfig["thinkingBudget"]); ok {
-					level = geminiThinkingLevelForBudget(budget)
-				}
-			}
-			if level != "" {
-				thinkingConfig["thinkingLevel"] = level
+	level := normalizeGeminiThinkingLevel(gjson.GetBytes(body, "generationConfig.thinkingConfig.thinkingLevel").String())
+	if level == "" {
+		for _, requested := range requestedLevels {
+			if level = normalizeGeminiThinkingLevel(requested); level != "" {
+				break
 			}
 		}
-		delete(thinkingConfig, "thinkingBudget")
 	}
-
-	return json.Marshal(request)
+	if level != "" {
+		intent["output_config"] = map[string]any{"effort": level}
+	}
+	encoded, err := json.Marshal(intent)
+	if err != nil {
+		return nil, err
+	}
+	return applyModelGateGeminiThinkingConfig(body, encoded, mappedModel), nil
 }
 
 func geminiThinkingLevelFromClaudeBody(body []byte) string {
