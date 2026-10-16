@@ -8,6 +8,8 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -260,7 +262,7 @@ func (r *userRepository) VIPSaveRules(ctx context.Context, actor int64, rules se
 	if err != nil {
 		return err
 	}
-	found := 0
+	found := map[int64]bool{}
 	for rows.Next() {
 		var id int64
 		var name, subscription string
@@ -269,7 +271,7 @@ func (r *userRepository) VIPSaveRules(ctx context.Context, actor int64, rules se
 		if err = rows.Scan(&id, &name, &exclusive, &subscription, &base); err != nil {
 			break
 		}
-		found++
+		found[id] = true
 		for _, g := range rules.Groups {
 			if g.GroupID != id {
 				continue
@@ -302,8 +304,14 @@ func (r *userRepository) VIPSaveRules(ctx context.Context, actor int64, rules se
 	if rowErr != nil {
 		return rowErr
 	}
-	if found != len(ids) {
-		return fmt.Errorf("unknown group")
+	if len(found) != len(ids) {
+		missing := []string{}
+		for _, id := range ids {
+			if !found[id] {
+				missing = append(missing, strconv.FormatInt(id, 10))
+			}
+		}
+		return fmt.Errorf("VIP 规则引用的分组已删除或不存在（ID：%s），请刷新分组权益后重新保存", strings.Join(missing, "、"))
 	}
 	raw, err := json.Marshal(rules)
 	if err != nil {

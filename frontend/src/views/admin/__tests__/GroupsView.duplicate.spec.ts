@@ -449,4 +449,29 @@ describe('GroupsView duplicate action', () => {
     }
   })
 
+  it('submits explicit zero base rates when creating and editing groups', async () => {
+    vi.mocked(adminAPI.groups.create).mockResolvedValueOnce({ ...sourceGroup, rate_multiplier: 0 })
+    updateGroup.mockResolvedValueOnce({ ...sourceGroup, rate_multiplier: 0 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('#create-group-form [data-tour="group-form-name"]').setValue('free')
+    const createRate = wrapper.get('#create-group-form [data-tour="group-form-multiplier"]')
+    expect(createRate.attributes('min')).toBe('0')
+    await createRate.setValue('0')
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+    expect(adminAPI.groups.create).toHaveBeenCalledWith(expect.objectContaining({ rate_multiplier: 0 }))
+    const editButton = wrapper.findAll('button').find((button) => button.text() === 'common.edit')!
+    await editButton.trigger('click')
+    await flushPromises()
+    const editRate = wrapper.get('#edit-group-form [data-tour="group-form-multiplier"]')
+    expect(editRate.attributes('min')).toBe('0')
+    await editRate.setValue('0')
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({ rate_multiplier: 0 }))
+    wrapper.unmount()
+  })
+
 })

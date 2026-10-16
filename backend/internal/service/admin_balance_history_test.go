@@ -84,3 +84,20 @@ func TestMergeBalanceHistoryCodesPaginatesAfterCombiningSources(t *testing.T) {
 	require.Equal(t, RedeemTypeConcurrency, got[0].Type)
 	require.Equal(t, int64(-4), got[1].ID)
 }
+
+func TestMergeBalanceHistoryCodesStableAcrossSourcesWithEqualTimes(t *testing.T) {
+	at := time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
+	old := []RedeemCode{{ID: 20, Code: "PAY-20", Type: RedeemTypeBalance, CreatedAt: at}, {ID: 10, Code: "PAY-10", Type: AdjustmentTypeAdminBalance, CreatedAt: at}}
+	other := []RedeemCode{
+		{ID: -3, Code: "AFF-3", Type: RedeemTypeAffiliateBalance, CreatedAt: at},
+		{ID: -2, Code: "AFF-2", Type: RedeemTypeAffiliateBalance, CreatedAt: at},
+		{ID: rewardBalanceHistoryID("ACH-1-T01"), Code: "ACH-1-T01", Type: BalanceHistoryAchievement, CreatedAt: at},
+		{ID: rewardBalanceHistoryID("SIGN-1-20261016"), Code: "SIGN-1-20261016", Type: BalanceHistoryCheckin, CreatedAt: at},
+	}
+	expected := []string{"PAY-20", "PAY-10", "AFF-3", "AFF-2", "ACH-1-T01", "SIGN-1-20261016"}
+	for page, code := range expected {
+		got := mergeBalanceHistoryCodes(old, other, pagination.PaginationParams{Page: page + 1, PageSize: 1})
+		require.Len(t, got, 1)
+		require.Equal(t, code, got[0].Code)
+	}
+}

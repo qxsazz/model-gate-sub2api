@@ -54,6 +54,15 @@
         {{ error }}
       </p>
       <p
+        v-if="removedGroupIds.length"
+        role="status"
+        data-removed-group-rules
+        class="text-sm text-amber-700 dark:text-amber-300"
+      >
+        已从待保存配置中移除已删除分组的规则（ID：{{ removedGroupIds.join('、') }}）。
+        保存后生效，其他分组权益保持不变。
+      </p>
+      <p
         v-if="!rules"
         role="status"
         class="py-12 text-center text-sm text-gray-500"
@@ -269,6 +278,10 @@
           role="tabpanel"
           aria-labelledby="vip-tab-groups"
         >
+          <p class="vip-note mb-3">
+            减免为倍率绝对值，VIP 1–5 依次不降低；实际倍率 = max(分组下限, 基础倍率 − 减免)。
+            下限可设为 0，达到下限后不再继续降低；分组基础倍率为 0 时，使用该基础倍率计费的费用为 0。
+          </p>
           <div class="vip-table-wrap vip-group-table">
             <table class="vip-table">
               <thead>
@@ -282,7 +295,10 @@
               </thead>
               <tbody>
                 <tr v-for="group in groups" :key="group.id">
-                  <td class="font-medium">{{ group.name }}</td>
+                  <td class="font-medium">
+                    {{ group.name }}
+                    <span v-if="group.status === 'inactive'" class="ml-1 text-xs text-gray-500">已停用</span>
+                  </td>
                   <td class="whitespace-nowrap text-gray-500">
                     {{
                       excluded(group)
@@ -319,8 +335,7 @@
                       :data-discount="`${group.id}-${n}`"
                       :aria-label="`${group.name} VIP ${n} 减免`"
                       type="number"
-                      min="0"
-                      max="0.075"
+                      :min="n === 1 ? 0 : rule(group.id).discounts[n - 2]"
                       step="0.001"
                       :disabled="busy || group.is_exclusive || excluded(group)"
                       class="input"
@@ -658,6 +673,7 @@ const tabs = [
 const activeTab = ref('rules')
 const rules = ref<VIPRules | null>(null)
 const groups = ref<Group[]>([])
+const removedGroupIds = ref<number[]>([])
 const busy = ref(false)
 const error = ref('')
 const userId = ref(0)
@@ -783,9 +799,19 @@ async function loadRules() {
   await action(async () => {
     const [config, all] = await Promise.all([
       getVIPRules(),
-      apiClient.get<Group[]>('/admin/groups/all'),
+      apiClient.get<Group[]>('/admin/groups/all', {
+        params: { include_inactive: true },
+      }),
     ])
     config.exchange_rates ||= { USD: 1 }
+    // VIP config outlives deleted groups. Keep inactive groups (which can be
+    // re-enabled) and prune only IDs absent from the complete current list.
+    const currentIds = new Set(all.data.map((group) => group.id))
+    const configuredGroups = config.groups ?? []
+    removedGroupIds.value = configuredGroups
+      .filter((group) => !currentIds.has(group.group_id))
+      .map((group) => group.group_id)
+    config.groups = configuredGroups.filter((group) => currentIds.has(group.group_id))
     for (const group of all.data) {
       if (!config.groups.some((item) => item.group_id === group.id))
         config.groups.push({
@@ -817,8 +843,20 @@ function requestRefresh() {
 async function save() {
   if (!rules.value) return
   await action(async () => {
+    for (const group of rules.value!.groups) {
+      const name = groups.value.find((item) => item.id === group.group_id)?.name || `ID ${group.group_id}`
+      let previous = 0
+      for (const [index, discount] of group.discounts.entries()) {
+        if (!Number.isFinite(discount) || discount < 0)
+          throw new Error(`分组「${name}」的 VIP ${index + 1} 减免必须为有效的非负数`)
+        if (discount < previous)
+          throw new Error(`分组「${name}」的 VIP ${index + 1} 减免不能低于 VIP ${index}`)
+        previous = discount
+      }
+    }
     await saveVIPRules(rules.value!)
     savedRules.value = JSON.stringify(rules.value)
+    removedGroupIds.value = []
   }, 'VIP 规则已保存')
 }
 async function loadUser() {

@@ -173,6 +173,10 @@ const (
 	RedeemTypeSubscription     = domain.RedeemTypeSubscription
 	RedeemTypeInvitation       = domain.RedeemTypeInvitation
 	RedeemTypeAffiliateBalance = "affiliate_balance"
+	// History-only projections, never redeemable codes or paid recharge.
+	BalanceHistoryCheckin           = "checkin_balance"
+	BalanceHistoryAchievement       = "achievement_balance"
+	BalanceHistoryAchievementSeries = "achievement_series_balance"
 )
 
 // PromoCode status constants

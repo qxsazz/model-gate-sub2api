@@ -19,7 +19,7 @@ func TestVIPThresholdRefundAndDisabled(t *testing.T) {
 	}
 }
 func TestVIPDecimalRatesAndPriceDecrease(t *testing.T) {
-	for _, c := range []struct{ base, floor, cut, want float64 }{{.3, .2, .1, .225}, {.2, .17, .005, .195}, {.12, .11, .002, .118}, {.088, .088, 0, .088}, {.15, .2, .1, .15}} {
+	for _, c := range []struct{ base, floor, cut, want float64 }{{.3, .2, .1, .2}, {.2, .17, .005, .195}, {.12, .11, .002, .118}, {.088, .088, 0, .088}, {.15, .2, .1, .15}} {
 		if got := VIPDiscountedRate(c.base, c.floor, c.cut); got != c.want {
 			t.Fatalf("got %.10f want %.10f", got, c.want)
 		}
@@ -30,9 +30,9 @@ func TestVIPRejectsUnsafePolicy(t *testing.T) {
 	if err := r.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	r.Groups = []VIPGroupRule{{GroupID: 1, Floor: .2, Discounts: []float64{.02, .04, .06, .08, .11}}}
+	r.Groups = []VIPGroupRule{{GroupID: 1, Floor: .2, Discounts: []float64{.02, .04, .03, .08, .15}}}
 	if r.Validate() == nil {
-		t.Fatal("accepted discount above cap")
+		t.Fatal("accepted decreasing VIP benefits")
 	}
 	r.Groups[0].Discounts = []float64{0, 0, 0, 0, 0}
 	r.Groups[0].Private = true
