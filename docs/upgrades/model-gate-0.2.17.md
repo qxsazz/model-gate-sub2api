@@ -4,7 +4,7 @@
 
 - Customized baseline: `origin/staging`, `0b86e5987f4a7452fdce9cd44a34c7fb6dfced20`.
 - Upstream: `Wei-Shaw/sub2api` tag `v0.2.17`, peeled commit `060d0160417782cd962a0c7f460f6cd4565d4916`.
-- Candidate version: `0.2.17-mg.1`. The upstream tag's VERSION file says 0.2.16; the actual source commit above identifies the imported release.
+- Final staging candidate version: `0.2.17-mg.2`, including the subsequent reward-history and VIP group-save fixes. The upstream tag's VERSION file says 0.2.16; the actual source commit above identifies the imported release.
 - The original working directory and existing running database are not upgrade targets. Development and preview use an independent worktree and an isolated synthetic database.
 - This is a local candidate. It does not represent approval, CI completion, staging acceptance, or a production release. The separately requested `sever-generator` skill remains deferred by the user.
 

@@ -1,6 +1,6 @@
 # VIP group rule save after group deletion
 
-Version: 0.2.17-mg.3, following the reward-history fix in mg.2.
+Release version: 0.2.17-mg.2, including both the reward-history and VIP group rule fixes.
 
 ## Reproduction and cause
 
