@@ -58,3 +58,55 @@ func TestVIPGroupRulesSaveAfterDeletingGroupAndAddingReplacement(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, actor).Scan(&balance))
 	require.Equal(t, 100.0, balance)
 }
+
+func TestVIPGroupDiscountSupportsZeroFloorsAndZeroBaseRates(t *testing.T) {
+	ctx := context.Background()
+	client := testEntTx(t).Client()
+	user, err := client.User.Create().SetEmail(uuid.NewString() + "@test.invalid").SetPasswordHash("fixture").SetBalance(100).Save(ctx)
+	require.NoError(t, err)
+	groupRepo := &groupRepository{client: client, sql: client}
+	admin := service.NewAdminService(nil, nil, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	free, err := admin.CreateGroup(ctx, &service.CreateGroupInput{Name: uuid.NewString(), Platform: service.PlatformOpenAI, RateMultiplier: 0})
+	require.NoError(t, err)
+	require.Zero(t, free.RateMultiplier)
+	paid, err := admin.CreateGroup(ctx, &service.CreateGroupInput{Name: uuid.NewString(), Platform: service.PlatformOpenAI, RateMultiplier: .35})
+	require.NoError(t, err)
+	repo := &userRepository{sql: client}
+	_, err = client.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,3000)`, user.ID, uuid.NewString())
+	require.NoError(t, err)
+	rules := service.DefaultVIPRules()
+	rules.Enabled = true
+	rules.Groups = []service.VIPGroupRule{
+		{GroupID: paid.ID, Floor: .2, Discounts: []float64{.015, .03, .06, .1, .15}},
+		{GroupID: free.ID, Floor: 0, Discounts: []float64{0, 0, 0, 0, 0}},
+	}
+	require.NoError(t, repo.VIPSaveRules(ctx, user.ID, rules))
+	assertRates := func(wantPaid float64) {
+		t.Helper()
+		state, err := repo.VIPAuthSnapshot(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, 5, state.Tier.Level)
+		got := map[int64]float64{}
+		for _, g := range state.Groups {
+			got[g.ID] = g.Rate
+		}
+		require.Contains(t, got, paid.ID)
+		require.Contains(t, got, free.ID)
+		require.Equal(t, wantPaid, got[paid.ID])
+		require.Zero(t, got[free.ID])
+	}
+	assertRates(.2)
+	// Full discount to a zero floor must stay zero through the authentication view.
+	rules.Groups[0].Floor = 0
+	rules.Groups[0].Discounts[4] = .35
+	require.NoError(t, repo.VIPSaveRules(ctx, user.ID, rules))
+	assertRates(0)
+	zero := 0.0
+	updated, err := admin.UpdateGroup(ctx, paid.ID, &service.UpdateGroupInput{RateMultiplier: &zero})
+	require.NoError(t, err)
+	require.Zero(t, updated.RateMultiplier)
+	stored, err := groupRepo.GetByID(ctx, paid.ID)
+	require.NoError(t, err)
+	require.Zero(t, stored.RateMultiplier)
+	assertRates(0)
+}

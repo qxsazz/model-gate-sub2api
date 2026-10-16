@@ -278,6 +278,10 @@
           role="tabpanel"
           aria-labelledby="vip-tab-groups"
         >
+          <p class="vip-note mb-3">
+            减免为倍率绝对值，VIP 1–5 依次不降低；实际倍率 = max(分组下限, 基础倍率 − 减免)。
+            下限可设为 0，达到下限后不再继续降低；分组基础倍率为 0 时，使用该基础倍率计费的费用为 0。
+          </p>
           <div class="vip-table-wrap vip-group-table">
             <table class="vip-table">
               <thead>
@@ -331,8 +335,7 @@
                       :data-discount="`${group.id}-${n}`"
                       :aria-label="`${group.name} VIP ${n} 减免`"
                       type="number"
-                      min="0"
-                      max="0.075"
+                      :min="n === 1 ? 0 : rule(group.id).discounts[n - 2]"
                       step="0.001"
                       :disabled="busy || group.is_exclusive || excluded(group)"
                       class="input"
@@ -840,6 +843,17 @@ function requestRefresh() {
 async function save() {
   if (!rules.value) return
   await action(async () => {
+    for (const group of rules.value!.groups) {
+      const name = groups.value.find((item) => item.id === group.group_id)?.name || `ID ${group.group_id}`
+      let previous = 0
+      for (const [index, discount] of group.discounts.entries()) {
+        if (!Number.isFinite(discount) || discount < 0)
+          throw new Error(`分组「${name}」的 VIP ${index + 1} 减免必须为有效的非负数`)
+        if (discount < previous)
+          throw new Error(`分组「${name}」的 VIP ${index + 1} 减免不能低于 VIP ${index}`)
+        previous = discount
+      }
+    }
     await saveVIPRules(rules.value!)
     savedRules.value = JSON.stringify(rules.value)
     removedGroupIds.value = []

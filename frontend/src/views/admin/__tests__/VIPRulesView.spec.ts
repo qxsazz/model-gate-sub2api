@@ -125,12 +125,13 @@ describe('Admin VIP privileges', () => {
     await wrapper.get('[data-threshold="1"]').setValue('100')
     await wrapper.get('[data-tab="groups"]').trigger('click')
     await wrapper.get('[data-discount="1-1"]').setValue('0.02')
+    for (let n = 2; n <= 5; n++) await wrapper.get(`[data-discount="1-${n}"]`).setValue('0.02')
     await wrapper.get('[data-tab="rules"]').trigger('click')
     await wrapper.get('[data-save-rules]').trigger('click')
     await flushPromises()
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        groups: [expect.objectContaining({ discounts: [0.02, 0, 0, 0, 0] })],
+        groups: [expect.objectContaining({ discounts: [0.02, 0.02, 0.02, 0.02, 0.02] })],
       }),
     )
     expect(mocks.success).toHaveBeenCalledTimes(1)
@@ -258,6 +259,30 @@ describe('Admin VIP privileges', () => {
       { group_id: 3, private: false, access: false, floor: 0.3, discounts: [0.01, 0.02, 0.03, 0.04, 0.05] },
     ] }))
     expect(wrapper.find('[data-removed-group-rules]').exists()).toBe(false)
+  })
+
+  it('saves a 0.15 VIP discount and a zero floor without the old global cap', async () => {
+    const wrapper = render()
+    await flushPromises()
+    await wrapper.get('[data-tab="groups"]').trigger('click')
+    await wrapper.get('[aria-label="normal 倍率下限"]').setValue('0')
+    const vip5 = wrapper.get('[data-discount="1-5"]')
+    expect(vip5.attributes('max')).toBeUndefined()
+    await vip5.setValue('0.15')
+    await wrapper.get('[data-save-rules]').trigger('click')
+    await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ groups: [expect.objectContaining({ floor: 0, discounts: [0, 0, 0, 0, 0.15] })] }))
+  })
+  it('names the group and grade when a discount ladder decreases', async () => {
+    const wrapper = render()
+    await flushPromises()
+    await wrapper.get('[data-tab="groups"]').trigger('click')
+    await wrapper.get('[data-discount="1-1"]').setValue('0.04')
+    await wrapper.get('[data-discount="1-2"]').setValue('0.03')
+    await wrapper.get('[data-save-rules]').trigger('click')
+    await flushPromises()
+    expect(mocks.save).not.toHaveBeenCalled()
+    expect(mocks.error).toHaveBeenCalledWith('分组「normal」的 VIP 2 减免不能低于 VIP 1')
   })
 
 })

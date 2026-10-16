@@ -641,7 +641,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 	if h.rejectUnsupportedSimpleModeOperation(c, simpleModeGroupCreate) {
 		return
 	}
-	var req CreateGroupRequest
+	// Omitted rate uses the standard default; an explicit zero remains zero.
+	req := CreateGroupRequest{RateMultiplier: 1}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return

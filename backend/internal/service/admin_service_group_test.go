@@ -4,6 +4,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
 	"testing"
 
@@ -2343,4 +2345,28 @@ func TestAdminService_CreateGroup_CodexModelsManifestConfigDisabledAccepted(t *t
 	require.NoError(t, err)
 	require.Equal(t, []int64{1, 2}, group.CodexModelsManifestConfig.AccountIDs)
 	require.False(t, repo.created.CodexModelsManifestConfig.Enabled)
+}
+
+func TestAdminService_GroupRateAllowsZeroAndRejectsInvalidNumbers(t *testing.T) {
+	for _, rate := range []float64{0, .35, -.01, math.NaN(), math.Inf(1)} {
+		t.Run(fmt.Sprint(rate), func(t *testing.T) {
+			repo := &groupRepoStubForAdmin{getByID: &Group{ID: 1, Name: "free", Platform: PlatformAnthropic, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard, RateMultiplier: 1}}
+			svc := &adminServiceImpl{groupRepo: repo}
+			created, createErr := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "free", Platform: PlatformAnthropic, RateMultiplier: rate})
+			updated, updateErr := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{RateMultiplier: &rate})
+			if finiteVIP(rate) && rate >= 0 {
+				require.NoError(t, createErr)
+				require.NoError(t, updateErr)
+				require.Equal(t, rate, created.RateMultiplier)
+				require.Equal(t, rate, updated.RateMultiplier)
+				require.NotNil(t, repo.created)
+				require.NotNil(t, repo.updated)
+			} else {
+				require.Error(t, createErr)
+				require.Error(t, updateErr)
+				require.Nil(t, repo.created)
+				require.Nil(t, repo.updated)
+			}
+		})
+	}
 }
