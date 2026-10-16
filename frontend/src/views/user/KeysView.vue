@@ -1132,16 +1132,18 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
+        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] flex flex-col overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
           bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
-          left: dropdownPosition.left + 'px'
+          left: dropdownPosition.left + 'px',
+          width: dropdownPosition.width + 'px',
+          maxHeight: dropdownPosition.maxHeight + 'px'
         }"
       >
         <!-- Search box -->
-        <div class="border-b border-gray-100 p-2 dark:border-dark-700">
+        <div class="shrink-0 border-b border-gray-100 p-2 dark:border-dark-700">
           <div class="relative">
             <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1156,7 +1158,7 @@
           </div>
         </div>
         <!-- Group list -->
-        <div class="max-h-80 overflow-y-auto p-1.5">
+        <div class="min-h-0 overflow-y-auto overscroll-contain p-1.5">
           <button
             v-for="option in filteredGroupOptions"
             :key="option.value ?? 'null'"
@@ -1411,7 +1413,7 @@ const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
-const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
+const dropdownPosition = ref<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
 
@@ -1732,37 +1734,45 @@ const toggleKeyStatus = async (key: ApiKey) => {
   }
 }
 
+// Match the rendered width to the width used for viewport placement. Content-sized
+// panels can otherwise grow beyond the right edge when a description is long.
+const updateGroupSelectorPosition = () => {
+  if (groupSelectorKeyId.value === null) return
+  const buttonEl = groupButtonRefs.value.get(groupSelectorKeyId.value)
+  if (!buttonEl) {
+    groupSelectorKeyId.value = null
+    dropdownPosition.value = null
+    return
+  }
+  const rect = buttonEl.getBoundingClientRect()
+  const padding = 8
+  const gap = 4
+  const width = Math.max(0, Math.min(380, window.innerWidth - padding * 2))
+  const left = Math.max(padding, Math.min(rect.left, window.innerWidth - width - padding))
+  const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - gap - padding)
+  const spaceAbove = Math.max(0, rect.top - gap - padding)
+  const upward = spaceBelow < 380 && spaceAbove > spaceBelow
+  const maxHeight = Math.min(380, upward ? spaceAbove : spaceBelow)
+
+  dropdownPosition.value = upward
+    ? { bottom: window.innerHeight - rect.top + gap, left, width, maxHeight }
+    : { top: rect.bottom + gap, left, width, maxHeight }
+}
+
+const handleGroupSelectorScroll = (event: Event) => {
+  // Scrolling the options must not move the panel itself.
+  if (event.target instanceof Node && dropdownRef.value?.contains(event.target)) return
+  updateGroupSelectorPosition()
+}
+
 const openGroupSelector = (key: ApiKey) => {
   if (groupSelectorKeyId.value === key.id) {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   } else {
-    const buttonEl = groupButtonRefs.value.get(key.id)
-    if (buttonEl) {
-      const rect = buttonEl.getBoundingClientRect()
-      const dropdownEstHeight = 400 // estimated max dropdown height
-      const dropdownEstWidth = Math.min(380, window.innerWidth - 16)
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      // 夹取 left，避免窄屏下浮层超出视口右缘
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownEstWidth - 8))
-
-      if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
-        // Not enough space below, pop upward
-        dropdownPosition.value = {
-          bottom: window.innerHeight - rect.top + 4,
-          left
-        }
-      } else {
-        // Default: pop downward
-        dropdownPosition.value = {
-          top: rect.bottom + 4,
-          left
-        }
-      }
-    }
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
+    updateGroupSelectorPosition()
   }
 }
 
@@ -2085,11 +2095,15 @@ onMounted(() => {
   loadUserGroupRates()
   loadPublicSettings()
   document.addEventListener('click', closeGroupSelector)
+  window.addEventListener('resize', updateGroupSelectorPosition)
+  window.addEventListener('scroll', handleGroupSelectorScroll, { capture: true, passive: true })
   resetTimer = setInterval(() => { now.value = new Date() }, 60000)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
+  window.removeEventListener('resize', updateGroupSelectorPosition)
+  window.removeEventListener('scroll', handleGroupSelectorScroll, { capture: true })
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
