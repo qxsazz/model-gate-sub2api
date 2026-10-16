@@ -168,8 +168,8 @@ func TestGeminiChatCompatReasoningPricingUsesForwardedEffort(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, recorder.Code)
 			require.Len(t, upstream.requestBodies, 1)
-			require.True(t, gjson.GetBytes(upstream.requestBodies[0], "generationConfig.thinkingConfig.includeThoughts").Bool())
 			require.Equal(t, "high", gjson.GetBytes(upstream.requestBodies[0], "generationConfig.thinkingConfig.thinkingLevel").String())
+			require.Equal(t, stream, gjson.GetBytes(upstream.requestBodies[0], "generationConfig.thinkingConfig.includeThoughts").Bool())
 			require.Equal(t, "high", optionalStringValue(result.ReasoningEffort))
 
 			billing := NewBillingService(&config.Config{}, nil)
