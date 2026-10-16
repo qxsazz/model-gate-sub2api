@@ -3328,11 +3328,6 @@ func extractGeminiParts(geminiResp map[string]any) []map[string]any {
 	return nil
 }
 
-func isGeminiThoughtPart(part map[string]any) bool {
-	thought, _ := part["thought"].(bool)
-	return thought
-}
-
 func computeGeminiTextDelta(seen, incoming string) (delta, newSeen string) {
 	incoming = strings.TrimSuffix(incoming, "\u0000")
 	if incoming == "" {
