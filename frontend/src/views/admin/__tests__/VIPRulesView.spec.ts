@@ -232,4 +232,32 @@ describe('Admin VIP privileges', () => {
       }),
     )
   })
+  it('prunes deleted group references, keeps inactive rules and saves new and existing groups', async () => {
+    const existing = { group_id: 1, private: false, access: false, floor: 0.2, discounts: [0.01, 0.02, 0.03, 0.04, 0.05] }
+    const inactive = { group_id: 2, private: false, access: false, floor: 0.1, discounts: [0, 0, 0, 0, 0] }
+    const config = await mocks.rules()
+    mocks.rules.mockResolvedValue({ ...config, groups: [existing, inactive, { group_id: 99, private: false, access: false, floor: 0.2, discounts: [0, 0, 0, 0, 0] }] })
+    mocks.groups.mockResolvedValue({ data: [
+      { id: 1, name: 'existing', rate_multiplier: 0.3, is_exclusive: false, status: 'active' },
+      { id: 2, name: 'inactive', rate_multiplier: 0.2, is_exclusive: false, status: 'inactive' },
+      { id: 3, name: 'new', rate_multiplier: 0.4, is_exclusive: false, status: 'active' },
+    ] })
+    const wrapper = render()
+    await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledWith('/admin/groups/all', { params: { include_inactive: true } })
+    expect(wrapper.get('[data-removed-group-rules]').text()).toContain('99')
+    expect(mocks.save).not.toHaveBeenCalled()
+    await wrapper.get('[data-tab="groups"]').trigger('click')
+    await wrapper.get('[aria-label="existing 倍率下限"]').setValue('0.19')
+    await wrapper.get('[aria-label="new 倍率下限"]').setValue('0.3')
+    for (let n = 1; n <= 5; n++) await wrapper.get(`[data-discount="3-${n}"]`).setValue(String(n * 0.01))
+    await wrapper.get('[data-save-rules]').trigger('click')
+    await flushPromises()
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ groups: [
+      { ...existing, floor: 0.19 }, inactive,
+      { group_id: 3, private: false, access: false, floor: 0.3, discounts: [0.01, 0.02, 0.03, 0.04, 0.05] },
+    ] }))
+    expect(wrapper.find('[data-removed-group-rules]').exists()).toBe(false)
+  })
+
 })

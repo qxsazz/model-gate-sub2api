@@ -54,6 +54,15 @@
         {{ error }}
       </p>
       <p
+        v-if="removedGroupIds.length"
+        role="status"
+        data-removed-group-rules
+        class="text-sm text-amber-700 dark:text-amber-300"
+      >
+        已从待保存配置中移除已删除分组的规则（ID：{{ removedGroupIds.join('、') }}）。
+        保存后生效，其他分组权益保持不变。
+      </p>
+      <p
         v-if="!rules"
         role="status"
         class="py-12 text-center text-sm text-gray-500"
@@ -282,7 +291,10 @@
               </thead>
               <tbody>
                 <tr v-for="group in groups" :key="group.id">
-                  <td class="font-medium">{{ group.name }}</td>
+                  <td class="font-medium">
+                    {{ group.name }}
+                    <span v-if="group.status === 'inactive'" class="ml-1 text-xs text-gray-500">已停用</span>
+                  </td>
                   <td class="whitespace-nowrap text-gray-500">
                     {{
                       excluded(group)
@@ -658,6 +670,7 @@ const tabs = [
 const activeTab = ref('rules')
 const rules = ref<VIPRules | null>(null)
 const groups = ref<Group[]>([])
+const removedGroupIds = ref<number[]>([])
 const busy = ref(false)
 const error = ref('')
 const userId = ref(0)
@@ -783,9 +796,19 @@ async function loadRules() {
   await action(async () => {
     const [config, all] = await Promise.all([
       getVIPRules(),
-      apiClient.get<Group[]>('/admin/groups/all'),
+      apiClient.get<Group[]>('/admin/groups/all', {
+        params: { include_inactive: true },
+      }),
     ])
     config.exchange_rates ||= { USD: 1 }
+    // VIP config outlives deleted groups. Keep inactive groups (which can be
+    // re-enabled) and prune only IDs absent from the complete current list.
+    const currentIds = new Set(all.data.map((group) => group.id))
+    const configuredGroups = config.groups ?? []
+    removedGroupIds.value = configuredGroups
+      .filter((group) => !currentIds.has(group.group_id))
+      .map((group) => group.group_id)
+    config.groups = configuredGroups.filter((group) => currentIds.has(group.group_id))
     for (const group of all.data) {
       if (!config.groups.some((item) => item.group_id === group.id))
         config.groups.push({
@@ -819,6 +842,7 @@ async function save() {
   await action(async () => {
     await saveVIPRules(rules.value!)
     savedRules.value = JSON.stringify(rules.value)
+    removedGroupIds.value = []
   }, 'VIP 规则已保存')
 }
 async function loadUser() {
