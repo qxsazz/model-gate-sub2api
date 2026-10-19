@@ -55,7 +55,7 @@ type gatewayClientErrorWriter struct {
 
 func (w *gatewayClientErrorWriter) Size() int {
 	size := w.size.Load()
-	if size < 0 && w.ResponseWriter.Written() {
+	if size < 0 && w.Written() {
 		return 0
 	}
 	return int(size)
@@ -67,7 +67,7 @@ func (w *gatewayClientErrorWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	// Preserve the original commit point, even for a fragmented error frame.
-	w.ResponseWriter.WriteHeaderNow()
+	w.WriteHeaderNow()
 	w.size.CompareAndSwap(-1, 0)
 	n := len(p)
 	contentType := strings.ToLower(w.Header().Get("Content-Type"))

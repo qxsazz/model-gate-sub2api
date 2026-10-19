@@ -20,7 +20,7 @@ func TestGatewayClientErrorWebSocketFrameKeepsCloseReason(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		writeContentModerationWSError(r.Context(), conn, &service.ContentModerationDecision{Blocked: true, StatusCode: 403, Message: "private original diagnostic"})
 		_ = conn.Close(coderws.StatusPolicyViolation, "original short close reason")
 	}))
@@ -29,7 +29,7 @@ func TestGatewayClientErrorWebSocketFrameKeepsCloseReason(t *testing.T) {
 	defer cancel()
 	conn, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
 	require.NoError(t, err)
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 	typ, payload, err := conn.Read(ctx)
 	require.NoError(t, err)
 	require.Equal(t, coderws.MessageText, typ)
