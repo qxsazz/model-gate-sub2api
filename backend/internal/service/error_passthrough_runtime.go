@@ -58,6 +58,7 @@ func applyErrorPassthroughRule(
 
 	errMsg = ExtractUpstreamErrorMessage(responseBody)
 	if !rule.PassthroughBody && rule.CustomMessage != nil {
+		PreserveGatewayClientErrorMessage(c)
 		errMsg = *rule.CustomMessage
 	}
 

@@ -148,7 +148,7 @@ func writeSecurityAuditWSError(ctx context.Context, conn *coderws.Conn, decision
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	_ = conn.Write(writeCtx, coderws.MessageText, payload)
+	_ = conn.Write(writeCtx, coderws.MessageText, service.RewriteGatewayClientError(nil, payload, 0, "error"))
 }
 
 type legacyContentModerationDecision struct{ value *securityaudit.LegacyDecision }
