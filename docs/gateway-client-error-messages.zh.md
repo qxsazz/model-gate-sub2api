@@ -10,7 +10,7 @@
 
 只替换已经存在的 message，不新增字段。HTTP 状态、type/code/status、Retry-After、request_id、SSE 事件名和顺序保留；原有脱敏与容量兼容码转换仍在此前完成。已识别的会话安全屏蔽保留专门文案。
 
-显式错误透传规则中的 CustomMessage 优先：service 共享透传函数以及 OpenAI、通用 Gateway、Gemini 的 failover 规则出口登记展示豁免。仅透传原始上游 body 而没有显式自定义文案的规则仍适用统一模板。WS 每轮重置展示豁免，避免影响下一轮。
+显式错误透传规则中的 CustomMessage 优先：service 共享透传函数以及 OpenAI、通用 Gateway、Gemini 的 failover 规则出口登记展示豁免。Fast Policy 管理员配置的拦截说明同样在 HTTP/SSE 和 WS ingress 出口保留。仅透传原始上游 body 而没有显式自定义文案的规则仍适用统一模板。WS 每轮重置展示豁免，避免影响下一轮。
 
 ## 覆盖入口
 

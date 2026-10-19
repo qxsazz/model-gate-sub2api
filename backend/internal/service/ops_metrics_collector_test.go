@@ -24,6 +24,7 @@ func TestWriteOpenAIFastPolicyBlockedResponseMarksBusinessLimited(t *testing.T) 
 	reason, ok := c.Get(OpsClientBusinessLimitedReasonKey)
 	require.True(t, ok)
 	require.Equal(t, OpsClientBusinessLimitedReasonLocalPolicyDenied, reason)
+	require.Equal(t, rec.Body.Bytes(), RewriteGatewayClientError(c, rec.Body.Bytes(), rec.Code, ""), "administrator policy message must survive client formatting")
 }
 
 func TestOpsMetricsCollectorQueryErrorCountsExcludesCountTokens(t *testing.T) {
