@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -153,19 +154,23 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 		// Key 状态检查（状态字段可能因后台异步刷新而滞后，故显式拦截）。
 		switch apiKey.Status {
 		case service.StatusAPIKeyQuotaExhausted:
+			service.SetGatewayClientErrorReason(c, "API_KEY_QUOTA_EXHAUSTED")
 			abortWithGoogleError(c, 429, "API key 额度已用完")
 			return
 		case service.StatusAPIKeyExpired:
+			service.SetGatewayClientErrorReason(c, "API_KEY_EXPIRED")
 			abortWithGoogleError(c, 403, "API key 已过期")
 			return
 		}
 
 		// 运行时过期/配额检查（即使状态是 active，也要检查时间和用量，与主中间件一致）。
 		if apiKey.IsExpired() {
+			service.SetGatewayClientErrorReason(c, "API_KEY_EXPIRED")
 			abortWithGoogleError(c, 403, "API key 已过期")
 			return
 		}
 		if apiKey.IsQuotaExhausted() {
+			service.SetGatewayClientErrorReason(c, "API_KEY_QUOTA_EXHAUSTED")
 			abortWithGoogleError(c, 429, "API key 额度已用完")
 			return
 		}
@@ -178,6 +183,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				apiKey.Group.ID,
 			)
 			if err != nil {
+				service.SetGatewayClientErrorReason(c, "SUBSCRIPTION_NOT_FOUND")
 				abortWithGoogleError(c, 403, "No active subscription found for this group")
 				return
 			}
@@ -199,6 +205,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 					errors.Is(err, service.ErrMonthlyLimitExceeded) {
 					status = 429
 				}
+				service.SetGatewayClientErrorReason(c, infraerrors.Reason(err))
 				abortWithGoogleError(c, status, err.Error())
 				return
 			}
@@ -206,6 +213,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			c.Set(string(ContextKeySubscription), subscription)
 		} else {
 			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				service.SetGatewayClientErrorReason(c, "INSUFFICIENT_BALANCE")
 				abortWithGoogleError(c, 403, "Insufficient account balance")
 				return
 			}
