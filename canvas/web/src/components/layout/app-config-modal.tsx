@@ -179,6 +179,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                     <div className="text-xs text-stone-500">使用本站 Key 自动同步渠道与模型，支持 OpenAI 和 Google 原生协议。</div>
                                     <div className="flex flex-wrap gap-2">
                                         <Button icon={<RefreshCw className="size-4" />} onClick={() => void refreshManagedModels().then(() => message.success("模型已刷新")).catch((e) => message.error(e.message))}>刷新渠道与模型</Button>
+                                        <Button onClick={() => notifyHost("create-key", "text")}>创建文本 Key</Button>
                                         <Button onClick={() => notifyHost("create-key", "video")}>创建生视频 Key</Button>
                                         <Button type="primary" icon={<Plus className="size-4" />} onClick={() => notifyHost("create-key", "image")}>创建生图 Key</Button>
                                     </div>

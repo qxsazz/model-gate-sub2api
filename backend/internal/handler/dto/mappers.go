@@ -179,6 +179,7 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 
 func groupFromServiceBase(g *service.Group) Group {
 	return Group{
+		KeyCapabilities:                 g.KeyCapabilities(),
 		ID:                              g.ID,
 		Name:                            g.Name,
 		Description:                     g.Description,

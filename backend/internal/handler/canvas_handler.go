@@ -429,7 +429,7 @@ func (h *CanvasHandler) Capabilities(c *gin.Context) {
 				continue
 			}
 			platform := key.Group.Platform
-			imageAllowed := service.GroupAllowsImageGeneration(key.Group)
+			capabilities := key.Group.KeyCapabilities()
 			formats := []string{}
 			if platform == service.PlatformAnthropic || platform == service.PlatformOpenAI || platform == service.PlatformGrok || platform == service.PlatformComposite {
 				formats = append(formats, "openai")
@@ -438,7 +438,7 @@ func (h *CanvasHandler) Capabilities(c *gin.Context) {
 				formats = append(formats, "gemini")
 			}
 			if len(formats) > 0 {
-				all = append(all, gin.H{"id": key.ID, "name": key.Name, "image": imageAllowed && platform != service.PlatformAnthropic, "video": imageAllowed && (platform == service.PlatformGrok || platform == service.PlatformComposite), "audio": platform == service.PlatformOpenAI || platform == service.PlatformComposite, "formats": formats})
+				all = append(all, gin.H{"id": key.ID, "name": key.Name, "image": capabilities.Image, "video": capabilities.Video, "text": capabilities.Text, "audio": platform == service.PlatformOpenAI || platform == service.PlatformComposite, "formats": formats})
 			}
 		}
 		if paging == nil || page*100 >= int(paging.Total) {

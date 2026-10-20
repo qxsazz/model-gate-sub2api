@@ -16,7 +16,7 @@ export async function refreshManagedModels() {
                 const id = native ? `${key.id}-gemini` : String(key.id);
                 const saved = previous.channels.find((channel) => channel.id === id);
                 const selected = saved?.modelsConfigured ? saved.models.map((m) => m.name) : names;
-                const models = selected.map((name) => ({ name, capability: saved?.models.find((model) => model.name === name)?.capability || guessCapability(name) })).filter((model) => (model.capability === "image" && key.image) || (model.capability === "video" && key.video) || (model.capability === "audio" && key.audio) || model.capability === "text");
+                const models = selected.map((name) => ({ name, capability: saved?.models.find((model) => model.name === name)?.capability || guessCapability(name) })).filter((model) => (model.capability === "image" && key.image) || (model.capability === "video" && key.video) || (model.capability === "audio" && key.audio) || (model.capability === "text" && key.text !== false));
                 channels.push({ id, name: `${key.name} · ${native ? "Google 原生" : "OpenAI"}`, baseUrl: `${location.origin}/api/v1/canvas/gateway/${key.id}/${native ? "gemini/v1beta" : "v1"}`, apiKey: "managed-by-model-gate", apiFormat: format, modelsConfigured: saved?.modelsConfigured, models });
             } catch (error) {
                 failures.push((error as Error).message);

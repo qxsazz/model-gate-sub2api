@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 
-export type ManagedKey = { id: number; name: string; image: boolean; video: boolean; audio?: boolean; formats?: Array<"openai" | "gemini"> };
+export type ManagedKey = { id: number; name: string; image: boolean; video: boolean; text?: boolean; audio?: boolean; formats?: Array<"openai" | "gemini"> };
 export type HostedContext = { keys: ManagedKey[]; theme: "light" | "dark"; userId: number };
 export let hosted: HostedContext;
 const pending = new Map<string, { resolve: (value: any) => void; reject: (reason: Error) => void }>();

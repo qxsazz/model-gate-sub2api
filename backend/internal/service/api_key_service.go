@@ -214,6 +214,7 @@ type APIKeyAuthCacheInvalidator interface {
 
 // CreateAPIKeyRequest 创建API Key请求
 type CreateAPIKeyRequest struct {
+	Purpose     string   `json:"purpose,omitempty"`
 	Name        string   `json:"name"`
 	GroupID     *int64   `json:"group_id"`
 	CustomKey   *string  `json:"custom_key"`   // 可选的自定义key
@@ -518,6 +519,9 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 
+	if req.Purpose != "" && req.GroupID == nil {
+		return nil, infraerrors.BadRequest("KEY_PURPOSE_GROUP_REQUIRED", "请选择对应用途的分组")
+	}
 	// 验证分组权限（如果指定了分组）
 	if req.GroupID != nil {
 		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
@@ -528,6 +532,9 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		// 检查用户是否可以绑定该分组
 		if !s.canUserBindGroup(ctx, user, group) {
 			return nil, ErrGroupNotAllowed
+		}
+		if req.Purpose != "" && !group.KeyCapabilities().Allows(req.Purpose) {
+			return nil, infraerrors.BadRequest("KEY_PURPOSE_NOT_ALLOWED", "该分组不支持所选 Key 用途")
 		}
 	}
 

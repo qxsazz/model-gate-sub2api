@@ -565,6 +565,7 @@ export interface ReasoningEffortMapping {
 }
 
 export interface Group {
+  key_capabilities?: { image: boolean; video: boolean; text: boolean }
   id: number
   name: string
   description: string | null
@@ -763,6 +764,7 @@ export interface ApiKey {
 }
 
 export interface CreateApiKeyRequest {
+  purpose?: 'image' | 'video' | 'text'
   name: string
   group_id?: number | null
   custom_key?: string // Optional custom API Key
