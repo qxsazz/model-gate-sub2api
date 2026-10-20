@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   stop-current-tasks:
-    if: github.event.head_commit.message == 'ops: stop current staging canvas generation tasks'
+    if: "github.event.head_commit.message == 'ops: stop current staging canvas generation tasks'"
     runs-on: ubuntu-latest
     environment: model-gate-staging
     timeout-minutes: 5
