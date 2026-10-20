@@ -370,7 +370,7 @@ func (h *CanvasHandler) Gateway(c *gin.Context) {
 	if recorder.Code >= 200 && recorder.Code < 300 && strings.HasSuffix(path, ":generateContent") && canvasGeminiGenerationPath.MatchString(path) {
 		result, err = h.archiveGeminiImages(c.Request.Context(), canvasUser(c), keyID, model, prompt, result)
 		if err != nil {
-			canvasFailure(c, fmt.Errorf("Google generation archive failed: %w", err))
+			canvasFailure(c, fmt.Errorf("gemini generation archive failed: %w", err))
 			return
 		}
 	}
