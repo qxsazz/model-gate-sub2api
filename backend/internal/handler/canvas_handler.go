@@ -398,7 +398,7 @@ func (h *CanvasHandler) AdminList(c *gin.Context) {
 		canvasFailure(c, err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []canvasAsset{}
 	for rows.Next() {
 		var a canvasAsset
@@ -470,13 +470,13 @@ func (h *CanvasHandler) Cleanup(ctx context.Context) error {
 	for rows.Next() {
 		var id string
 		if err = rows.Scan(&id); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return err
 		}
 		ids = append(ids, id)
 	}
 	err = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return err
 	}
