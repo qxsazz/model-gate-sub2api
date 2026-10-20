@@ -135,7 +135,7 @@ export function CanvasTopBar({
                             </button>
                         )}
                     </div>
-                    
+
                 </div>
 
 <Button type="text" className="pointer-events-auto" onClick={() => setShortcutsOpen(true)}>{t("canvas.shortcuts")}</Button>

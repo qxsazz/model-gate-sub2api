@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -490,23 +491,23 @@ func (h *CanvasHandler) Cleanup(ctx context.Context) error {
 	return nil
 }
 func (h *CanvasHandler) StartCleanup(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			if err := h.ProcessVideos(ctx); err != nil {
-				log.Printf("canvas video archiving: %v", err)
+	// A slow video provider must not delay seven-day file deletion.
+	for name, job := range map[string]func(context.Context) error{"cleanup": h.Cleanup, "video archiving": h.ProcessVideos} {
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				if err := job(ctx); err != nil {
+					log.Printf("canvas %s: %v", name, err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
 			}
-			if err := h.Cleanup(ctx); err != nil {
-				log.Printf("canvas cleanup: %v", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
+		}()
+	}
 }
 
 // Pending video tasks survive navigation and server restarts. Completion still uses the gateway's billing deduplication.
@@ -542,7 +543,7 @@ func (h *CanvasHandler) ProcessVideos(ctx context.Context) error {
 			continue
 		}
 		call := func(path string) *httptest.ResponseRecorder {
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://canvas.internal/v1/videos/"+t.id+path, nil)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://canvas.internal/v1/videos/"+url.PathEscape(t.id)+path, nil)
 			req.RemoteAddr = t.remote
 			req.Host = t.host
 			req.Header.Set("User-Agent", t.agent)
