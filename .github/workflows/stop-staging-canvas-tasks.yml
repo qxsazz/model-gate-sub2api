@@ -1,0 +1,62 @@
+name: Stop Current Staging Canvas Tasks
+on:
+  push:
+    branches: ['ops/stop-staging-canvas-tasks-20261020']
+    paths: ['.github/workflows/stop-staging-canvas-tasks.yml']
+permissions:
+  contents: read
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+jobs:
+  stop-current-tasks:
+    if: github.event.head_commit.message == 'ops: stop current staging canvas generation tasks'
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    timeout-minutes: 5
+    steps:
+      - name: Stop in-flight canvas requests, interrupt queued work, and restart staging
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$STAGING_DEPLOY_PATH'" <<'REMOTE'
+          set -euo pipefail
+          staging_dir="$1"
+          test "$staging_dir" = /opt/sub2api-staging
+          compose=(docker compose --project-name sub2api-staging --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.base.yml" -f "$staging_dir/docker-compose.staging.yml")
+          test "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' sub2api-staging)" = sub2api-staging
+          "${compose[@]}" stop --timeout 1 sub2api
+          "${compose[@]}" exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+          BEGIN;
+          WITH stopped AS (
+            UPDATE canvas_generation_tasks
+            SET status='interrupted',cancel_requested=true,request_body=NULL,response_body=NULL,response_status=503,
+                error='管理员已停止测试环境任务，请确认生成记录后再重试',updated_at=now()
+            WHERE status IN ('queued','running') RETURNING id
+          ) SELECT 'interrupted_image_tasks=' || count(*) FROM stopped;
+          WITH stopped AS (
+            UPDATE canvas_video_tasks SET status='failed' WHERE status='pending' RETURNING task_id
+          ) SELECT 'stopped_video_polling_tasks=' || count(*) FROM stopped;
+          COMMIT;
+          SELECT 'remaining_active_image_tasks=' || count(*) FROM canvas_generation_tasks WHERE status IN ('queued','running');
+          SELECT 'remaining_pending_video_tasks=' || count(*) FROM canvas_video_tasks WHERE status='pending';
+          SQL
+          "${compose[@]}" start sub2api
+          for attempt in $(seq 1 20); do
+            if docker exec sub2api-staging wget --quiet --spider http://127.0.0.1:8080/health; then
+              printf 'staging_health=ok\n'
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+          REMOTE
