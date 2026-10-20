@@ -44,6 +44,7 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
 
     return (
         <div className="space-y-3">
+            <Alert type="info" showIcon message="画布、生成记录与作品保存在本站云端，媒体保留 7 天；下方统计仅包含浏览器缓存。" />
             <section className="rounded-lg border border-stone-200 p-4 dark:border-stone-800">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

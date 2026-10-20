@@ -1,11 +1,8 @@
 <template>
   <AppLayout>
     <section class="canvas-workspace">
-      <div class="canvas-workspace-heading">
-        <div><h1>无限画布</h1><p>生图、视频、画布与素材库 · 作品素材保存 7 天，请及时下载</p></div>
-        <span role="status" :class="{ 'text-red-600': saveError }">{{ status }}</span>
-      </div>
       <iframe ref="frame" src="/canvas-app/image" title="MODEL-GATE 无限画布" class="canvas-frame" allow="clipboard-write; fullscreen" />
+      <div v-if="saveError" role="alert" class="canvas-save-error">{{ status }}</div>
       <div v-if="showCreate" class="canvas-dialog-backdrop" @click.self="showCreate = false">
         <section class="canvas-dialog" role="dialog" aria-modal="true" aria-label="创建画布Key">
           <h2>创建{{ purpose === 'video' ? '生视频' : '生图' }} Key</h2>
@@ -40,7 +37,7 @@ const groupId = ref<number | null>(null)
 const keyName = ref('无限画布')
 const creating = ref(false)
 const createError = ref('')
-const eligibleGroups = computed(() => groups.value.filter((group) => group.status === 'active' && group.allow_image_generation && (purpose.value === 'video' ? ['grok', 'composite'].includes(group.platform) : ['openai', 'grok', 'composite'].includes(group.platform))))
+const eligibleGroups = computed(() => groups.value.filter((group) => group.status === 'active' && group.allow_image_generation && (purpose.value === 'video' ? ['grok', 'composite'].includes(group.platform) : ['openai', 'grok', 'gemini', 'antigravity', 'composite'].includes(group.platform))))
 const theme = () => document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 const pending = new Set<AbortController>()
 let observer: MutationObserver | undefined
@@ -76,7 +73,7 @@ async function receive(event: MessageEvent) {
   if (msg.path === 'context') { reply({ userId: auth.user?.id, theme: theme(), keys: [] }); status.value = '正在加载云端项目'; return }
   const method = String(msg.method || 'GET').toUpperCase()
   // No administrative or arbitrary host API is reachable through the child bridge.
-  if (typeof msg.path !== 'string' || !/^\/canvas\/(capabilities|state\/[^/]+|storage\/[^/]+|assets\/[a-f0-9-]+\/content|gateway\/\d+\/(?:models|images\/(?:generations|edits)|videos\/(?:generations|[^/?]+(?:\/content)?)))$/.test(msg.path) || !['GET', 'PUT', 'POST'].includes(method)) { reply(undefined, '不允许的画布请求'); return }
+  if (typeof msg.path !== 'string' || !/^\/canvas\/(capabilities|state\/[^/]+|storage\/[^/]+|assets\/[a-f0-9-]+\/content|gateway\/\d+\/(?:models|responses|audio\/speech|gemini\/models(?:\/[A-Za-z0-9][A-Za-z0-9._-]*:(?:generateContent|streamGenerateContent))?|images\/(?:generations|edits)|videos\/(?:generations|[^/?]+(?:\/content)?)))$/.test(msg.path) || !['GET', 'PUT', 'POST'].includes(method)) { reply(undefined, '不允许的画布请求'); return }
   const controller = new AbortController(); pending.add(controller)
   try {
     const gateway = msg.path.startsWith('/canvas/gateway/')
@@ -111,9 +108,8 @@ onBeforeUnmount(() => { active = false; pending.forEach((c) => c.abort()); obser
 
 <style scoped>
 .canvas-workspace { overflow: hidden; border: 1px solid var(--mg-line-warm, #e7e1d4); border-radius: 12px; background: var(--mg-surface, #fff); }
-.canvas-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--mg-line-warm, #e7e1d4); }
-h1 { font-size: 20px; font-weight: 600; } p, [role=status] { font-size: 12px; color: var(--mg-muted, #746f65); margin-top: 4px; }
-.canvas-frame { display: block; width: 100%; height: calc(100dvh - 230px); min-height: 620px; border: 0; }
+.canvas-save-error { padding: 8px 16px; color: #b42318; background: #fff4ed; font-size: 12px; }
+.canvas-frame { display: block; width: 100%; height: calc(100dvh - 145px); min-height: 620px; border: 0; }
 .canvas-dialog-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: #0008; padding: 20px; }
 .canvas-dialog { width: 100%; max-width: 480px; background: var(--mg-surface, white); color: var(--mg-ink-900, #24252a); border-radius: 12px; padding: 24px; }
 .canvas-dialog h2 { font-size: 18px; font-weight: 600; } .canvas-dialog label { display: grid; gap: 6px; margin: 16px 0; }

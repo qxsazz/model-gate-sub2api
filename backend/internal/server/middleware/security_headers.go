@@ -132,7 +132,7 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		if strings.HasPrefix(c.Request.URL.Path, "/canvas-app/") {
 			// Only the hosted canvas may be embedded by this same-origin console.
 			c.Header("X-Frame-Options", "SAMEORIGIN")
-			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'none'")
+			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self' blob: data: https:; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'none'")
 			c.Next()
 			return
 		}

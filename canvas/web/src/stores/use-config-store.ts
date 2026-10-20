@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
-import { hosted } from "@/lib/model-gate";
+import { hosted, cloudStateStorage } from "@/lib/model-gate";
 
 export type ApiCallFormat = "openai" | "gemini";
 export type ModelCapability = "image" | "video" | "text" | "audio";
@@ -22,6 +22,7 @@ export type ModelChannel = {
     baseUrl: string;
     apiKey: string;
     apiFormat: ApiCallFormat;
+    modelsConfigured?: boolean;
     models: ChannelModel[];
 };
 
@@ -157,7 +158,7 @@ export function boolConfig(value: string, fallback: boolean) {
     return value ? value === "true" : fallback;
 }
 const AUDIO_KEYWORDS = ["audio", "tts", "speech", "voice", "music", "sound"];
-const IMAGE_KEYWORDS = ["seedream", "gpt-image", "image", "dall-e", "dalle", "imagen", "flux", "sdxl", "stable-diffusion", "midjourney"];
+const IMAGE_KEYWORDS = ["seedream", "gpt-image", "image", "dall-e", "dalle", "imagen", "flux", "sdxl", "stable-diffusion", "midjourney", "banana"];
 
 /** Best-effort default capability for a freshly fetched model name; user can override in the channel editor. */
 export function guessCapability(name: string): ModelCapability {
@@ -242,14 +243,14 @@ export const useConfigStore = create<ConfigStore>()(
                     },
                 })),
             isAiConfigReady: (config, model) => isAiConfigReady(config, model),
-            openConfigDialog: () => window.dispatchEvent(new Event("mg-key-settings")),
+            openConfigDialog: (_shouldPromptContinue, tab = "channels") => { window.location.assign(`/canvas-app/config?tab=${tab}`); },
             setConfigDialogOpen: (isConfigOpen) => set({ isConfigOpen }),
             clearPromptContinue: () => set({ shouldPromptContinue: false }),
         }),
         {
-            name: CONFIG_STORE_KEY,
-            storage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
-            partialize: (state) => ({ config: state.config, webdav: state.webdav }),
+            name: "infinite-canvas:workspace_preferences",
+            storage: createJSONStorage(() => cloudStateStorage),
+            partialize: (state) => ({ config: { ...state.config, apiKey: "", baseUrl: "", proxyEnabled: false, channels: state.config.channels.map((c) => ({ ...c, apiKey: "", baseUrl: "", models: c.models.map(({ name, capability }) => ({ name, capability })) })) }, webdav: { ...state.webdav, password: "" } }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
@@ -321,6 +322,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         baseUrl: channel?.baseUrl?.trim() || defaultBaseUrlForApiFormat(apiFormat),
         apiKey: channel?.apiKey || "",
         apiFormat,
+        modelsConfigured: channel?.modelsConfigured,
         models: normalizeChannelModels(channel?.models),
     };
 }

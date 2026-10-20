@@ -1,5 +1,5 @@
-import { hosted } from "@/lib/model-gate";
-import localforage from "localforage";
+import { createCloudLogStore } from "@/lib/model-gate";
+
 
 import i18n from "@/i18n";
 import { getMediaBlob, resolveMediaUrl, setMediaBlob } from "@/services/file-storage";
@@ -77,8 +77,8 @@ export type AppSyncProgressEvent = {
 export type AppSyncProgress = (event: AppSyncProgressEvent) => void;
 
 const FILE_CONCURRENCY = 3;
-const imageLogStore = localforage.createInstance({ name: `model-gate-canvas:${hosted.userId}`, storeName: "image_generation_logs" });
-const videoLogStore = localforage.createInstance({ name: `model-gate-canvas:${hosted.userId}`, storeName: "video_generation_logs" });
+const imageLogStore = createCloudLogStore("image_generation_logs");
+const videoLogStore = createCloudLogStore("video_generation_logs");
 type LogStore = typeof imageLogStore;
 const storageKeyPattern = /^(image|video|audio|file|video-reference|audio-reference):/;
 

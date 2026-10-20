@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 
-export type ManagedKey = { id: number; name: string; image: boolean; video: boolean };
+export type ManagedKey = { id: number; name: string; image: boolean; video: boolean; audio?: boolean; formats?: Array<"openai" | "gemini"> };
 export type HostedContext = { keys: ManagedKey[]; theme: "light" | "dark"; userId: number };
 export let hosted: HostedContext;
 const pending = new Map<string, { resolve: (value: any) => void; reject: (reason: Error) => void }>();
@@ -38,7 +38,7 @@ export async function initializeHosted() {
         const url = new URL(config.url || "", window.location.origin);
         const prefix = "/api/v1/canvas/gateway/";
         if (url.origin !== window.location.origin || !url.pathname.startsWith(prefix)) throw new Error("托管画布仅允许使用本站提供的模型接口");
-        const path = url.pathname.slice("/api/v1".length).replace(/(\/gateway\/\d+)\/v1\//, "$1/");
+        const path = url.pathname.slice("/api/v1".length).replace(/(\/gateway\/\d+)\/v1\//, "$1/").replace(/(\/gateway\/\d+\/gemini)\/v1beta\//, "$1/");
         const isBinary = config.responseType === "blob";
         const result = await request<{ data: any; status: number; headers: Record<string, string> }>(path, (config.method || "GET").toUpperCase(), config.data instanceof FormData ? { form: Array.from(config.data.entries()) } : config.data, isBinary);
         const response = { ...result, config, statusText: String(result.status), headers: AxiosHeaders.from(result.headers) };
@@ -50,6 +50,11 @@ export async function initializeHosted() {
     window.fetch = async (input, init) => {
         const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         const url = new URL(raw, window.location.origin);
+        if (url.origin === window.location.origin && url.pathname.startsWith("/api/v1/canvas/gateway/")) {
+            const path = url.pathname.slice("/api/v1".length).replace(/(\/gateway\/\d+)\/v1\//, "$1/").replace(/(\/gateway\/\d+\/gemini)\/v1beta\//, "$1/");
+            const result = await request<{ data: unknown; status: number; headers: Record<string, string> }>(path, init?.method || "GET", init?.body);
+            return new Response(typeof result.data === "string" ? result.data : JSON.stringify(result.data), { status: result.status, headers: result.headers });
+        }
         if (url.origin === window.location.origin && url.pathname.startsWith("/api/v1/canvas/assets/")) {
             const blob = await request<Blob>(url.pathname.slice("/api/v1".length), "GET", undefined, true);
             return new Response(blob, { status: 200, headers: { "Content-Type": blob.type } });
@@ -103,13 +108,19 @@ export const cloudMediaStorage = {
 
 // Histories contain metadata and private storage references; media stays in the seven-day archive.
 // Serialize changes per history so simultaneous completions cannot overwrite one another.
-export function createCloudLogStore(namespace: string) {
+type CloudLogStore = { setItem<T>(id: string, value: T): Promise<void>; removeItem(id: string): Promise<void>; clear(): Promise<void>; iterate<T, U>(callback: (value: T, key: string) => U): Promise<void> };
+const logStores = new Map<string, CloudLogStore>();
+export function createCloudLogStore(namespace: string): CloudLogStore {
     const name = `infinite-canvas:${namespace}`;
+    const existing = logStores.get(namespace);
+    if (existing) return existing;
     let queue: Promise<unknown> = Promise.resolve();
     let records: Record<string, unknown> | undefined;
+    let loading: Promise<Record<string, unknown>> | undefined;
     async function load() {
-        if (!records) records = JSON.parse(await cloudStateStorage.getItem(name) || "{}");
-        return records!;
+        if (records) return records;
+        loading ||= cloudStateStorage.getItem(name).then((value) => { records = JSON.parse(value || "{}"); return records!; });
+        return loading;
     }
     function change(update: (values: Record<string, unknown>) => void) {
         const operation = queue.then(async () => {
@@ -120,12 +131,15 @@ export function createCloudLogStore(namespace: string) {
         queue = operation;
         return operation;
     }
-    return {
+    const store: CloudLogStore = {
         setItem<T>(id: string, value: T) { return change((values) => { values[id] = value; }); },
         removeItem(id: string) { return change((values) => { delete values[id]; }); },
+        clear() { return change((values) => { for (const id of Object.keys(values)) delete values[id]; }); },
         async iterate<T, U>(callback: (value: T, key: string) => U) {
             await queue;
             for (const [key, value] of Object.entries(await load())) callback(value as T, key);
         },
     };
+    logStores.set(namespace, store);
+    return store;
 }

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -99,11 +100,57 @@ func TestCanvasCleanupDeletesExpiredFilesAndMarksMetadata(t *testing.T) {
 	require.Equal(t, 168*time.Hour, canvasRetention)
 }
 func TestCanvasGatewayRejectsArbitraryPaths(t *testing.T) {
-	for _, path := range []string{"/responses", "/admin/users", "/videos/foo/content/extra", "/images/generations/../../admin", "//models"} {
+	for _, path := range []string{"/admin/users", "/videos/foo/content/extra", "/images/generations/../../admin", "//models"} {
 		require.False(t, canvasGatewayPath("POST", path), path)
 		require.False(t, canvasGatewayPath("GET", path), path)
 	}
 	require.True(t, canvasGatewayPath("POST", "/images/edits"))
 	require.True(t, canvasGatewayPath("POST", "/videos/generations"))
 	require.True(t, canvasGatewayPath("GET", "/videos/task/content"))
+}
+
+func TestCanvasGoogleGatewayPaths(t *testing.T) {
+	for _, path := range []string{"/gemini/models/gemini-2.5-flash-image:generateContent", "/gemini/models/gemini-3.1-flash-image-preview:generateContent", "/gemini/models/gemini-2.5-flash:streamGenerateContent"} {
+		require.True(t, canvasGatewayPath("POST", path), path)
+		require.False(t, canvasGatewayPath("GET", path), path)
+	}
+	require.True(t, canvasGatewayPath("GET", "/gemini/models"))
+	for _, path := range []string{"/gemini/models/foo:delete", "/gemini/models/foo/bar:generateContent", "/gemini/models/foo:generateContent/extra", "/gemini/models/../admin:generateContent", "/gemini/cachedContents"} {
+		require.False(t, canvasGatewayPath("POST", path), path)
+	}
+}
+func TestCanvasGoogleImagesAreArchivedWithOwnerPromptAndUsage(t *testing.T) {
+	h, m, _, _ := canvasTest(t)
+	m.ExpectBegin()
+	m.ExpectExec("SELECT pg_advisory_xact_lock").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectQuery("SELECT a.id FROM canvas_asset_bindings").WillReturnError(sql.ErrNoRows)
+	m.ExpectQuery("SELECT id FROM canvas_assets").WillReturnError(sql.ErrNoRows)
+	m.ExpectExec("INSERT INTO canvas_assets").WithArgs(sqlmock.AnyArg(), int64(7), sqlmock.AnyArg(), sqlmock.AnyArg(), "image/png", 68, int64(12), "gemini-2.5-flash-image", "gold bird", "generation", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	m.ExpectExec("UPDATE canvas_assets SET source").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectExec("INSERT INTO canvas_asset_bindings").WillReturnResult(sqlmock.NewResult(1, 1))
+	m.ExpectCommit()
+	result, err := h.archiveGeminiImages(context.Background(), 7, 12, "gemini-2.5-flash-image", "gold bird", []byte(`{"candidates":[{"content":{"parts":[{"text":"Your image"},{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXzQAAAAASUVORK5CYII="},"thoughtSignature":"keep-me"}]}}],"usageMetadata":{"totalTokenCount":20}}`))
+	require.NoError(t, err)
+	require.NotContains(t, string(result), "inlineData")
+	require.Contains(t, string(result), "thoughtSignature")
+	require.Contains(t, string(result), "keep-me")
+	require.Contains(t, string(result), "totalTokenCount")
+	var data struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					FileData struct {
+						FileURI string `json:"fileUri"`
+					} `json:"fileData"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	require.NoError(t, json.Unmarshal(result, &data))
+	uri := data.Candidates[0].Content.Parts[1].FileData.FileURI
+	require.True(t, strings.HasPrefix(uri, "/api/v1/canvas/assets/"))
+	id := strings.TrimSuffix(strings.TrimPrefix(uri, "/api/v1/canvas/assets/"), "/content")
+	_, err = os.Stat(h.assetPath(id))
+	require.NoError(t, err)
+	require.NoError(t, m.ExpectationsWereMet())
 }

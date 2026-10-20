@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -232,15 +234,17 @@ func (h *CanvasHandler) content(c *gin.Context, id string, admin bool) {
 	c.File(h.assetPath(id))
 }
 
+var canvasGeminiGenerationPath = regexp.MustCompile(`^/gemini/models/([A-Za-z0-9][A-Za-z0-9._-]*):(generateContent|streamGenerateContent)$`)
+
 // Only the explicit hosted media endpoints can be called through the broker.
 func canvasGatewayPath(method, path string) bool {
 	if method == "POST" {
-		return path == "/images/generations" || path == "/images/edits" || path == "/videos/generations"
+		return canvasGeminiGenerationPath.MatchString(path) || path == "/responses" || path == "/audio/speech" || path == "/images/generations" || path == "/images/edits" || path == "/videos/generations"
 	}
 	if method != "GET" {
 		return false
 	}
-	if path == "/models" {
+	if path == "/models" || path == "/gemini/models" {
 		return true
 	}
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -271,8 +275,54 @@ func (h *CanvasHandler) Gateway(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		info := service.ParseGrokMediaRequest(c.GetHeader("Content-Type"), body)
 		model, prompt = info.Model, info.Prompt
+		if match := canvasGeminiGenerationPath.FindStringSubmatch(path); match != nil {
+			model = match[1]
+			var payload struct {
+				Contents []struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"contents"`
+			}
+			if json.Unmarshal(body, &payload) != nil {
+				response.BadRequest(c, "Google 请求格式无效")
+				return
+			}
+			var texts []string
+			for _, content := range payload.Contents {
+				for _, part := range content.Parts {
+					if part.Text != "" {
+						texts = append(texts, part.Text)
+					}
+				}
+			}
+			prompt = strings.Join(texts, "\n")
+		}
 	}
 
+	if path == "/responses" && service.IsImageGenerationIntent("/v1/responses", model, body) {
+		response.BadRequest(c, "请通过生图工作台生成图片，以便归档作品")
+		return
+	}
+	if strings.HasSuffix(path, ":streamGenerateContent") {
+		var payload map[string]any
+		if json.Unmarshal(body, &payload) != nil {
+			response.BadRequest(c, "Google 请求格式无效")
+			return
+		}
+		generation, _ := payload["generationConfig"].(map[string]any)
+		if generation == nil {
+			generation = map[string]any{}
+		}
+		// Streaming is used by text nodes. Images use non-streaming generation and private archiving.
+		generation["responseModalities"] = []string{"TEXT"}
+		payload["generationConfig"] = generation
+		body, err = json.Marshal(payload)
+		if err != nil {
+			canvasFailure(c, err)
+			return
+		}
+	}
 	if strings.HasPrefix(path, "/videos/") && c.Request.Method == "GET" {
 		task := strings.Split(strings.Trim(path, "/"), "/")[1]
 		var exists bool
@@ -290,12 +340,19 @@ func (h *CanvasHandler) Gateway(c *gin.Context) {
 	copiedURL := *req.URL
 	req.URL = &copiedURL
 	req.URL.Path = "/v1" + path
+	if strings.HasPrefix(path, "/gemini/") {
+		req.URL.Path = "/v1beta/" + strings.TrimPrefix(path, "/gemini/")
+	}
 	req.URL.RawPath = ""
 	req.URL.RawQuery = ""
-	req.RequestURI = req.URL.Path
+	if strings.HasSuffix(path, ":streamGenerateContent") {
+		req.URL.RawQuery = "alt=sse"
+	}
+	req.RequestURI = req.URL.RequestURI()
 	req.Header = c.Request.Header.Clone()
 	req.Header.Set("Authorization", "Bearer "+key.Key)
 	req.Header.Del("Cookie")
+	req.Header.Del("X-Goog-Api-Key")
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 	// Use the existing gateway middleware, routing and billing, preserving the real client address.
@@ -307,6 +364,19 @@ func (h *CanvasHandler) Gateway(c *gin.Context) {
 		result, err = uploader.Rewrite(c.Request.Context(), uuid.NewString(), result)
 		if err != nil {
 			canvasFailure(c, fmt.Errorf("generation succeeded but archive failed: %w", err))
+			return
+		}
+	}
+	if recorder.Code >= 200 && recorder.Code < 300 && strings.HasSuffix(path, ":generateContent") && canvasGeminiGenerationPath.MatchString(path) {
+		result, err = h.archiveGeminiImages(c.Request.Context(), canvasUser(c), keyID, model, prompt, result)
+		if err != nil {
+			canvasFailure(c, fmt.Errorf("Google generation archive failed: %w", err))
+			return
+		}
+	}
+	if recorder.Code >= 200 && recorder.Code < 300 && path == "/audio/speech" {
+		if _, err = h.save(c.Request.Context(), canvasUser(c), "generated:"+uuid.NewString(), recorder.Header().Get("Content-Type"), result, keyID, model, prompt, "generation"); err != nil {
+			canvasFailure(c, err)
 			return
 		}
 	}
@@ -355,11 +425,21 @@ func (h *CanvasHandler) Capabilities(c *gin.Context) {
 			return
 		}
 		for _, key := range keys {
-			if !key.IsActive() || key.IsExpired() || key.IsQuotaExhausted() || key.Group == nil || key.Group.Status != "active" || !service.GroupAllowsImageGeneration(key.Group) {
+			if !key.IsActive() || key.IsExpired() || key.IsQuotaExhausted() || key.Group == nil || key.Group.Status != "active" {
 				continue
 			}
 			platform := key.Group.Platform
-			all = append(all, gin.H{"id": key.ID, "name": key.Name, "image": platform == service.PlatformOpenAI || platform == service.PlatformGrok || platform == service.PlatformComposite, "video": platform == service.PlatformGrok || platform == service.PlatformComposite})
+			imageAllowed := service.GroupAllowsImageGeneration(key.Group)
+			formats := []string{}
+			if platform == service.PlatformAnthropic || platform == service.PlatformOpenAI || platform == service.PlatformGrok || platform == service.PlatformComposite {
+				formats = append(formats, "openai")
+			}
+			if platform == service.PlatformGemini || platform == service.PlatformAntigravity || platform == service.PlatformComposite {
+				formats = append(formats, "gemini")
+			}
+			if len(formats) > 0 {
+				all = append(all, gin.H{"id": key.ID, "name": key.Name, "image": imageAllowed && platform != service.PlatformAnthropic, "video": imageAllowed && (platform == service.PlatformGrok || platform == service.PlatformComposite), "audio": platform == service.PlatformOpenAI || platform == service.PlatformComposite, "formats": formats})
+			}
 		}
 		if paging == nil || page*100 >= int(paging.Total) {
 			break
@@ -589,4 +669,51 @@ func (h *CanvasHandler) ProcessVideos(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Archive native Google image parts before returning, preserving text, usage and thought signatures.
+func (h *CanvasHandler) archiveGeminiImages(ctx context.Context, user, keyID int64, model, prompt string, body []byte) ([]byte, error) {
+	var result map[string]any
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+	candidates, _ := result["candidates"].([]any)
+	for _, candidate := range candidates {
+		item, _ := candidate.(map[string]any)
+		content, _ := item["content"].(map[string]any)
+		parts, _ := content["parts"].([]any)
+		for _, rawPart := range parts {
+			part, _ := rawPart.(map[string]any)
+			inline, _ := part["inlineData"].(map[string]any)
+			if inline == nil {
+				inline, _ = part["inline_data"].(map[string]any)
+			}
+			if inline == nil {
+				continue
+			}
+			mime, _ := inline["mimeType"].(string)
+			if mime == "" {
+				mime, _ = inline["mime_type"].(string)
+			}
+			if !strings.HasPrefix(mime, "image/") {
+				continue
+			}
+			encoded, _ := inline["data"].(string)
+			bytes, err := base64.StdEncoding.DecodeString(encoded)
+			if err != nil {
+				return nil, err
+			}
+			if !strings.HasPrefix(http.DetectContentType(bytes), "image/") {
+				return nil, fmt.Errorf("invalid Google image content")
+			}
+			id, err := h.save(ctx, user, "generated:"+uuid.NewString(), mime, bytes, keyID, model, prompt, "generation")
+			if err != nil {
+				return nil, err
+			}
+			delete(part, "inlineData")
+			delete(part, "inline_data")
+			part["fileData"] = map[string]any{"mimeType": mime, "fileUri": "/api/v1/canvas/assets/" + id + "/content"}
+		}
+	}
+	return json.Marshal(result)
 }

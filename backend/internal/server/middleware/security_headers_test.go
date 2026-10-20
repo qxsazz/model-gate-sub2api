@@ -527,6 +527,7 @@ func TestHostedCanvasOnlyAllowsSameOriginEmbedding(t *testing.T) {
 		if strings.HasPrefix(path, "/canvas-app/") {
 			assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
 			assert.Contains(t, w.Header().Get("Content-Security-Policy"), "frame-ancestors 'self'")
+			assert.Contains(t, w.Header().Get("Content-Security-Policy"), "connect-src 'self' blob: data: https:")
 		} else {
 			assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
 		}
