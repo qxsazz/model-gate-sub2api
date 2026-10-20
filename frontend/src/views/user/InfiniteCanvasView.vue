@@ -50,7 +50,7 @@ async function receive(event: MessageEvent) {
     catch (error) { reply(undefined, error instanceof Error ? error.message : '删除失败，请重试') }
     return
   }
-  const taskPath = typeof msg.path === 'string' && (/^\/canvas\/tasks(?:\/[a-f0-9-]+)?$/.test(msg.path) && method === 'GET' || /^\/canvas\/tasks\/[a-f0-9-]+\/cancel$/.test(msg.path) && method === 'POST' || /^\/canvas\/tasks\/[a-f0-9-]+\/\d+\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9][A-Za-z0-9._-]*:generateContent)$/.test(msg.path) && method === 'PUT')
+  const taskPath = typeof msg.path === 'string' && (/^\/canvas\/tasks(?:\/[a-f0-9-]+)?$/.test(msg.path) && (method === 'GET' || method === 'DELETE' && /^\/canvas\/tasks\/[a-f0-9-]+$/.test(msg.path)) || /^\/canvas\/tasks\/[a-f0-9-]+\/cancel$/.test(msg.path) && method === 'POST' || /^\/canvas\/tasks\/[a-f0-9-]+\/\d+\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9][A-Za-z0-9._-]*:generateContent)$/.test(msg.path) && method === 'PUT')
   // No administrative or arbitrary host API is reachable through the child bridge.
   if (!taskPath && (typeof msg.path !== 'string' || !/^\/canvas\/(capabilities|state\/[^/]+|storage\/[^/]+|assets\/[a-f0-9-]+\/content|gateway\/\d+\/(?:models|responses|audio\/speech|gemini\/models(?:\/[A-Za-z0-9][A-Za-z0-9._-]*:(?:generateContent|streamGenerateContent))?|images\/(?:generations|edits)|videos\/(?:generations|[^/?]+(?:\/content)?)))$/.test(msg.path) || !['GET', 'PUT', 'POST'].includes(method))) { reply(undefined, '不允许的画布请求'); return }
   const controller = new AbortController(); if (!(taskPath && method === 'PUT')) pending.add(controller)

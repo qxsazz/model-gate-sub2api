@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -35,11 +36,12 @@ const canvasRetention = 7 * 24 * time.Hour
 var errCanvasAssetDeleted = errors.New("canvas asset was deleted by administrator")
 
 type CanvasHandler struct {
-	db      *sql.DB
-	keys    *service.APIKeyService
-	dir     string
-	maxBody int64
-	gateway http.Handler
+	db          *sql.DB
+	keys        *service.APIKeyService
+	dir         string
+	maxBody     int64
+	gateway     http.Handler
+	taskCancels sync.Map
 }
 
 func NewCanvasHandler(db *sql.DB, keys *service.APIKeyService, cfg *config.Config) *CanvasHandler {

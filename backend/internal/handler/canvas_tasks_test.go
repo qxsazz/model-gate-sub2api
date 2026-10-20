@@ -26,7 +26,7 @@ func TestCanvasTaskGetScopesResultsToAuthenticatedUser(t *testing.T) {
 			c.Params = gin.Params{{Key: "task_id", Value: id}}
 			query := m.ExpectQuery("SELECT .* FROM canvas_generation_tasks WHERE id").WithArgs(id, int64(7))
 			if found {
-				query.WillReturnRows(sqlmock.NewRows([]string{"id", "key", "path", "status", "meta", "code", "result", "error", "created", "updated"}).AddRow(id, 12, "/images/generations", "running", []byte(`{"source":"image-workbench"}`), 0, []byte(`null`), "", time.Now(), time.Now()))
+				query.WillReturnRows(sqlmock.NewRows([]string{"id", "key", "path", "status", "meta", "code", "result", "error", "created", "updated", "deleted"}).AddRow(id, 12, "/images/generations", "running", []byte(`{"source":"image-workbench"}`), 0, []byte(`null`), "", time.Now(), time.Now(), nil))
 			} else {
 				query.WillReturnError(sql.ErrNoRows)
 			}
@@ -111,5 +111,50 @@ func TestCanvasDeletedContentUnavailableEvenToAdministrator(t *testing.T) {
 		h.content(c, id, admin)
 		require.Equal(t, 410, w.Code)
 		require.NoError(t, m.ExpectationsWereMet())
+	}
+}
+
+func TestCanvasTaskDeleteRequiresOwnerAndTerminalState(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pending bool
+		missing bool
+		want    int
+	}{
+		{"completed", false, false, 200}, {"running", true, false, 409}, {"other user", false, true, 404},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, m, c, w := canvasTest(t)
+			id := uuid.NewString()
+			c.Params = gin.Params{{Key: "task_id", Value: id}}
+			query := m.ExpectQuery("UPDATE canvas_generation_tasks SET deleted_at=").WithArgs(id, int64(7))
+			if tc.missing {
+				query.WillReturnError(sql.ErrNoRows)
+			} else {
+				query.WillReturnRows(sqlmock.NewRows([]string{"pending"}).AddRow(tc.pending))
+			}
+			h.DeleteTask(c)
+			c.Writer.WriteHeaderNow()
+			require.Equal(t, tc.want, w.Code)
+			require.NoError(t, m.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestCanvasTaskCancellationCannotCancelAnotherUsersWorker(t *testing.T) {
+	for _, affected := range []int64{0, 1} {
+		t.Run(map[int64]string{0: "not owner", 1: "owner"}[affected], func(t *testing.T) {
+			h, m, c, _ := canvasTest(t)
+			id := uuid.NewString()
+			c.Params = gin.Params{{Key: "task_id", Value: id}}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			h.taskCancels.Store(id, cancel)
+			m.ExpectExec("UPDATE canvas_generation_tasks SET cancel_requested=true").WithArgs(id, int64(7)).WillReturnResult(sqlmock.NewResult(0, affected))
+			m.ExpectQuery("SELECT .* FROM canvas_generation_tasks WHERE id").WithArgs(id, int64(7)).WillReturnError(sql.ErrNoRows)
+			h.CancelTask(c)
+			require.Equal(t, affected == 1, ctx.Err() != nil)
+			require.NoError(t, m.ExpectationsWereMet())
+		})
 	}
 }

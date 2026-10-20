@@ -55,3 +55,21 @@ describe('canvas shared API Key deletion bridge', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('canvas task removal bridge', () => {
+  beforeEach(() => { vi.clearAllMocks(); request.mockResolvedValue({ data: { deleted: true } }) })
+  it('allows deleting one task but rejects collection and cancellation deletion', async () => {
+    const { wrapper, reply, send } = setup()
+    const id = '54acfc99-6722-45f0-9856-5eb9279b50a1'
+    send('/canvas/tasks/' + id, 'DELETE'); await flushPromises()
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: '/canvas/tasks/' + id, method: 'DELETE' }))
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ value: { deleted: true } }), location.origin)
+    request.mockClear()
+    send('/canvas/tasks', 'DELETE')
+    send('/canvas/tasks/' + id + '/cancel', 'DELETE')
+    await flushPromises()
+    expect(request).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})

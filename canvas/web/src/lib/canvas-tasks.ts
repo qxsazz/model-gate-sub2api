@@ -6,6 +6,7 @@ import type { CanvasNodeData, CanvasNodeImage } from "@/types/canvas";
 export type TaskImage = { id: string; dataUrl: string; storageKey?: string; durationMs: number; width: number; height: number; bytes: number; mimeType?: string };
 export type CanvasTask = {
     id: string;
+    deleted_at?: string;
     key_id: number;
     path: string;
     status: string;
