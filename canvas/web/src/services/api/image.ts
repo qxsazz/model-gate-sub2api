@@ -95,7 +95,8 @@ type GeminiPayload = {
     promptFeedback?: { blockReason?: string };
 };
 type GeminiStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; error?: string };
-type RequestOptions = { signal?: AbortSignal };
+type RequestOptions = { signal?: AbortSignal; taskContext?: Record<string, unknown> };
+const taskHeaders = (options?: RequestOptions) => options?.taskContext ? { "X-Canvas-Task-Meta": encodeURIComponent(JSON.stringify(options.taskContext)) } : {};
 
 const IMAGE_QUALITY_VALUES = ["low", "medium", "high", "xhigh", "max"];
 const DEFAULT_IMAGE_SHORT_SIDE = 1024;
@@ -670,7 +671,7 @@ async function requestGeminiImagesOnce(config: AiConfig, prompt: string, referen
             ...toGeminiBody(config, [{ role: "user", content: prompt }], { generationConfig: { responseModalities: ["TEXT", "IMAGE"], ...resolveGeminiImageConfig(config) } }),
             contents: [{ role: "user", parts }],
         },
-        { headers: geminiHeaders(config), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS },
+        { headers: { ...geminiHeaders(config), ...taskHeaders(options) }, signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS },
     );
     return parseGeminiImagePayload(response.data);
 }
@@ -739,7 +740,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
                 output_format: IMAGE_OUTPUT_FORMAT,
             },
             {
-                headers: aiHeaders(requestConfig, "application/json"),
+                headers: { ...aiHeaders(requestConfig, "application/json"), ...taskHeaders(options) },
                 signal: options?.signal,
                 timeout: IMAGE_REQUEST_TIMEOUT_MS,
             },
@@ -810,7 +811,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     files.forEach((file) => formData.append(imageField, file));
 
     try {
-        const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS });
+        const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: { ...aiHeaders(requestConfig), ...taskHeaders(options) }, signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS });
         const images = await parseImagePayload(response.data);
         return images;
     } catch (error) {

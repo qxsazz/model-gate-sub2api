@@ -1,3 +1,4 @@
+import { GenerationTasks } from "@/components/generation-tasks";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, Alert, App } from "antd";
 import { NavLink, useLocation } from "react-router-dom";
@@ -33,6 +34,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     return <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
         <nav aria-label="创作功能" className="flex shrink-0 flex-wrap gap-1 border-b border-border p-2 sm:px-3">
             {pages.map(([to, label]) => <NavLink key={to} to={to} end={to === "/"} className="rounded-md px-3 py-2 text-sm font-medium transition-colors" style={({ isActive }) => ({ background: isActive ? "var(--accent)" : "transparent", color: isActive ? "var(--primary)" : "var(--foreground)", boxShadow: isActive ? "inset 0 -2px var(--primary)" : undefined })}>{label}</NavLink>)}
+            <div className="ml-auto flex items-center px-2">{ready && <GenerationTasks />}</div>
         </nav>
         {error && <Alert type="error" message={error} action={<Button onClick={() => void load()}>重试</Button>} />}
         {ready && pathname === "/image" && !has("image") && <Alert type="info" message="暂无可用生图 Key 或图片模型，请创建对应 Key，或检查分组权限。" action={<Button onClick={() => notifyHost("create-key", "image")}>创建生图 Key</Button>} />}

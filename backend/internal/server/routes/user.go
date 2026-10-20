@@ -92,6 +92,10 @@ func RegisterUserRoutes(
 		if h.Canvas != nil {
 			canvas := authenticated.Group("/canvas")
 			canvas.GET("/capabilities", h.Canvas.Capabilities)
+			canvas.GET("/tasks", h.Canvas.ListTasks)
+			canvas.GET("/tasks/:task_id", h.Canvas.GetTask)
+			canvas.POST("/tasks/:task_id/cancel", h.Canvas.CancelTask)
+			canvas.PUT("/tasks/:task_id/:key_id/*path", h.Canvas.SubmitTask)
 			canvas.GET("/state/:name", h.Canvas.State)
 			canvas.PUT("/state/:name", h.Canvas.State)
 			canvas.PUT("/storage/:key", h.Canvas.Upload)

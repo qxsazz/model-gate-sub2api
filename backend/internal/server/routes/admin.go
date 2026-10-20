@@ -58,6 +58,7 @@ func RegisterAdminRoutes(
 			admin.GET("/canvas/assets", h.Canvas.AdminList)
 			admin.GET("/canvas/assets/:id/content", h.Canvas.AdminContent)
 			admin.PUT("/canvas/assets/:id/review", h.Canvas.Review)
+			admin.DELETE("/canvas/assets/:id", h.Canvas.DeleteAsset)
 		}
 		// 仪表盘
 		registerDashboardRoutes(admin, h)

@@ -1,3 +1,4 @@
+import { getCanvasTasks, getTaskImages, taskPending, taskError, getTaskMediaError } from "@/lib/canvas-tasks";
 import { createCloudLogStore, notifyHost } from "@/lib/model-gate";
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -101,6 +102,8 @@ export default function ImagePage() {
     const updateAgentTask = useWorkbenchAgentStore((state) => state.updateTask);
     const processedCommandRef = useRef(0);
     const agentTaskIdRef = useRef<string | undefined>(undefined);
+    const activeBatch = useRef<string | null>(null);
+    const adoptedSignature = useRef("");
 
     const model = effectiveConfig.imageModel;
     const hasModel = isAiConfigReady(effectiveConfig, model);
@@ -115,6 +118,30 @@ export default function ImagePage() {
 
     useEffect(() => {
         void refreshLogs();
+    }, []);
+
+    useEffect(() => {
+        const restore = () => {
+            const tasks=getCanvasTasks().filter(task=>task.metadata.source!=="canvas");
+            if (!tasks.length || activeBatch.current === "dismissed") return;
+            activeBatch.current ||= tasks[0].metadata.batchId || tasks[0].id;
+            const group=tasks.filter(task=>(task.metadata.batchId||task.id)===activeBatch.current).sort((a,b)=>(a.metadata.slot||0)-(b.metadata.slot||0));
+            if(!group.length)return;
+            const signature=JSON.stringify(group.map(t=>[t.id,t.status,getTaskImages(t.id).length,getTaskMediaError(t.id)]));
+            if(signature===adoptedSignature.current)return;adoptedSignature.current=signature;
+            const count=group[0].metadata.batchSize||group.length;
+            const current=Array.from({length:count},(_,index):GenerationResult=>{
+                const task=group.find(t=>(t.metadata.slot||0)===index);
+                if(!task)return {id:`pending-${index}`,status:"pending"};
+                const image=getTaskImages(task.id)[0];
+                return image ? {id:task.id,status:"success",image} : taskPending(task)||task.status==="completed"&&!getTaskMediaError(task.id) ? {id:task.id,status:"pending"} : {id:task.id,status:"failed",error:taskError(task)};
+            });
+            setResults(current);setRunning(current.some(r=>r.status==="pending"));
+            setStartedAt(performance.now()-(Date.now()-Date.parse(group[0].created_at)));
+            setPrompt(value=>value||group[0].metadata.prompt||"");void refreshLogs();
+        };
+        window.addEventListener("mg-tasks-updated",restore);restore();
+        return()=>window.removeEventListener("mg-tasks-updated",restore);
     }, []);
 
     const addReferences = async (files?: FileList | null) => {
@@ -171,6 +198,7 @@ export default function ImagePage() {
             return;
         }
 
+        activeBatch.current = snapshot.batchId;
         setElapsedMs(0);
         setRunning(true);
         if (agentTaskId) updateAgentTask(agentTaskId, { status: "running", error: undefined });
@@ -191,7 +219,7 @@ export default function ImagePage() {
 
         try {
             saveLog(
-                buildLog({
+                { ...buildLog({
                     prompt: text,
                     model,
                     config: { ...snapshot.config, count: String(generationCount) },
@@ -201,7 +229,7 @@ export default function ImagePage() {
                     failCount,
                     status: successCount ? "success" : "failed",
                     images: successImages,
-                }),
+                }), id: snapshot.batchId },
             );
             successCount ? message.success(t("imageWorkbench.generated")) : message.error(failed?.reason instanceof Error ? failed.reason.message : t("workbench.generationFailed"));
         } finally {
@@ -268,6 +296,7 @@ export default function ImagePage() {
     };
 
     const createSession = () => {
+        activeBatch.current="dismissed";
         setPrompt("");
         setReferences([]);
         setResults([]);
@@ -317,13 +346,14 @@ export default function ImagePage() {
             openConfigDialog(true);
             return null;
         }
-        return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references] };
+        return { text, config: { ...effectiveConfig, model, count: "1" }, references: [...references], batchId:crypto.randomUUID(),batchCount:generationCount };
     };
 
-    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[] }) => {
+    const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[]; batchId: string; batchCount: number }) => {
         const itemStartedAt = performance.now();
         try {
-            const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references) : await requestGeneration(snapshot.config, snapshot.text);
+            const options={taskContext:{source:"image-workbench",batchId:snapshot.batchId,batchSize:snapshot.batchCount,slot:snapshot.batchCount===1?0:index,config:{model:snapshot.config.model,imageModel:snapshot.config.model,quality:snapshot.config.quality,size:snapshot.config.size,count:String(snapshot.batchCount)}}};
+            const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references,options) : await requestGeneration(snapshot.config, snapshot.text,options);
             const image = result[0];
             if (!image) throw new Error(t("imageWorkbench.missingResult"));
             const stored = await uploadImage(image.dataUrl);
@@ -339,13 +369,14 @@ export default function ImagePage() {
     const retryResult = async (index: number) => {
         const snapshot = buildRequestSnapshot();
         if (!snapshot) return;
+        snapshot.batchCount=1;
         setPreviewLog(null);
         setResults((value) => updateResultAt(value, index, { status: "pending", error: undefined, image: undefined }));
         const retryStartedAt = performance.now();
         try {
             const image = await runGenerationSlot(index, snapshot);
             saveLog(
-                buildLog({
+                { ...buildLog({
                     prompt: snapshot.text,
                     model,
                     config: { ...snapshot.config, count: "1" },
@@ -355,7 +386,7 @@ export default function ImagePage() {
                     failCount: 0,
                     status: "success",
                     images: [image],
-                }),
+                }),id:snapshot.batchId },
             );
             message.success(t("workbench.retrySuccess"));
         } catch {

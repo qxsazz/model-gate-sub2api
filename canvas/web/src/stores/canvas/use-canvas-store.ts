@@ -1,3 +1,4 @@
+import { cloudStateStorage, notifyHost } from "@/lib/model-gate";
 import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
@@ -44,6 +45,14 @@ const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects" | "deletedProjects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
+let pendingWrite: {name:string;value:StorageValue<CanvasStore>} | null = null;
+export async function flushCanvasStore() {
+    if(saveTimer) {clearTimeout(saveTimer);saveTimer=null;}
+    const write=pendingWrite;pendingWrite=null;
+    if(write)await localForageStorage.setItem(write.name,JSON.stringify(write.value));
+    await cloudStateStorage.flush();
+}
+
 
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
@@ -57,10 +66,11 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         const nextState = value.state as PersistedCanvasState;
         if (queuedPersistState && queuedPersistState.projects === nextState.projects && queuedPersistState.deletedProjects === nextState.deletedProjects) return;
         queuedPersistState = nextState;
+        pendingWrite={name,value};
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             saveTimer = null;
-            void localForageStorage.setItem(name, JSON.stringify(value));
+            void flushCanvasStore().catch(error=>notifyHost("save-error",String(error)));
         }, 400);
     },
     removeItem: (name) => localForageStorage.removeItem(name),

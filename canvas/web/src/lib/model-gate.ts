@@ -5,12 +5,24 @@ export type HostedContext = { keys: ManagedKey[]; theme: "light" | "dark"; userI
 export let hosted: HostedContext;
 const pending = new Map<string, { resolve: (value: any) => void; reject: (reason: Error) => void }>();
 
-export function request<T = any>(path: string, method = "GET", body?: unknown, binary = false): Promise<T> {
+export function request<T = any>(path: string, method = "GET", body?: unknown, binary = false, taskMeta?: string): Promise<T> {
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        window.parent.postMessage({ type: "mg-canvas-request", id, path, method, body, binary }, window.location.origin);
+        window.parent.postMessage({ type: "mg-canvas-request", id, path, method, body, binary, taskMeta }, window.location.origin);
     });
+}
+
+let taskCache: { tasks: unknown[] } | undefined;
+let taskCacheUntil = 0;
+let taskCacheRequest: Promise<{ tasks: unknown[] }> | undefined;
+// All active slots and the task drawer share one poll, independent of image count.
+export async function listHostedImageTasks<T>(): Promise<{ tasks: T[] }> {
+    if (taskCache && Date.now() < taskCacheUntil) return taskCache as {tasks:T[]};
+    taskCacheRequest ||= request<{tasks:unknown[]}>("/canvas/tasks").then(value=>{
+        taskCache=value;taskCacheUntil=Date.now()+2500;return value;
+    }).finally(()=>{taskCacheRequest=undefined});
+    return await taskCacheRequest as {tasks:T[]};
 }
 
 export function notifyHost(action: string, value?: unknown) {
@@ -40,7 +52,29 @@ export async function initializeHosted() {
         if (url.origin !== window.location.origin || !url.pathname.startsWith(prefix)) throw new Error("托管画布仅允许使用本站提供的模型接口");
         const path = url.pathname.slice("/api/v1".length).replace(/(\/gateway\/\d+)\/v1\//, "$1/").replace(/(\/gateway\/\d+\/gemini)\/v1beta\//, "$1/");
         const isBinary = config.responseType === "blob";
-        const result = await request<{ data: any; status: number; headers: Record<string, string> }>(path, (config.method || "GET").toUpperCase(), config.data instanceof FormData ? { form: Array.from(config.data.entries()) } : config.data, isBinary);
+        let result: { data: any; status: number; headers: Record<string, string> };
+        const imageTask = path.match(/^\/canvas\/gateway\/(\d+)(\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9._-]+:generateContent))$/);
+        const body = config.data instanceof FormData ? { form: Array.from(config.data.entries()) } : config.data;
+        if (imageTask && config.method?.toUpperCase() === "POST" && (imageTask[2].startsWith("/images/") || config.headers.has("X-Canvas-Task-Meta") || typeof config.data === "string" && config.data.includes('"IMAGE"'))) {
+            const meta = String(config.headers.get("X-Canvas-Task-Meta") || encodeURIComponent(JSON.stringify({ source: "image-workbench" })));
+            const context = JSON.parse(decodeURIComponent(meta));
+            const id = context.id || crypto.randomUUID();
+            await request(`/canvas/tasks/${id}/${imageTask[1]}${imageTask[2]}`, "PUT", body, false, meta);
+            taskCacheUntil=0;
+            window.dispatchEvent(new Event("mg-tasks-refresh"));
+            for (;;) {
+                if (config.signal?.aborted) { await request(`/canvas/tasks/${id}/cancel`,"POST"); throw new DOMException("已请求停止任务，可在任务列表中查看状态", "AbortError"); }
+                let list: {tasks:Array<{id:string;status:string;response_status:number;result:any;error:string}>};
+                try {list=await listHostedImageTasks();} catch {await new Promise(resolve=>setTimeout(resolve,5000));continue;}
+                const task=list.tasks.find(t=>t.id===id) || await request<{id:string;status:string;response_status:number;result:any;error:string}>(`/canvas/tasks/${id}`);
+                if (task.status !== "queued" && task.status !== "running") {
+                    result = { data: task.result || { message: task.error }, status: task.response_status || 503, headers: { "content-type": "application/json" } };
+                    if (task.status !== "completed" && result.status < 400) result.status = 503;
+                    break;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+        } else result = await request(path, (config.method || "GET").toUpperCase(), body, isBinary);
         const response = { ...result, config, statusText: String(result.status), headers: AxiosHeaders.from(result.headers) };
         if (result.status >= 400) throw new AxiosError(result.data?.message || result.data?.error?.message || "生成请求失败", String(result.status), config, null, response);
         return response;
@@ -74,6 +108,7 @@ export const cloudStateStorage = {
         revisions.set(name, value.revision);
         return value.value;
     },
+    async flush() { await Promise.all(writes.values()); },
     async setItem(name: string, value: string) {
         if (blocked) throw new Error("云端保存已暂停，请刷新画布");
         const run = (writes.get(name) || Promise.resolve()).then(async () => {

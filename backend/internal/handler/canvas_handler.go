@@ -32,6 +32,8 @@ import (
 
 const canvasRetention = 7 * 24 * time.Hour
 
+var errCanvasAssetDeleted = errors.New("canvas asset was deleted by administrator")
+
 type CanvasHandler struct {
 	db      *sql.DB
 	keys    *service.APIKeyService
@@ -50,6 +52,10 @@ func canvasUser(c *gin.Context) int64 {
 	return s.UserID
 }
 func canvasFailure(c *gin.Context, err error) {
+	if errors.Is(err, errCanvasAssetDeleted) {
+		c.JSON(http.StatusGone, gin.H{"message": "该素材已被管理员删除"})
+		return
+	}
 	log.Printf("canvas: %v", err)
 	response.InternalError(c, "画布服务暂时不可用，请重试")
 }
@@ -66,6 +72,13 @@ func (h *CanvasHandler) save(ctx context.Context, user int64, key, mime string, 
 	// Serialize aliases for identical content, so a generated image and its canvas node share review and expiry.
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, fmt.Sprintf("%d:%s", user, hash)); err != nil {
 		return "", err
+	}
+	var removed bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM canvas_assets WHERE user_id=$1 AND content_hash=$2 AND deleted_at IS NOT NULL AND expires_at>now())`, user, hash).Scan(&removed); err != nil {
+		return "", err
+	}
+	if removed {
+		return "", errCanvasAssetDeleted
 	}
 	var id string
 	err = tx.QueryRowContext(ctx, `SELECT a.id FROM canvas_asset_bindings b JOIN canvas_assets a ON a.id=b.asset_id WHERE b.user_id=$1 AND b.storage_key=$2 AND a.content_hash=$3 AND a.deleted_at IS NULL AND a.expires_at>now()`, user, key, hash).Scan(&id)
@@ -217,7 +230,7 @@ func (h *CanvasHandler) content(c *gin.Context, id string, admin bool) {
 	}
 	c.Header("Cache-Control", "private, no-store")
 	if deleted.Valid || !time.Now().Before(expiry) {
-		c.JSON(http.StatusGone, gin.H{"message": "素材已超过7天保存期限，已自动删除"})
+		c.JSON(http.StatusGone, gin.H{"message": "素材已删除或超过7天保存期限"})
 		return
 	}
 	if !admin && status == "blocked" {
@@ -519,7 +532,7 @@ func (h *CanvasHandler) Review(c *gin.Context) {
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
-	res, err := tx.ExecContext(c.Request.Context(), `UPDATE canvas_assets SET review_status=$2,review_note=$3 WHERE id=$1`, id, req.Status, req.Note)
+	res, err := tx.ExecContext(c.Request.Context(), `UPDATE canvas_assets SET review_status=$2,review_note=$3 WHERE id=$1 AND deleted_at IS NULL AND expires_at>now()`, id, req.Status, req.Note)
 	if err != nil {
 		canvasFailure(c, err)
 		return
@@ -542,7 +555,7 @@ func (h *CanvasHandler) Review(c *gin.Context) {
 
 // Access expires at the exact deadline; this worker retries physical deletion after failures.
 func (h *CanvasHandler) Cleanup(ctx context.Context) error {
-	rows, err := h.db.QueryContext(ctx, `SELECT id FROM canvas_assets WHERE expires_at<=now() AND deleted_at IS NULL`)
+	rows, err := h.db.QueryContext(ctx, `SELECT id FROM canvas_assets WHERE (expires_at<=now() OR deleted_at IS NOT NULL) AND file_deleted_at IS NULL`)
 	if err != nil {
 		return err
 	}
@@ -564,13 +577,14 @@ func (h *CanvasHandler) Cleanup(ctx context.Context) error {
 		if err = os.Remove(h.assetPath(id)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		if _, err = h.db.ExecContext(ctx, `UPDATE canvas_assets SET deleted_at=now() WHERE id=$1`, id); err != nil {
+		if _, err = h.db.ExecContext(ctx, `UPDATE canvas_assets SET deleted_at=COALESCE(deleted_at,now()),file_deleted_at=now() WHERE id=$1`, id); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 func (h *CanvasHandler) StartCleanup(ctx context.Context) {
+	h.StartImageTasks(ctx)
 	// A slow video provider must not delay seven-day file deletion.
 	for name, job := range map[string]func(context.Context) error{"cleanup": h.Cleanup, "video archiving": h.ProcessVideos} {
 		go func() {

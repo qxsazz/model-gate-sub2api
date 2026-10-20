@@ -45,6 +45,7 @@ export type CanvasNodeText = {
 };
 
 export type CanvasNodeMetadata = {
+    generationTaskIds?: Record<string, string>;
     content?: string;
     composerContent?: string;
     prompt?: string;
