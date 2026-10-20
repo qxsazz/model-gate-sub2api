@@ -11,6 +11,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { apiClient } from '@/api/client'
+import { deleteKey } from '@/api/keys'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -41,6 +42,14 @@ async function receive(event: MessageEvent) {
   const reply = (value?: unknown, error?: string) => { if (active) source.postMessage({ type: 'mg-canvas-response', id: msg.id, value, error }, location.origin) }
   if (msg.path === 'context') { reply({ userId: auth.user?.id, theme: theme(), keys: [] }); status.value = '正在加载云端项目'; return }
   const method = String(msg.method || 'GET').toUpperCase()
+  // Reuse the main API Key deletion flow; the server enforces authenticated ownership.
+  if (typeof msg.path === 'string' && /^\/keys\/[1-9]\d*$/.test(msg.path) && method === 'DELETE') {
+    const keyId = Number(msg.path.slice('/keys/'.length))
+    if (!Number.isSafeInteger(keyId)) { reply(undefined, '无效的 Key'); return }
+    try { reply(await deleteKey(keyId)) }
+    catch (error) { reply(undefined, error instanceof Error ? error.message : '删除失败，请重试') }
+    return
+  }
   const taskPath = typeof msg.path === 'string' && (/^\/canvas\/tasks(?:\/[a-f0-9-]+)?$/.test(msg.path) && method === 'GET' || /^\/canvas\/tasks\/[a-f0-9-]+\/cancel$/.test(msg.path) && method === 'POST' || /^\/canvas\/tasks\/[a-f0-9-]+\/\d+\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9][A-Za-z0-9._-]*:generateContent)$/.test(msg.path) && method === 'PUT')
   // No administrative or arbitrary host API is reachable through the child bridge.
   if (!taskPath && (typeof msg.path !== 'string' || !/^\/canvas\/(capabilities|state\/[^/]+|storage\/[^/]+|assets\/[a-f0-9-]+\/content|gateway\/\d+\/(?:models|responses|audio\/speech|gemini\/models(?:\/[A-Za-z0-9][A-Za-z0-9._-]*:(?:generateContent|streamGenerateContent))?|images\/(?:generations|edits)|videos\/(?:generations|[^/?]+(?:\/content)?)))$/.test(msg.path) || !['GET', 'PUT', 'POST'].includes(method))) { reply(undefined, '不允许的画布请求'); return }

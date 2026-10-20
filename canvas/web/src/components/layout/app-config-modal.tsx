@@ -1,5 +1,5 @@
 import { notifyHost } from "@/lib/model-gate";
-import { refreshManagedModels } from "@/lib/managed-models";
+import { deleteManagedKey, refreshManagedModels } from "@/lib/managed-models";
 import { Alert, App, Button, Form, Input, Modal, Progress, Radio, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
 import { Cloud, Download, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
@@ -51,11 +51,12 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 }
 
 export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const { i18n, t } = useTranslation();
     const configInputRef = useRef<HTMLInputElement>(null);
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [editingChannelId, setEditingChannelId] = useState("");
+    const [deletingKeyId, setDeletingKeyId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
@@ -100,6 +101,28 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
 
     const saveChannel = (channel: ModelChannel) => {
         updateChannels(config.channels.map((item) => (item.id === channel.id ? channel : item)));
+    };
+
+    const confirmDeleteKey = (channel: ModelChannel) => {
+        modal.confirm({
+            title: "删除 Key？",
+            content: `将同时删除主站「API 密钥」中的对应 Key，以及此 Key 的 OpenAI / Google 原生渠道。所有使用该 Key 的应用将无法继续发起请求，已有作品会保留。确定删除「${channel.name}」吗？`,
+            okText: "确认删除 Key",
+            cancelText: "取消",
+            okButtonProps: { danger: true },
+            async onOk() {
+                setDeletingKeyId(channel.id);
+                try {
+                    const warnings = await deleteManagedKey(channel.id);
+                    setEditingChannelId("");
+                    message.success("Key 已删除，主站 API 密钥已同步删除");
+                    if (warnings.length) message.warning(warnings.join("；"));
+                } catch (error) {
+                    message.error(error instanceof Error ? error.message : "删除失败，请重试");
+                    throw error;
+                } finally { setDeletingKeyId(""); }
+            },
+        });
     };
 
     const testWebdav = async () => {
@@ -197,7 +220,9 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                                 <Button size="small" icon={<Pencil className="size-3.5" />} onClick={() => setEditingChannelId(channel.id)}>
                                                     {t("common.edit")}
                                                 </Button>
-
+                                                <Button size="small" danger icon={<Trash2 className="size-3.5" />} disabled={Boolean(deletingKeyId)} onClick={() => confirmDeleteKey(channel)}>
+                                                    删除 Key
+                                                </Button>
                                             </div>
                                         </div>
                                     ))}

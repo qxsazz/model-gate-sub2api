@@ -1,7 +1,10 @@
 import { hosted, request } from "@/lib/model-gate";
 import { useConfigStore, guessCapability, modelOptionsFromChannels, type ModelChannel, type ModelCapability } from "@/stores/use-config-store";
 
+let refreshVersion = 0;
+
 export async function refreshManagedModels() {
+    const version = ++refreshVersion;
     const { keys } = await request<{ keys: typeof hosted.keys }>("/canvas/capabilities");
     const previous = useConfigStore.getState().config;
     const channels: ModelChannel[] = [];
@@ -28,9 +31,26 @@ export async function refreshManagedModels() {
         }
     }));
     channels.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    if (version === refreshVersion) applyManagedChannels(channels);
+    return failures;
+}
+
+function applyManagedChannels(channels: ModelChannel[]) {
+    const previous = useConfigStore.getState().config;
     const options = modelOptionsFromChannels(channels);
     const choose = (kind: ModelCapability, selected: string) => channels.some((c) => c.models.some((m) => m.capability === kind && `${c.id}::${m.name}` === selected)) ? selected : channels.flatMap((c) => c.models.filter((m) => m.capability === kind).map((m) => `${c.id}::${m.name}`))[0] || "";
     const imageModel = choose("image", previous.imageModel);
     useConfigStore.setState({ config: { ...previous, channels, models: options, imageModel, videoModel: choose("video", previous.videoModel), textModel: choose("text", previous.textModel), audioModel: choose("audio", previous.audioModel), model: imageModel, proxyEnabled: false, channelMode: "local" } });
-    return failures;
+}
+
+// A Key can expose both protocols. Delete its shared credential, then remove every channel.
+export async function deleteManagedKey(channelId: string) {
+    const match = /^([1-9]\d*)(?:-gemini)?$/.exec(channelId);
+    if (!match || !Number.isSafeInteger(Number(match[1]))) throw new Error("无效的本站 Key");
+    const keyId = match[1];
+    await request(`/keys/${keyId}`, "DELETE");
+    ++refreshVersion; // Ignore model refreshes that started before this deletion.
+    applyManagedChannels(useConfigStore.getState().config.channels.filter(channel => channel.id !== keyId && channel.id !== `${keyId}-gemini`));
+    try { return await refreshManagedModels(); }
+    catch { return ["Key 已删除，渠道刷新失败，请稍后刷新渠道与模型"]; }
 }
