@@ -225,6 +225,8 @@ func BeginOpsStreamTurn(c *gin.Context, turn int) {
 	c.Set(OpsStreamTurnKey, turn)
 	// Rule and attempt state is turn-scoped on a long-lived WS connection.
 	c.Set(OpsSkipPassthroughKey, false)
+	c.Set(preserveGatewayClientMessageKey, false)
+	c.Set(gatewayClientReasonKey, "")
 	c.Set(OpsUpstreamErrorsKey, []*OpsUpstreamErrorEvent{})
 	c.Set(OpsUpstreamStatusCodeKey, 0)
 	c.Set(OpsUpstreamErrorMessageKey, "")

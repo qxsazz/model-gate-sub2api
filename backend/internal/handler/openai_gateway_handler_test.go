@@ -1447,7 +1447,7 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 	cancelRead()
 	if readErr == nil {
 		require.Contains(t, string(payload), "content_policy_violation")
-		require.Contains(t, string(payload), "内容审计测试阻断")
+		require.Contains(t, string(payload), "请求受策略限制")
 	} else {
 		var closeErr coderws.CloseError
 		require.ErrorAs(t, readErr, &closeErr)
