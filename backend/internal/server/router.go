@@ -92,6 +92,10 @@ func SetupRouter(
 	// 注册路由
 	registerRoutes(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 
+	if handlers.Canvas != nil {
+		handlers.Canvas.SetGateway(r)
+		handlers.Canvas.StartCleanup(context.Background())
+	}
 	return r
 }
 

@@ -20,6 +20,14 @@ ARG NPM_CONFIG_REGISTRY=
 # -----------------------------------------------------------------------------
 # --platform=$BUILDPLATFORM: the frontend output is JS (arch-neutral), so build
 # it on the native host arch instead of under QEMU emulation for the target.
+FROM --platform=${BUILDPLATFORM} ${NODE_IMAGE} AS canvas-builder
+WORKDIR /app/canvas/web
+COPY canvas/web/package.json canvas/web/package-lock.json canvas/web/.npmrc ./
+RUN --mount=type=cache,id=canvas-npm,target=/root/.npm npm ci
+COPY canvas/VERSION canvas/CHANGELOG.md /app/canvas/
+COPY canvas/web/ ./
+RUN npm run typecheck && npm run build
+
 FROM --platform=${BUILDPLATFORM} ${NODE_IMAGE} AS frontend-builder
 ARG NPM_CONFIG_REGISTRY
 
@@ -42,6 +50,7 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
 RUN pnpm run build
+COPY --from=canvas-builder /app/canvas/web/dist /app/backend/internal/web/dist/canvas-app
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder

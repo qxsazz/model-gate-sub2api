@@ -76,3 +76,19 @@ jobs:
             printf '%s\n' "$changed" | grep '^backend/' >&2
             exit 1
           fi
+
+  canvas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: canvas/web/package-lock.json
+      - name: Install hosted canvas
+        working-directory: canvas/web
+        run: npm ci
+      - name: Check and build hosted canvas
+        working-directory: canvas/web
+        run: npm run typecheck && npm run build

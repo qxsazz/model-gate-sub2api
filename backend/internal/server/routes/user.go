@@ -89,6 +89,16 @@ func RegisterUserRoutes(
 			}
 		}
 
+		if h.Canvas != nil {
+			canvas := authenticated.Group("/canvas")
+			canvas.GET("/capabilities", h.Canvas.Capabilities)
+			canvas.GET("/state/:name", h.Canvas.State)
+			canvas.PUT("/state/:name", h.Canvas.State)
+			canvas.PUT("/storage/:key", h.Canvas.Upload)
+			canvas.GET("/storage/:key", h.Canvas.ReadStorage)
+			canvas.GET("/assets/:id/content", h.Canvas.Content)
+			canvas.Any("/gateway/:key_id/*path", h.Canvas.Gateway)
+		}
 		// API Key管理
 		keys := authenticated.Group("/keys")
 		{

@@ -249,6 +249,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/infinite-canvas',
+    name: 'InfiniteCanvas',
+    component: () => import('@/views/user/InfiniteCanvasView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, title: '无限画布' }
+  },
+  {
+    path: '/admin/canvas-review',
+    name: 'CanvasReview',
+    component: () => import('@/views/admin/CanvasReviewView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '画布内容审核' }
+  },
+  {
     path: '/batch-image',
     name: 'BatchImageGuide',
     alias: '/docs/batch-image',

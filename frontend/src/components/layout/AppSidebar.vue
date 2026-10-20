@@ -737,6 +737,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
   items.push(
+    { path: '/infinite-canvas', label: '无限画布', icon: BatchImageIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
       { path: '/vip', label: 'VIP 中心', icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/achievements', label: '成就与签到', icon: GiftIcon, hideInSimpleMode: true },
@@ -794,6 +795,7 @@ const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/canvas-review', label: '画布内容审核', icon: ShieldIcon },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     {
