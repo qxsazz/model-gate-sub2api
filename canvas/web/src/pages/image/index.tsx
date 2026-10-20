@@ -1,8 +1,8 @@
-import { hosted } from "@/lib/model-gate";
+import { createCloudLogStore, notifyHost } from "@/lib/model-gate";
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
-import localforage from "localforage";
+
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 
@@ -66,7 +66,7 @@ type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => 
 
 const LOG_STORE_KEY = "infinite-canvas:image_generation_logs";
 const RESULT_ACTION_BUTTON_CLASS = "min-w-0 px-1.5 [&_.ant-btn-icon]:shrink-0 [&>span:last-child]:min-w-0 [&>span:last-child]:truncate";
-const logStore = localforage.createInstance({ name: `model-gate-canvas:${hosted.userId}`, storeName: "image_generation_logs" });
+const logStore = createCloudLogStore("image_generation_logs");
 
 export default function ImagePage() {
     const { message } = App.useApp();
@@ -102,8 +102,9 @@ export default function ImagePage() {
     const processedCommandRef = useRef(0);
     const agentTaskIdRef = useRef<string | undefined>(undefined);
 
-    const model = effectiveConfig.imageModel || effectiveConfig.model;
-    const canGenerate = Boolean(prompt.trim());
+    const model = effectiveConfig.imageModel;
+    const hasModel = isAiConfigReady(effectiveConfig, model);
+    const canGenerate = Boolean(prompt.trim()) && hasModel;
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
 
     useEffect(() => {
@@ -409,6 +410,12 @@ export default function ImagePage() {
                                     </div>
                                 </div>
                                 <Input.TextArea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder={t("imageWorkbench.promptPlaceholder")} />
+                        <div className="pt-3">
+                            {!hasModel && <Button block className="mb-2" onClick={() => notifyHost("create-key", "image")}>创建生图 Key</Button>}
+                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                                {t("workbench.generate")}
+                            </Button>
+                        </div>
                             </div>
 
                             <div className="min-w-0">
@@ -484,11 +491,7 @@ export default function ImagePage() {
                             </div>
                         </div>
 
-                        <div className="mt-auto pt-6">
-                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
-                                {t("workbench.generate")}
-                            </Button>
-                        </div>
+
                     </div>
 
                     <div className="thin-scrollbar rounded-lg border border-stone-200 bg-card p-4 shadow-sm dark:border-stone-800 lg:min-h-0 lg:overflow-y-auto lg:p-5">

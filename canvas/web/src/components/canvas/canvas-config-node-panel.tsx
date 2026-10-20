@@ -98,6 +98,8 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                 </button>
             </div>
 
+            {!canGenerate && <button type="button" className="mb-2 cursor-pointer text-left text-xs underline" onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>先点击这里填写提示词，或连接文本节点，再开始生成</button>}
+
             <div className="mb-2 grid min-w-0 cursor-default grid-cols-[minmax(0,1fr)_148px] items-center gap-2" onMouseDown={(event) => event.stopPropagation()}>
                 <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} fullWidth />
                 {mode === "video" ? (

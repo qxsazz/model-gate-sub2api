@@ -2,10 +2,10 @@
   <AppLayout>
     <section class="canvas-workspace">
       <div class="canvas-workspace-heading">
-        <div><h1>无限画布</h1><p>用图片和视频连接创意 · 作品素材保存 7 天，请及时下载</p></div>
+        <div><h1>无限画布</h1><p>生图、视频、画布与素材库 · 作品素材保存 7 天，请及时下载</p></div>
         <span role="status" :class="{ 'text-red-600': saveError }">{{ status }}</span>
       </div>
-      <iframe ref="frame" src="/canvas-app/canvas" title="MODEL-GATE 无限画布" class="canvas-frame" allow="clipboard-write; fullscreen" />
+      <iframe ref="frame" src="/canvas-app/image" title="MODEL-GATE 无限画布" class="canvas-frame" allow="clipboard-write; fullscreen" />
       <div v-if="showCreate" class="canvas-dialog-backdrop" @click.self="showCreate = false">
         <section class="canvas-dialog" role="dialog" aria-modal="true" aria-label="创建画布Key">
           <h2>创建{{ purpose === 'video' ? '生视频' : '生图' }} Key</h2>

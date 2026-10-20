@@ -100,3 +100,32 @@ export const cloudMediaStorage = {
     async removeItem(_key: string) {},
     async iterate(_callback: (value: any, key: string) => void) {},
 };
+
+// Histories contain metadata and private storage references; media stays in the seven-day archive.
+// Serialize changes per history so simultaneous completions cannot overwrite one another.
+export function createCloudLogStore(namespace: string) {
+    const name = `infinite-canvas:${namespace}`;
+    let queue: Promise<unknown> = Promise.resolve();
+    let records: Record<string, unknown> | undefined;
+    async function load() {
+        if (!records) records = JSON.parse(await cloudStateStorage.getItem(name) || "{}");
+        return records!;
+    }
+    function change(update: (values: Record<string, unknown>) => void) {
+        const operation = queue.then(async () => {
+            const values = await load();
+            update(values);
+            await cloudStateStorage.setItem(name, JSON.stringify(values));
+        });
+        queue = operation;
+        return operation;
+    }
+    return {
+        setItem<T>(id: string, value: T) { return change((values) => { values[id] = value; }); },
+        removeItem(id: string) { return change((values) => { delete values[id]; }); },
+        async iterate<T, U>(callback: (value: T, key: string) => U) {
+            await queue;
+            for (const [key, value] of Object.entries(await load())) callback(value as T, key);
+        },
+    };
+}

@@ -1,8 +1,8 @@
-import { hosted } from "@/lib/model-gate";
+import { createCloudLogStore, notifyHost } from "@/lib/model-gate";
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, LoaderCircle, Plus, SlidersHorizontal, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Input, Modal, Tag, Typography } from "antd";
-import localforage from "localforage";
+
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
@@ -66,7 +66,7 @@ type GenerationLogConfig = Pick<AiConfig, "model" | "videoModel" | "size" | "vqu
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 
 const LOG_STORE_KEY = "infinite-canvas:video_generation_logs";
-const logStore = localforage.createInstance({ name: `model-gate-canvas:${hosted.userId}`, storeName: "video_generation_logs" });
+const logStore = createCloudLogStore("video_generation_logs");
 
 export default function VideoPage() {
     const { message } = App.useApp();
@@ -103,8 +103,9 @@ export default function VideoPage() {
     const processedCommandRef = useRef(0);
     const agentTaskIdRef = useRef<string | undefined>(undefined);
 
-    const model = effectiveConfig.videoModel || effectiveConfig.model;
-    const canGenerate = Boolean(prompt.trim());
+    const model = effectiveConfig.videoModel;
+    const hasModel = isAiConfigReady(effectiveConfig, model);
+    const canGenerate = Boolean(prompt.trim()) && hasModel;
 
     useEffect(() => {
         if (!running || !startedAt) return;
@@ -405,6 +406,12 @@ export default function VideoPage() {
                                     </div>
                                 </div>
                                 <Input.TextArea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder={t("videoWorkbench.promptPlaceholder")} />
+                        <div className="pt-3">
+                            {!hasModel && <Button block className="mb-2" onClick={() => notifyHost("create-key", "video")}>创建生视频 Key</Button>}
+                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                                {t("workbench.generate")}
+                            </Button>
+                        </div>
                             </div>
 
                             <div className="min-w-0">
@@ -457,11 +464,7 @@ export default function VideoPage() {
                             </div>
                         </div>
 
-                        <div className="mt-auto pt-6">
-                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
-                                {t("workbench.generate")}
-                            </Button>
-                        </div>
+
                     </div>
 
                     <div className="thin-scrollbar rounded-lg border border-stone-200 bg-card p-4 shadow-sm dark:border-stone-800 lg:min-h-0 lg:overflow-y-auto lg:p-5">
