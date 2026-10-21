@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -205,8 +207,11 @@ func ProvideHandlers(
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
+	db *sql.DB,
+	cfg *config.Config,
 ) *Handlers {
 	return &Handlers{
+		Canvas:           NewCanvasHandler(db, apiKeyHandler.apiKeyService, cfg),
 		Auth:             authHandler,
 		User:             userHandler,
 		APIKey:           apiKeyHandler,

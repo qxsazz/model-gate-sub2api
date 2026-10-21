@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
@@ -947,5 +948,18 @@ func BenchmarkFrontendServerServeIndexHTML(b *testing.B) {
 		c.Set(middleware.CSPNonceKey, "test-nonce")
 
 		server.serveIndexHTML(c)
+	}
+}
+
+func TestHostedCanvasNestedRoutesServeOwnIndexWithoutRedirect(t *testing.T) {
+	s := &FrontendServer{distFS: fstest.MapFS{"canvas-app/index.html": &fstest.MapFile{Data: []byte("<html>canvas-entry</html>")}}}
+	for _, path := range []string{"/canvas-app/", "/canvas-app/canvas", "/canvas-app/canvas/project-123"} {
+		r := gin.New()
+		r.Use(s.Middleware())
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusOK, w.Code, path)
+		require.Contains(t, w.Body.String(), "canvas-entry")
+		require.Empty(t, w.Header().Get("Location"))
 	}
 }
