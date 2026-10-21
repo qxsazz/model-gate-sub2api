@@ -1,0 +1,78 @@
+name: Inspect Staging Canvas Recovery
+'on':
+  push:
+    branches:
+    - ops/stop-staging-canvas-tasks-20261020
+    paths:
+    - .github/workflows/inspect-staging-canvas-recovery.yml
+permissions:
+  contents: read
+jobs:
+  inspect-recovery:
+    if: 'github.event.head_commit.message == ''ops: inspect staging canvas recovery
+      state'''
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    timeout-minutes: 5
+    steps:
+    - name: Read recovery metadata without prompts or media
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging'
+          }}
+      run: 'set -euo pipefail
+
+        install -d -m 700 "$RUNNER_TEMP/ssh"
+
+        printf ''%s\n'' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+
+        printf ''%s\n'' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+
+        chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+
+        ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts"
+        "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- ''$STAGING_DEPLOY_PATH''" <<''REMOTE''
+
+        set -euo pipefail
+
+        staging_dir="$1"
+
+        test "$staging_dir" = /opt/sub2api-staging
+
+        compose=(docker compose --project-name sub2api-staging --env-file "$staging_dir/.env"
+        -f "$staging_dir/docker-compose.base.yml" -f "$staging_dir/docker-compose.staging.yml")
+
+        test "$(docker inspect --format ''{{index .Config.Labels "com.docker.compose.project"}}''
+        sub2api-staging)" = sub2api-staging
+
+        "${compose[@]}" exec -T postgres sh -c ''psql -X -A -t -v ON_ERROR_STOP=1
+        -U "$POSTGRES_USER" -d "$POSTGRES_DB"'' <<''SQL''
+
+        BEGIN READ ONLY;
+
+        SELECT ''task_recovery_shape='' || jsonb_build_object(''user_id'',user_id,''id'',id,''status'',status,''response_type'',jsonb_typeof(response_body),''private_asset_refs'',(SELECT
+        COUNT(*) FROM jsonb_path_query(response_body,''$.**'') AS field WHERE jsonb_typeof(field)=''string''
+        AND field::text LIKE ''%/canvas/assets/%''),''deleted'',deleted_at IS NOT
+        NULL)::text FROM canvas_generation_tasks ORDER BY created_at DESC LIMIT 20;
+
+        SELECT ''asset_recovery_shape='' || jsonb_build_object(''user_id'',user_id,''mime'',mime_type,''review'',review_status,''deleted'',deleted_at
+        IS NOT NULL,''expired'',expires_at<now(),''count'',COUNT(*))::text FROM canvas_assets
+        WHERE user_id=1 GROUP BY user_id,mime_type,review_status,(deleted_at IS NOT
+        NULL),(expires_at<now());
+
+        SELECT ''state_recovery_shape='' || jsonb_build_object(''user_id'',user_id,''name'',name,''revision'',revision,''updated'',updated_at,''payload_type'',jsonb_typeof(payload),''record_count'',CASE
+        WHEN jsonb_typeof(payload)=''object'' THEN (SELECT count(*) FROM jsonb_object_keys(payload))
+        ELSE 0 END)::text FROM canvas_states WHERE user_id=1;
+
+        COMMIT;
+
+        SQL
+
+        printf ''inspection_complete=ok\n''
+
+        REMOTE
+
+        '
