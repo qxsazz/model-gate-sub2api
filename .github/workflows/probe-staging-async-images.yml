@@ -1,0 +1,69 @@
+name: Probe Staging Async Image APIs
+'on':
+  push:
+    branches:
+    - ops/stop-staging-canvas-tasks-20261020
+    paths:
+    - .github/workflows/probe-staging-async-images.yml
+permissions:
+  contents: read
+jobs:
+  probe-async:
+    if: 'github.event.head_commit.message == ''ops: probe staging async image APIs'''
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    timeout-minutes: 12
+    steps:
+    - name: Probe async protocol routes without image generation
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+      run: "set -euo pipefail\ninstall -d -m 700 \"$RUNNER_TEMP/ssh\"\nprintf '%s\\n' \"$DEPLOY_KEY\" > \"$RUNNER_TEMP/ssh/deploy_key\"\
+        \nprintf '%s\\n' \"$DEPLOY_KNOWN_HOSTS\" > \"$RUNNER_TEMP/ssh/known_hosts\"\nchmod 600 \"$RUNNER_TEMP/ssh/deploy_key\"\
+        \ \"$RUNNER_TEMP/ssh/known_hosts\"\nssh -i \"$RUNNER_TEMP/ssh/deploy_key\" -o UserKnownHostsFile=\"$RUNNER_TEMP/ssh/known_hosts\"\
+        \ \"$DEPLOY_USER@$DEPLOY_HOST\" \"bash -s -- '$STAGING_DEPLOY_PATH'\" <<'REMOTE'\nset -euo pipefail\nstaging_dir=\"\
+        $1\"\ntest \"$staging_dir\" = /opt/sub2api-staging\ncompose=(docker compose --project-name sub2api-staging --env-file\
+        \ \"$staging_dir/.env\" -f \"$staging_dir/docker-compose.base.yml\" -f \"$staging_dir/docker-compose.staging.yml\"\
+        )\ntest \"$(docker inspect --format '{{index .Config.Labels \"com.docker.compose.project\"}}' sub2api-staging)\" =\
+        \ sub2api-staging\npython3 - <<'PYREMOTE'\nimport subprocess,json,urllib.request,urllib.error,urllib.parse,concurrent.futures,time,re\n\
+        compose=['docker','compose','--project-name','sub2api-staging','--env-file','/opt/sub2api-staging/.env','-f','/opt/sub2api-staging/docker-compose.base.yml','-f','/opt/sub2api-staging/docker-compose.staging.yml']\n\
+        query=\"SELECT COALESCE(jsonb_agg(jsonb_build_object('id',a.id,'name',a.name,'platform',a.platform,'type',a.type,'credentials',a.credentials)),'[]'::jsonb)\
+        \ FROM accounts a WHERE a.deleted_at IS NULL AND a.status='active' AND a.schedulable AND EXISTS(SELECT 1 FROM account_groups\
+        \ ag JOIN groups g ON g.id=ag.group_id WHERE ag.account_id=a.id AND g.deleted_at IS NULL AND g.allow_image_generation);\"\
+        \nr=subprocess.run(compose+['exec','-T','postgres','sh','-c','psql -X -A -t -v ON_ERROR_STOP=1 -U \"$POSTGRES_USER\"\
+        \ -d \"$POSTGRES_DB\"'],input=query,text=True,capture_output=True,check=True)\naccounts=json.loads(r.stdout)\nclass\
+        \ NoRedirect(urllib.request.HTTPRedirectHandler):\n def redirect_request(self,*args,**kwargs):return None\nopener=urllib.request.build_opener(NoRedirect)\n\
+        def call(url,key,method='POST',body=None,google=False):\n headers={'Content-Type':'application/json','User-Agent':'MODEL-GATE-Staging-Async-Capability-Probe/1'}\n\
+        \ if google:headers['x-goog-api-key']=key\n else:headers['Authorization']='Bearer '+key\n req=urllib.request.Request(url,data=json.dumps(body).encode()\
+        \ if body is not None else None,headers=headers,method=method)\n start=time.monotonic()\n try:\n  try:resp=opener.open(req,timeout=20)\n\
+        \  except urllib.error.HTTPError as e:resp=e\n  code=resp.code;raw=resp.read(2*1024*1024);resp.close()\n  try:v=json.loads(raw)\n\
+        \  except Exception:v={}\n  message=str(v.get('error') or v.get('message') or '').lower() if isinstance(v,dict) else\
+        \ ''\n  category='other'\n  if code in (401,403):category='auth_or_permission'\n  if code==429:category='rate_limited'\n\
+        \  if any(x in message for x in ('not enabled','未启用','not configured')):category='feature_disabled'\n  elif any(x\
+        \ in message for x in ('invalid url','invalid_url','not found','unknown request','路由不存在','无效的请求','unsupported path'))\
+        \ or code==404:category='route_or_resource_not_found'\n  elif any(x in message for x in ('no available channel','no\
+        \ available account','无可用渠道','模型不存在','model_not_found','not support','不支持')):category='model_or_endpoint_unavailable'\n\
+        \  elif any(x in message for x in ('insufficient','余额不足','额度不足','quota')):category='quota'\n  elif code in (400,422):category='validation'\n\
+        \  elif 200<=code<300:category='accepted'\n  return {'http':code,'category':category,'seconds':round(time.monotonic()-start,2),'json_fields':list(v)[:12]\
+        \ if isinstance(v,dict) else [],'has_task_id':isinstance(v,dict) and bool(v.get('task_id') or v.get('id') or v.get('name'))}\n\
+        \ except Exception as e:return {'http':0,'category':type(e).__name__,'seconds':round(time.monotonic()-start,2)}\n\
+        def api_base(raw,version='v1'):\n u=urllib.parse.urlsplit(raw.rstrip('/'));path=u.path.rstrip('/')\n if not re.search(r'/v\\\
+        d+(?:beta\\d*|alpha\\d*|\\.\\d+)?$',path):path+='/'+version\n elif version=='v1beta':path=re.sub(r'/v\\d+(?:beta\\\
+        d*|alpha\\d*|\\.\\d+)?$','/v1beta',path)\n assert u.scheme=='https' and u.hostname and not u.username and not u.query\
+        \ and not u.fragment\n return urllib.parse.urlunsplit((u.scheme,u.netloc,path,'',''))\ndef probe(a):\n c=a['credentials'];models=c.get('model_mapping')\
+        \ or {};matches=[m for m in models if ('image' in m.lower() or 'banana' in m.lower()) and 'video' not in m.lower()]\n\
+        \ if not matches:return\n pref=['gpt-image-2','gemini-3.1-flash-image-preview','grok-imagine-image','grok-imagine-image-2.0','grok-imagine-image-quality']\n\
+        \ model=next((m for m in pref if m in matches),matches[0]);model=models.get(model) or model;key=c.get('api_key') or\
+        \ ''\n if a['type']!='apikey' or not key:print('probe_skip='+json.dumps({'id':a['id'],'reason':'unsupported_credential_type'}),flush=True);return\n\
+        \ root=api_base(c.get('base_url') or ('https://generativelanguage.googleapis.com' if a['platform']=='gemini' else\
+        \ 'https://api.openai.com'))\n result={'id':a['id'],'name':a['name'],'platform':a['platform'],'model':model,'host':urllib.parse.urlsplit(root).hostname,'probes':{}}\n\
+        \ # Missing prompt/contents: these requests cannot intentionally generate an image.\n if a['platform']=='gemini':\n\
+        \  native=api_base(c.get('base_url') or 'https://generativelanguage.googleapis.com','v1beta')\n  result['probes']['native_batch']=call(native+'/models/'+urllib.parse.quote(model,safe='')+':batchGenerateContent',key,body={},google=True)\n\
+        \  result['probes']['batch_list']=call(native+'/batches?pageSize=1',key,'GET',google=True)\n result['probes']['images_async_path']=call(root+'/images/generations/async',key,body={'model':model})\n\
+        \ result['probes']['images_async_query']=call(root+'/images/generations?async=true',key,body={'model':model})\n result['probes']['image_task_lookup']=call(root+'/images/tasks/model-gate-nonexistent-probe',key,'GET')\n\
+        \ print('async_probe='+json.dumps(result,ensure_ascii=False),flush=True)\n return result\nwith concurrent.futures.ThreadPoolExecutor(max_workers=4)\
+        \ as pool:\n results=list(pool.map(probe,accounts))\nprint('probe_complete='+json.dumps({'tested':sum(x is not None\
+        \ for x in results),'generation_payloads':0}),flush=True)\n\nPYREMOTE\nREMOTE\n"
