@@ -1,0 +1,98 @@
+name: Test Staging Async Image Accounts
+'on':
+  push:
+    branches:
+    - ops/stop-staging-canvas-tasks-20261020
+    paths:
+    - .github/workflows/test-staging-async-images.yml
+permissions:
+  contents: read
+jobs:
+  test-async:
+    if: 'github.event.head_commit.message == ''ops: test staging async image accounts'''
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    timeout-minutes: 30
+    steps:
+    - name: Submit at most one image per reachable account and verify task results
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+      run: "set -euo pipefail\ninstall -d -m 700 \"$RUNNER_TEMP/ssh\"\nprintf '%s\\n' \"$DEPLOY_KEY\" > \"$RUNNER_TEMP/ssh/deploy_key\"\
+        \nprintf '%s\\n' \"$DEPLOY_KNOWN_HOSTS\" > \"$RUNNER_TEMP/ssh/known_hosts\"\nchmod 600 \"$RUNNER_TEMP/ssh/deploy_key\"\
+        \ \"$RUNNER_TEMP/ssh/known_hosts\"\nssh -i \"$RUNNER_TEMP/ssh/deploy_key\" -o UserKnownHostsFile=\"$RUNNER_TEMP/ssh/known_hosts\"\
+        \ \"$DEPLOY_USER@$DEPLOY_HOST\" \"bash -s -- '$STAGING_DEPLOY_PATH'\" <<'REMOTE'\nset -euo pipefail\nstaging_dir=\"\
+        $1\"\ntest \"$staging_dir\" = /opt/sub2api-staging\ncompose=(docker compose --project-name sub2api-staging --env-file\
+        \ \"$staging_dir/.env\" -f \"$staging_dir/docker-compose.base.yml\" -f \"$staging_dir/docker-compose.staging.yml\"\
+        )\ntest \"$(docker inspect --format '{{index .Config.Labels \"com.docker.compose.project\"}}' sub2api-staging)\" =\
+        \ sub2api-staging\npython3 - <<'PYREMOTE'\nimport subprocess,json,urllib.request,urllib.error,urllib.parse,time,re,uuid,base64,concurrent.futures,ipaddress,socket,multiprocessing\n\
+        compose=['docker','compose','--project-name','sub2api-staging','--env-file','/opt/sub2api-staging/.env','-f','/opt/sub2api-staging/docker-compose.base.yml','-f','/opt/sub2api-staging/docker-compose.staging.yml']\n\
+        selected={875:'async_path',882:'async_path',763:'async_path',877:'google_async',881:'query_control',879:'query_control',888:'query_control',856:'query_control',754:'query_control',897:'query_control',885:'query_control',742:'query_control',878:'query_control'}\n\
+        query=\"SELECT jsonb_agg(jsonb_build_object('id',id,'name',name,'platform',platform,'credentials',credentials)) FROM\
+        \ accounts WHERE deleted_at IS NULL AND status='active' AND schedulable AND id IN (\"+','.join(map(str,selected))+\"\
+        );\"\nr=subprocess.run(compose+['exec','-T','postgres','sh','-c','psql -X -A -t -v ON_ERROR_STOP=1 -U \"$POSTGRES_USER\"\
+        \ -d \"$POSTGRES_DB\"'],input=query,text=True,capture_output=True,check=True);accounts=json.loads(r.stdout)\nassert\
+        \ len(accounts)==len(selected),'account availability changed; do not substitute accounts'\nclass NoRedirect(urllib.request.HTTPRedirectHandler):\n\
+        \ def redirect_request(self,*a,**kw):return None\nopener=urllib.request.build_opener(NoRedirect)\ndef request(url,key=None,method='GET',body=None,timeout=20,google=False,idempotency=None):\n\
+        \ headers={'Content-Type':'application/json','User-Agent':'MODEL-GATE-Staging-Async-Capability-Test/1'}\n if key:headers['x-goog-api-key'\
+        \ if google else 'Authorization']=key if google else 'Bearer '+key\n if idempotency:headers.update({'Idempotency-Key':idempotency,'X-Async-Expires-In':'360','Prefer':'respond-async'})\n\
+        \ req=urllib.request.Request(url,data=json.dumps(body).encode() if body is not None else None,headers=headers,method=method)\n\
+        \ try:res=opener.open(req,timeout=timeout)\n except urllib.error.HTTPError as e:res=e\n status=res.code;headers=dict(res.headers);raw=res.read(24*1024*1024);res.close()\n\
+        \ try:v=json.loads(raw)\n except Exception:v={}\n return status,v,headers,raw\n\ndef api_base(raw,version='v1'):\n\
+        \ u=urllib.parse.urlsplit(raw.rstrip('/'));path=u.path.rstrip('/')\n if not re.search(r'/v\\d+(?:beta\\d*|alpha\\\
+        d*|\\.\\d+)?$',path):path+='/'+version\n elif version=='v1beta':path=re.sub(r'/v\\d+(?:beta\\d*|alpha\\d*|\\.\\d+)?$','/v1beta',path)\n\
+        \ assert u.scheme=='https' and u.hostname and not u.username and not u.query and not u.fragment\n return urllib.parse.urlunsplit((u.scheme,u.netloc,path,'',''))\n\
+        def classify(v,status):\n text=json.dumps(v,ensure_ascii=False).lower()\n if 'not enabled' in text or '未启用' in text:return\
+        \ 'feature_disabled'\n if any(s in text for s in ['insufficient','余额不足','额度不足','quota','欠费']):return 'quota'\n if\
+        \ status in (401,403):return 'auth_or_permission'\n if status==429:return 'rate_limited'\n if status==404:return 'route_or_resource_not_found'\n\
+        \ if any(s in text for s in ['no available','无可用','不支持','not support','无效的模型','model_not_found']):return 'model_or_endpoint_unavailable'\n\
+        \ if status in (400,422):return 'validation'\n if status>=500:return 'upstream_error'\n return 'other'\ndef sig(raw):return\
+        \ raw.startswith(b'\\x89PNG\\r\\n\\x1a\\n') or raw.startswith(b'\\xff\\xd8\\xff') or raw.startswith((b'GIF87a',b'GIF89a'))\
+        \ or raw.startswith(b'RIFF') and raw[8:12]==b'WEBP'\ndef inspect_images(v):\n candidates=[]\n def visit(o):\n  if\
+        \ isinstance(o,dict):\n   for k,x in o.items():\n    if k in ('b64_json','data') and isinstance(x,str) and len(x)>100:\n\
+        \     try:\n      if sig(base64.b64decode(x[:128])):candidates.append(('base64',None))\n     except Exception:pass\n\
+        \    elif k in ('url','image_url') and isinstance(x,str) and x.startswith('https://'):candidates.append(('url',x))\n\
+        \    else:visit(x)\n  elif isinstance(o,list):\n   for x in o:visit(x)\n visit(v)\n checks=[];seen=set()\n for typ,url\
+        \ in candidates:\n  if typ=='base64':checks.append({'format':'base64','valid_image':True});continue\n  if url in seen:continue\n\
+        \  seen.add(url);u=urllib.parse.urlsplit(url)\n  if u.username:continue\n  if any(not ipaddress.ip_address(x[4][0]).is_global\
+        \ for x in socket.getaddrinfo(u.hostname,u.port or 443,type=socket.SOCK_STREAM)):continue\n  try:\n   code,_,headers,raw=request(url,timeout=20)\n\
+        \   checks.append({'format':'url','http':code,'valid_image':code==200 and sig(raw),'bytes':len(raw)})\n  except Exception\
+        \ as e:checks.append({'format':'url','valid_image':False,'error':type(e).__name__})\n return checks\n\ndef worker(a,pipe):\n\
+        \ started=time.monotonic();mode=selected[a['id']];c=a['credentials'];mapping=c.get('model_mapping') or {};prefs=['gpt-image-2','gemini-3.1-flash-image-preview','grok-imagine-image','grok-imagine-image-2.0','grok-imagine-image-quality'];requested=next((m\
+        \ for m in prefs if m in mapping),next((m for m in mapping if 'image' in m and 'video' not in m),''));model=mapping.get(requested)\
+        \ or requested\n out={'id':a['id'],'name':a['name'],'platform':a['platform'],'model':model,'test':mode,'generation_submissions':1};pipe.send(('started',out.copy()))\n\
+        \ try:\n  key=c['api_key'];root=api_base(c.get('base_url') or 'https://api.openai.com');base_origin=urllib.parse.urlsplit(root);prompt='A\
+        \ simple blue circle centered on a plain white background. Minimal flat icon. No text.';identity='model-gate-async-'+str(uuid.uuid4())\n\
+        \  if mode=='google_async':\n   root=api_base(c.get('base_url') or 'https://generativelanguage.googleapis.com','v1beta');payload={'contents':[{'role':'user','parts':[{'text':prompt}]}],'generationConfig':{'responseModalities':['IMAGE'],'imageConfig':{'aspectRatio':'1:1'}}};url=root+'/models/'+urllib.parse.quote(model,safe='')+':asyncGenerateContent'\n\
+        \  else:\n   payload={'model':model,'prompt':prompt,'n':1,'size':'1024x1024'}\n   if a['platform']=='openai':payload['quality']='low'\n\
+        \   url=root+'/images/generations'+('/async' if mode=='async_path' else '?async=true')\n  code,v,headers,_=request(url,key,'POST',payload,timeout=330\
+        \ if mode=='query_control' else 25,google=mode=='google_async',idempotency=identity)\n  out.update(submit_http=code,submit_seconds=round(time.monotonic()-started,2));pipe.send(('submitted',out.copy()))\n\
+        \  if mode=='google_async' and code==404:\n   out['async_error']=classify(v,code);out['sync_control']=True\n   code,v,headers,_=request(root+'/models/'+urllib.parse.quote(model,safe='')+':generateContent',key,'POST',payload,timeout=max(1,350-(time.monotonic()-started)),google=True)\n\
+        \   out['sync_http']=code\n  if not 200<=code<300:out.update(outcome='request_failed',error=classify(v,code));pipe.send(('result',out));return\n\
+        \  if not isinstance(v,dict):out.update(outcome='invalid_response');pipe.send(('result',out));return\n  task=v.get('taskID')\
+        \ or v.get('task_id') or (v.get('id') if code==202 else None);poll=v.get('poll_url') or headers.get('Location') or\
+        \ headers.get('location')\n  if task:\n   out['task_id']=task;out['native_async_accepted']=True;pipe.send(('task',out.copy()))\n\
+        \   if a['id']==875:poll=root+'/async-tasks/'+urllib.parse.quote(str(task),safe='')\n   elif not poll:poll=root+'/images/tasks/'+urllib.parse.quote(str(task),safe='')\n\
+        \   poll=urllib.parse.urljoin(root+'/',poll);u=urllib.parse.urlsplit(poll)\n   assert u.scheme=='https' and u.netloc==base_origin.netloc\
+        \ and not u.username,'untrusted poll destination'\n   states=[]\n   while time.monotonic()-started<340:\n    code,v,_,_=request(poll,key,timeout=min(15,max(1,345-(time.monotonic()-started))))\n\
+        \    if code!=200:out.update(outcome='poll_failed',poll_http=code,error=classify(v,code));break\n    state=str(v.get('status')\
+        \ or v.get('state') or '').lower()\n    if not states or states[-1]!=state:states.append(state);pipe.send(('state',{'id':a['id'],'state':state}))\n\
+        \    if state in ('success','completed','succeeded','failed','cancelled','canceled','expired','error'):\n     out.update(terminal=state,poll_http=code)\n\
+        \     if state in ('success','completed','succeeded'):\n      checks=inspect_images(v);out.update(outcome='native_async_image_ok'\
+        \ if any(i['valid_image'] for i in checks) else 'completed_image_unavailable',images=checks)\n     else:out.update(outcome='async_task_failed',error=classify(v,int(v.get('http_status')\
+        \ or 500)))\n     break\n    time.sleep(5)\n   else:out.update(outcome='pending_at_deadline',upstream_task_pending=True)\n\
+        \   out['states']=states\n  else:\n   checks=inspect_images(v);out.update(outcome='sync_image_ok' if any(i['valid_image']\
+        \ for i in checks) else 'no_image_or_task',native_async_accepted=False,images=checks)\n except Exception as e:out.update(outcome='exception',error=type(e).__name__)\n\
+        \ finally:\n  out['total_seconds']=round(time.monotonic()-started,2);pipe.send(('result',out));pipe.close()\n\npending=list(accounts);active={};results=[]\n\
+        while pending or active:\n while pending and len(active)<4:\n  a=pending.pop(0);parent,child=multiprocessing.Pipe(duplex=False);p=multiprocessing.Process(target=worker,args=(a,child));p.start();child.close();active[a['id']]={'proc':p,'pipe':parent,'start':time.monotonic(),'a':a,'result':None,'last':{}}\n\
+        \ for account_id,item in list(active.items()):\n  pipe=item['pipe'];p=item['proc']\n  while pipe.poll():\n   try:kind,value=pipe.recv()\n\
+        \   except EOFError:break\n   if kind=='result':item['result']=value\n   elif kind in ('started','submitted','task'):item['last']=value\n\
+        \   print('async_test_'+kind+'='+json.dumps(value,ensure_ascii=False),flush=True)\n  if not p.is_alive() or time.monotonic()-item['start']>360:\n\
+        \   if p.is_alive():p.terminate();p.join(5)\n   result=item['result'] or dict(item['last'],id=account_id,name=item['a']['name'],outcome='deadline_360s_connection_closed',total_seconds=360)\n\
+        \   if not item['result']:print('async_test_result='+json.dumps(result,ensure_ascii=False),flush=True)\n   results.append(result);p.join(1);pipe.close();del\
+        \ active[account_id]\n time.sleep(0.2)\nprint('async_test_complete='+json.dumps({'accounts':len(results),'native_async_images':sum(r.get('outcome')=='native_async_image_ok'\
+        \ for r in results),'sync_images':sum(r.get('outcome')=='sync_image_ok' for r in results),'pending_upstream_tasks':sum(bool(r.get('upstream_task_pending'))\
+        \ for r in results)}),flush=True)\n\nPYREMOTE\nREMOTE\n"
