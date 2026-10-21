@@ -53,6 +53,10 @@ jobs:
 
         BEGIN READ ONLY;
 
+        SELECT ''active_image_tasks='' || count(*) FROM canvas_generation_tasks WHERE status IN (''queued'',''running'');
+
+        SELECT ''pending_video_tasks='' || count(*) FROM canvas_video_tasks WHERE status=''pending'';
+
         SELECT ''task_recovery_shape='' || jsonb_build_object(''user_id'',user_id,''id'',id,''status'',status,''response_type'',jsonb_typeof(response_body),''private_asset_refs'',(SELECT
         COUNT(*) FROM jsonb_path_query(response_body,''$.**'') AS field WHERE jsonb_typeof(field)=''string''
         AND field::text LIKE ''%/canvas/assets/%''),''deleted'',deleted_at IS NOT
