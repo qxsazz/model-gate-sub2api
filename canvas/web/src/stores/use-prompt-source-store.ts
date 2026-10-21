@@ -1,4 +1,4 @@
-import { cloudStateStorage } from "@/lib/model-gate";
+import { canManageCanvasSettings, cloudStateStorage, requireCanvasSettingsAdmin } from "@/lib/model-gate";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -35,20 +35,26 @@ export const usePromptSourceStore = create<PromptSourceStore>()(
         (set) => ({
             sources: DEFAULT_PROMPT_SOURCES,
             schedule: defaultSchedule,
-            addSource: () => createPromptSource(),
-            saveSource: (source) =>
+            addSource: () => { requireCanvasSettingsAdmin(); return createPromptSource(); },
+            saveSource: (source) => {
+                requireCanvasSettingsAdmin();
                 set((state) => ({
                     sources: state.sources.some((item) => item.id === source.id)
                         ? state.sources.map((item) => (item.id === source.id && !item.builtIn ? createPromptSource(source) : item))
                         : [...state.sources, createPromptSource(source)],
-                })),
-            removeSource: (id) => set((state) => ({ sources: state.sources.filter((item) => item.id !== id || item.builtIn) })),
-            toggleSource: (id, enabled) => set((state) => ({ sources: state.sources.map((item) => (item.id === id ? { ...item, enabled } : item)) })),
+                }));
+            },
+            removeSource: (id) => { requireCanvasSettingsAdmin(); set((state) => ({ sources: state.sources.filter((item) => item.id !== id || item.builtIn) })); },
+            toggleSource: (id, enabled) => { requireCanvasSettingsAdmin(); set((state) => ({ sources: state.sources.map((item) => (item.id === id ? { ...item, enabled } : item)) })); },
             updateSchedule: (key, value) => set((state) => ({ schedule: { ...state.schedule, [key]: value } })),
         }),
         {
             name: PROMPT_SOURCE_STORE_KEY,
-            storage: createJSONStorage(() => cloudStateStorage),
+            storage: createJSONStorage(() => ({
+                getItem: (name) => canManageCanvasSettings() ? cloudStateStorage.getItem(name) : Promise.resolve(null),
+                setItem: async (name, value) => { if (canManageCanvasSettings()) await cloudStateStorage.setItem(name, value); },
+                removeItem: async (name) => { if (canManageCanvasSettings()) await cloudStateStorage.removeItem(name); },
+            })),
             partialize: (state) => ({ sources: state.sources, schedule: state.schedule }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<PromptSourceStore>;

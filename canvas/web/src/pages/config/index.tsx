@@ -18,7 +18,6 @@ export default function ConfigPage() {
                     <p className="mt-1 text-sm text-stone-500">{t("config.description")}</p>
                 </div>
                 <AppConfigPanel initialTab={initialTab} />
-                <p className="mt-8 border-t border-border pt-4 text-xs text-muted-foreground">画布基于 <a href="https://github.com/basketikun/infinite-canvas" target="_blank" rel="noreferrer">basketikun / infinite-canvas</a>（MIT）。媒体按账号私有保存 7 天，授权管理员可进行事后审核。</p>
             </div>
         </main>
     );

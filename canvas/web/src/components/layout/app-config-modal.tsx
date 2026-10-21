@@ -1,4 +1,4 @@
-import { notifyHost } from "@/lib/model-gate";
+import { canManageCanvasSettings, notifyHost } from "@/lib/model-gate";
 import { deleteManagedKey, refreshManagedModels } from "@/lib/managed-models";
 import { Alert, App, Button, Form, Input, Modal, Progress, Radio, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
@@ -18,6 +18,8 @@ import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webd
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
 import { computeMediaSize, inferMediaRatio, inferMediaScale, mediaScaleOptions, parseVideoResolution } from "@/lib/media-size";
 import { createModelChannel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+
+import { accessibleConfigTab, canAccessConfigTab } from "@/lib/config-access";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -54,7 +56,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const { message, modal } = App.useApp();
     const { i18n, t } = useTranslation();
     const configInputRef = useRef<HTMLInputElement>(null);
-    const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
+    const isAdmin = canManageCanvasSettings();
+    const [activeTab, setActiveTab] = useState<ConfigTabKey>(() => accessibleConfigTab(initialTab, isAdmin));
     const [editingChannelId, setEditingChannelId] = useState("");
     const [deletingKeyId, setDeletingKeyId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
@@ -72,7 +75,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     const locale = i18n.resolvedLanguage as AppLocale;
     const imageResolutionOptions = mediaScaleOptions.map((value) => ({ value, label: value === "auto" ? t("settingsPanels.common.auto") : value.toUpperCase() }));
-    useEffect(() => setActiveTab(initialTab), [initialTab]);
+    useEffect(() => setActiveTab(accessibleConfigTab(initialTab, isAdmin)), [initialTab, isAdmin]);
 
     const saveConfig = (nextConfig: AiConfig) => {
         (Object.keys(nextConfig) as Array<keyof AiConfig>).forEach((key) => updateConfig(key, nextConfig[key]));
@@ -190,8 +193,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                 </div>
             </div>
             <Tabs
-                activeKey={activeTab}
-                onChange={(key) => setActiveTab(key as ConfigTabKey)}
+                activeKey={accessibleConfigTab(activeTab, isAdmin)}
+                onChange={(key) => setActiveTab(accessibleConfigTab(key as ConfigTabKey, isAdmin))}
                 items={[
                     {
                         key: "channels",
@@ -365,7 +368,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         label: t("config.tabs.localStorage"),
                         children: <ConfigLocalStorage active={activeTab === "local-storage"} />,
                     },
-                ]}
+                ].filter((tab) => canAccessConfigTab(tab.key, isAdmin))}
             />
             {showDoneButton ? (
                 <div className="mt-4 flex justify-end">

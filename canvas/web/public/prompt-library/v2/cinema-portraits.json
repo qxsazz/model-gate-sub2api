@@ -1,0 +1,230 @@
+[
+  {
+    "id": "pixmind-01-cinematic-portraits-01",
+    "title": "雨巷红裙 · 黑色电影",
+    "description": "雨夜香港窄巷中，以红裙、霓虹反光和湿润路面建立黑色电影的悬疑氛围。",
+    "prompt": "Film noir cinematic shot. A dangerously beautiful femme fatale in a curve-hugging red silk dress with a thigh-high slit, walking through a rain-soaked Hong Kong back alley at night. Neon signs in Chinese characters reflect red and blue on the wet cobblestones. She carries a black umbrella over one shoulder, her red-painted lips the only warm color against the cold teal lighting. Smoke wisps from a nearby vent. Anamorphic lens, shallow depth of field, cinematic grain. Ultra-realistic 4K noir film frame.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-01.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "霓虹",
+      "雨夜"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#01-neo-noir-hong-kong-alley"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-02",
+    "title": "爵士酒吧 · 伦勃朗光",
+    "description": "用暖琥珀色灯光、烟雾与明暗对照刻画酒吧人物，适合情绪浓郁的室内镜头。",
+    "prompt": "Moody jazz bar interior. A mysterious woman in a sheer black lace dress sits on a velvet barstool, one leg crossed showing stiletto heels. Cigarette smoke curls around her silhouette. Warm amber spotlight from above illuminates her face and exposed collarbones while the rest fades into deep shadow. A saxophone player is a blurred silhouette in the background. Film noir meets modern luxury aesthetic. Dramatic Rembrandt lighting, 35mm film look. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-02.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "暗调",
+      "爵士"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#02-jazz-bar-rembrandt-lighting"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-06",
+    "title": "巴黎咖啡馆 · 新浪潮",
+    "description": "黑白胶片、条纹上衣和巴黎街头咖啡馆，让画面带有六十年代欧洲电影的随性气息。",
+    "prompt": "Black and white French New Wave cinematic still. A young woman in a striped Breton shirt and dark bob haircut smokes at a Paris cafe table in 1962. She looks off-camera with soft intensity. Natural window light, high contrast, slightly overexposed highlights. Film grain visible. Godard aesthetic. 35mm monochrome, 50mm lens. Ultra-detailed.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-06.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "黑白",
+      "胶片"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#06-french-new-wave-cafe"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-07",
+    "title": "迈阿密夜行 · 复古霓虹",
+    "description": "敞篷车、棕榈树和掠过的霓虹招牌，在冷暖混色中营造八十年代夜行公路片。",
+    "prompt": "1980s Miami Vice cinematic shot. A woman in a white linen blazer drives a red convertible at night through downtown Miami. Palm trees and neon motel signs blur past. She looks at the camera with sunglasses reflecting the pink and turquoise glow of the city. Lens flare, soft film grain. Teal and magenta color grade. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-07.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "公路",
+      "复古"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#07-miami-vice-neon-drive"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-12",
+    "title": "旧厨房 · 岁月的手",
+    "description": "聚焦剥蒜的年长双手，让窗光、木桌与瓷碗细节承载日常生活的故事。",
+    "prompt": "Create a tight medium format portrait of an elderly woman's hands peeling garlic at a worn wooden kitchen table. Window light from camera left, faded floral housedress sleeves, a chipped porcelain bowl half full of peeled cloves, papery garlic skins scattered. Every wrinkle and nail imperfection visible, warm color palette, no stylization. No watermark.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-12.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "纪实",
+      "手部"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#12-quiet-still-life---elderly-hands"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-13",
+    "title": "便利店门口 · 荧光街拍",
+    "description": "便利店冷白荧光与街外彩色霓虹交织，用真实胶片颗粒表现城市夜晚的人物状态。",
+    "prompt": "35mm film photography with harsh convenience store fluorescent lighting mixed with colorful neon signs from outside, authentic film grain, high contrast, cinematic street editorial style, intimate medium shot, late-night convenience store atmosphere, realistic reflections on glass, natural skin texture, oversized white shirt, black mini skirt, messy high ponytail, seductive but grounded urban portrait energy, no watermark, no text.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-13.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "街拍",
+      "胶片"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#13-convenience-store-neon-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-14",
+    "title": "柔雾肖像 · 微光特写",
+    "description": "柔雾滤镜、低对比度和轻微高光晕染，营造柔和、有空气感的竖幅人物特写。",
+    "prompt": "9:16 vertical -- Korean idol portrait photography, single subject. Soft black mist filter effect, lowered contrast, gentle highlight bloom, subtle glow, soft diffusion, slightly faded blacks. Minimal indoor setting near window, white curtains, clean light-toned background. Young Korean female idol, natural minimal makeup, dewy realistic skin texture, subtle imperfections. Outfit: oversized white button-up shirt with short bottoms, slightly loose fit, soft and casual styling. Hair: long dark hair, slightly messy, natural volume, softly flowing. Pose: relaxed standing or slight lean, body subtly angled, one leg slightly forward, shoulders relaxed. Expression: soft cute smile, slightly playful eyes, direct or slightly off-camera gaze. Camera: close to mid-body framing, eye-level, intimate distance. Lighting: diffused natural daylight, soft shadows, gentle light wrapping around face and body. Mood: cute yet subtly sensual, intimate, everyday softness. Quality: ultra-realistic, fine film grain, slight softness at edges, natural imperfections, dreamy understated tone.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-14.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "柔光",
+      "竖幅"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#14-soft-black-mist-idol-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-16",
+    "title": "水光面孔 · 微距特写",
+    "description": "以湿润皮肤、水珠和环形灯反光表现细节，适合电影美妆和情绪特写画面。",
+    "prompt": "Extreme close-up beauty portrait. A stunning model with wet dewy skin and tousled damp hair, bare shoulders glistening. Water droplets on her face and neck catch the light of a ring light. Flawless skin texture in macro detail -- every pore, every water droplet razor sharp. Smoky eye makeup with subtle gold shimmer. Lips slightly parted, intense gaze at camera. Dark background. Fenty Beauty campaign aesthetic. 85mm macro lens, f/1.4, ultra-shallow depth of field. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-16.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "微距",
+      "水光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#16-fenty-beauty-macro-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-19",
+    "title": "金色顶层 · 装饰艺术",
+    "description": "落日透过落地窗照亮缎面衣料与装饰艺术室内，突出暖光、人物轮廓和高级质感。",
+    "prompt": "A breathtaking young woman with flowing auburn hair stands in a luxurious Art Deco penthouse at golden hour. She wears a champagne-colored satin slip dress that catches the warm light. Floor-to-ceiling windows behind her show a panoramic city sunset. Dramatic side lighting creates deep shadows and golden highlights on her face and bare arms. The composition follows the rule of thirds. Cinematic depth of field with gorgeous city bokeh. Fashion editorial quality. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-19.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "室内",
+      "暖光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#19-art-deco-penthouse-fashion-editorial"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-20",
+    "title": "闪光瞬间 · 35mm 胶片",
+    "description": "直接闪光带出清晰眼神与高反差纹理，保留真实颗粒和时尚编辑摄影的即时感。",
+    "prompt": "35mm color film photography with harsh direct on-camera flash, specular highlights on skin and clothing, strong catchlights in eyes, high contrast flash illumination, authentic film grain and color shift, high fashion fresh innocent basketball court editorial style, intimate first-person low-angle POV shot from below, early 20s East Asian female with delicate refined features, seductive almond-shaped eyes with natural double eyelids, flawless realistic porcelain skin with cool ivory undertone and visible flash specular highlights, fine skin texture with subtle pores and natural dewy glow under flash, fresh natural sporty makeup, subtle natural flush on cheeks, natural pink lips slightly parted, long dark brown hair tied in a high playful ponytail with loose strands framing the face, wearing a loose white tank top and white high-waisted basketball shorts, white knee-high sports socks, leaning pose against basketball hoop pole on outdoor court at dusk, harsh direct on-camera flash creating sharp specular highlights and strong catchlights, blurred basketball court and hoop under dusk sky, authentic 35mm direct flash film color grading, no watermark, no text.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-20.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "胶片",
+      "闪光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#20-35mm-flash-editorial-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-21",
+    "title": "风雨剑客 · 东方武侠",
+    "description": "湿发、风雨与冷峻眼神构成东方武侠人物的竖幅镜头，突出人物气场与衣料细节。",
+    "prompt": "9:16 vertical, ultimate wuxia style, a stunning young Eastern swordswoman, cold and sharp phoenix eyes, porcelain skin, long straight black hair wet and windswept. Wearing a soaked dark black martial arts outfit with a wide-sleeved dark robe, blown dramatically by the wind. A soft sword belt at the waist, long boots, right hand holding an ancient sword emitting a faint blue sword qi glow. Dynamic pose: body slightly turned, looking back over shoulder, robes billowing. Background: moonlit rain-mist-covered bamboo forest path, giant full moon, stone path, ancient lanterns, thin mist and rain. Dramatic cold moonlight combined with blue sword qi, wet-surface water reflections, ultra-dynamic feel with detailed fabric folds, hair strand movement, and realistic water droplet reflections. Cinematic lighting, 8K, masterpiece, ultra realistic, dramatic atmosphere.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-21.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "武侠",
+      "雨夜"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#21-vertical-wuxia-heroine-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-25",
+    "title": "黎明鱼市 · 生活纪实",
+    "description": "用清晨冷空气、碎冰和鱼箱刻画海边鱼贩，捕捉有生活温度的纪实电影瞬间。",
+    "prompt": "Create a color documentary photograph of a fishmonger unpacking crates of mackerel onto crushed ice at a small coastal market just after dawn. Steam from breath in the cold air, rubber boots, wet concrete floor, incandescent work lamp spilling warm light, a paper ledger with handwritten prices clipped to a wooden post. Realistic skin texture and fish scales, shallow depth of field, 35mm feel. No commercial styling, no watermark.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-25.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "人物",
+      "纪实",
+      "黎明"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#25-fishmonger-at-dawn"
+  }
+]
