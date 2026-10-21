@@ -1,0 +1,74 @@
+name: Inspect Staging Image Accounts
+'on':
+  push:
+    branches:
+    - ops/stop-staging-canvas-tasks-20261020
+    paths:
+    - .github/workflows/inspect-staging-image-accounts.yml
+permissions:
+  contents: read
+jobs:
+  inspect-accounts:
+    if: 'github.event.head_commit.message == ''ops: inspect staging image accounts'''
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    timeout-minutes: 5
+    steps:
+    - name: Read image account capability metadata without credentials
+      env:
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+      run: 'set -euo pipefail
+
+        install -d -m 700 "$RUNNER_TEMP/ssh"
+
+        printf ''%s\n'' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+
+        printf ''%s\n'' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+
+        chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+
+        ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST"
+        "bash -s -- ''$STAGING_DEPLOY_PATH''" <<''REMOTE''
+
+        set -euo pipefail
+
+        staging_dir="$1"
+
+        test "$staging_dir" = /opt/sub2api-staging
+
+        compose=(docker compose --project-name sub2api-staging --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.base.yml"
+        -f "$staging_dir/docker-compose.staging.yml")
+
+        test "$(docker inspect --format ''{{index .Config.Labels "com.docker.compose.project"}}'' sub2api-staging)" = sub2api-staging
+
+        "${compose[@]}" exec -T postgres sh -c ''psql -X -A -t -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"''
+        <<''SQL''
+
+        BEGIN READ ONLY;
+
+        SELECT ''account='' || jsonb_build_object(''id'',a.id,''name'',a.name,''platform'',a.platform,''type'',a.type,''status'',a.status,''schedulable'',a.schedulable,''proxy_id'',a.proxy_id,''upstream_host'',split_part(split_part(split_part(COALESCE(a.credentials->>''base_url'',''''),
+        ''/'',3),''@'',-1),''?'',1),''credential_fields'',(SELECT jsonb_agg(k) FROM jsonb_object_keys(a.credentials) k),''extra_fields'',(SELECT
+        jsonb_agg(k) FROM jsonb_object_keys(a.extra) k),''models'',COALESCE(a.credentials->''model_mapping'',''{}''::jsonb),''groups'',(SELECT
+        jsonb_agg(jsonb_build_object(''id'',g.id,''name'',g.name,''platform'',g.platform,''image'',g.allow_image_generation,''batch'',g.allow_batch_image_generation,''models'',g.model_allowlist))
+        FROM account_groups ag JOIN groups g ON g.id=ag.group_id WHERE ag.account_id=a.id AND g.deleted_at IS NULL))::text
+        FROM accounts a WHERE a.deleted_at IS NULL AND EXISTS (SELECT 1 FROM account_groups ag JOIN groups g ON g.id=ag.group_id
+        WHERE ag.account_id=a.id AND g.deleted_at IS NULL AND g.allow_image_generation) ORDER BY a.id;
+
+        SELECT ''storage_config='' || jsonb_build_object(''configured'',true,''enabled'',value::jsonb->''enabled'',''reuse_backup_s3'',value::jsonb->''reuse_backup_s3'')::text
+        FROM settings WHERE key=''image_storage_config'';
+
+        SELECT ''active_image_tasks='' || count(*) FROM canvas_generation_tasks WHERE status IN (''queued'',''running'');
+
+        COMMIT;
+
+        SQL
+
+        printf ''account_inspection_complete=ok\n''
+
+        REMOTE
+
+        '
