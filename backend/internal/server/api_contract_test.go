@@ -351,6 +351,7 @@ func TestAPIContracts(t *testing.T) {
 					{
 						"id": 10,
 						"name": "Group One",
+						"key_capabilities": {"image": false, "video": false, "text": true},
 						"description": "desc",
 						"platform": "anthropic",
 						"rate_multiplier": 1.5,

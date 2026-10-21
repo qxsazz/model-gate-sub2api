@@ -516,3 +516,20 @@ func BenchmarkSecurityHeadersMiddleware(b *testing.B) {
 		middleware(c)
 	}
 }
+
+func TestHostedCanvasOnlyAllowsSameOriginEmbedding(t *testing.T) {
+	for _, path := range []string{"/canvas-app/canvas", "/dashboard"} {
+		r := gin.New()
+		r.Use(SecurityHeaders(config.CSPConfig{Enabled: true}, nil))
+		r.GET(path, func(c *gin.Context) { c.Status(200) })
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if strings.HasPrefix(path, "/canvas-app/") {
+			assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
+			assert.Contains(t, w.Header().Get("Content-Security-Policy"), "frame-ancestors 'self'")
+			assert.Contains(t, w.Header().Get("Content-Security-Policy"), "connect-src 'self' blob: data: https:")
+		} else {
+			assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+		}
+	}
+}

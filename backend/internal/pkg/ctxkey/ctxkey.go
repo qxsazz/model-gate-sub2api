@@ -5,6 +5,9 @@ package ctxkey
 type Key string
 
 const (
+	// ManagedImageTask preserves the server-owned deadline/cancellation at upstream boundaries.
+	ManagedImageTask Key = "ctx_managed_image_task"
+
 	// ForcePlatform 强制平台（用于 /antigravity 路由），由 middleware.ForcePlatform 设置
 	ForcePlatform Key = "ctx_force_platform"
 

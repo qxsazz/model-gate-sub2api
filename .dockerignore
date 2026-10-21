@@ -83,3 +83,7 @@ deploy/redis_data/
 .claude/
 issues/
 CLAUDE.md
+
+canvas/web/node_modules/
+canvas/web/dist/
+!canvas/CHANGELOG.md

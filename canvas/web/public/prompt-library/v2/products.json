@@ -1,0 +1,230 @@
+[
+  {
+    "id": "pixonara-product-photography-02",
+    "title": "粉色泡沫 · 护肤广告",
+    "description": "通透的粉色洁面瓶、绵密泡沫与柔和顶光，适合护肤品和洗护产品的干净主视觉。",
+    "prompt": "Premium minimalist skincare product photography. A translucent pink liquid cleanser bottle with a white pump dispenser placed vertically at the center of the frame. The bottle rests inside an organic pool of soft pink foamy bubbles, with airy soap lather spreading outward in smooth, rounded shapes. Small transparent bubbles float around the foam surface. Clean matte pastel pink background with subtle gradient. Soft diffused top lighting with gentle rim light creates a luminous glow through the liquid, highlighting the pump tube inside the bottle. Sharp focus, high clarity, realistic liquid refraction, smooth plastic and glass textures, luxury beauty advertising style, modern cosmetic branding, ultra-realistic, 8K detail, high dynamic range.\n\nNegative Prompt:\n\nhands, people, faces, clutter, harsh reflections, label distortion, unreadable text, warped pump, hard shadows, grain, noise, low resolution, CGI look, cartoon style, messy foam, uneven lighting, watermark",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-02.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "护肤",
+      "粉色",
+      "极简"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#2-premium-minimalist-skincare-product-photography-a-translucent-pink-liquid"
+  },
+  {
+    "id": "pixonara-product-photography-09",
+    "title": "玫瑰精华 · 极简静物",
+    "description": "用透明玻璃、浅粉液体和柔和投影突出材质，适合精华、香氛或小体积产品。",
+    "prompt": "Ultra-realistic minimalist studio product photography of a small transparent glass facial oil dropper bottle with a black rubber pipette cap, containing pale pink serum with dried pink floral elements suspended inside, placed centered on top of a natural raw wooden cube block with visible grain and split texture. To the left of the cube stands a tall matte white rectangular skincare box with minimal black typography reading “HUILE ÉCLAT VISAGE,” clean modern branding, and subtle logo near the bottom. To the right of the cube is a clear cylindrical glass vase filled with water and thin stems of dried pink gypsophila flowers extending upward and outward. The entire composition is arranged on a smooth matte pastel pink surface with a matching soft pink seamless studio background. Strong directional soft light comes from the left side, casting long, soft-edged realistic shadows of the flowers and objects onto the pink background. Lighting is natural-style, -det diffused, and warm, creating gentle highlights on the glass, subtle reflections on the serum bottle, and soft texture on the wooden block. Camera angle is straight-on at tabletop height, medium framing, all main objects in sharp focus with minimal depth of field blur. Color palette is dominated by blush pink, soft rose tones, warm light wood, clean white, and transparent glass. Mood is clean, airy, feminine, elegant, Scandinavian minimal aesthetic, premium skincare branding style, photorealistic, studio-grade realism, ultra",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-09.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "玻璃",
+      "极简",
+      "美妆"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#9-ultra-realistic-minimalist-studio-product-photography-of-a-small-transparent"
+  },
+  {
+    "id": "pixonara-product-photography-15",
+    "title": "绯红气泡水 · 单色广告",
+    "description": "红色罐体与同色背景形成统一画面，冷凝水珠和充足留白带出清爽的商业质感。",
+    "prompt": "A premium studio product photograph of a tall, slim red aluminum sparkling water can standing upright and centered against a seamless vivid red background, the can covered in fine condensation droplets with crisp white typography reading “GOOD IDEA” and smaller flavor text beneath, positioned on a matte red surface with subtle reflections, surrounded symmetrically by fresh ripe strawberries with glossy seeds and deep red flesh, some resting directly on the surface and others placed on small red rectangular blocks to the left and right, delicate white elderflower blossoms scattered between the fruit for contrast, the lighting soft yet directional from the upper left creating gentle highlights on the can's metallic texture and soft shadows beneath the fruit, the color palette dominated by saturated reds with clean white accents and natural green stems, the composition minimal and perfectly balanced with generous negative space above the product, shallow depth of field, ultra-sharp focus on the can, high-end commercial aesthetic, photorealistic, studio-grade, cinematic realism.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-15.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "饮品",
+      "单色",
+      "广告"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#15-a-premium-studio-product-photograph-of-a-tall-slim"
+  },
+  {
+    "id": "pixonara-product-photography-24",
+    "title": "黑金香氛 · 暗调静物",
+    "description": "黑色包装、琥珀玻璃与金色细节，适合强调轮廓、材质和层次的香氛大片。",
+    "prompt": "Luxury perfume product photography in a dark cinematic studio. A premium black matte perfume box with sharp edges and subtle gold accents placed slightly behind a transparent glass perfume bottle filled with warm amber liquid. The bottle has a thick clear glass body and a polished metallic cap. Minimal elegant label design with gold typography. Soft low key lighting with a smooth gradient dark background. Gentle reflections on a glossy surface beneath the products. Dramatic shadows for depth and contrast. High fashion fragrance advertisement style. Ultra realistic textures crisp focus shallow depth of field professional studio shot 8k quality.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-24.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "香水",
+      "黑金",
+      "暗调"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#24-luxury-perfume-product-photography-in-a-dark-cinematic-studio"
+  },
+  {
+    "id": "pixonara-product-photography-25",
+    "title": "橙香精华 · 日光场景",
+    "description": "绿色玻璃瓶搭配橙片与日光大理石，利用暖光和折射营造自然、清新的产品故事。",
+    "prompt": "Ultra-realistic premium skincare serum bottle (dark green glass with dropper), golden liquid inside, placed on sunlit marble surface with fresh orange slices around, natural citrus vibe, water splash frozen mid-air, detailed droplets and reflections, soft natural sunlight with sharp shadows, minimal aesthetic, macro photography, high detail textures, glossy glass reflections, fresh and vibrant color tones, luxury skincare advertising, 8K, perfect composition.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-25.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "护肤",
+      "自然光",
+      "清新"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#25-ultra-realistic-premium-skincare-serum-bottle-dark-green-glass-with"
+  },
+  {
+    "id": "pixonara-product-photography-29",
+    "title": "玫瑰金口红 · 九宫格分镜",
+    "description": "用九宫格展示同一支玫瑰金口红的不同角度，飞散花瓣、镜面石材与暖光构成美妆广告分镜。",
+    "prompt": "Elegant rose-gold lipstick standing upright on a reflective marble surface, surrounded by flying rose petals and soft powder dust. Warm studio lighting with dramatic shadows, luxury vanity background with blurred mirrors and golden accents, cinematic mood, macro product photography, ultra-sharp details, glossy textures, premium cosmetic brand style.\n\n3×3photo grid with different angles and poses. Same character, consistent look, clean lighting, real photoshoot vibe 2k.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-29.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "美妆",
+      "花瓣",
+      "动感"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#29-elegant-rose-gold-lipstick-standing-upright-on-a-reflective-marble"
+  },
+  {
+    "id": "pixonara-product-photography-30",
+    "title": "金色蜂蜜 · 自然质感",
+    "description": "用金色蜂蜜、微距材质和轻盈花粉构建自然、有温度的有机食品品牌画面。",
+    "prompt": "Ultra-realistic cinematic product shot of a premium honey jar placed inside a shallow wooden hollow surrounded by tall wild wheat and tiny yellow meadow flowers, captured from an intimate low-angle macro perspective with slight cinematic depth, transparent glass jar filled with luminous deep golden honey, topped with a satin bronze metallic lid and a narrow cream seal strip crossing vertically over the cap, minimal luxury label reading “HUNSET”, jar lightly touched by thin climbing ivy strands for a refined organic detail, one realistic honeybee hovering near the front glass surface while another rests on a wheat stem behind the jar, environment set in a quiet countryside field during late afternoon, warm sunlight filtering through wheat stalks from behind creating glowing translucency inside the honey and soft halo edges around the jar, foreground with blurred wheat tips and soft natural bokeh, distant background fading into creamy green and amber tones, shallow depth of field with extreme sharpness on jar textures, visible honey thickness, subtle glass reflections, detailed plant fibers and pollen particles in air, cinematic luxury advertising mood, shot on 90mm macro lens, f/2.2, ultra-detailed natural textures, premium organic brand campaign style, 8k resolution, no text, no watermark.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-30.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "蜂蜜",
+      "微距",
+      "暖色"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#30-ultra-realistic-cinematic-product-shot-of-a-premium-honey-jar"
+  },
+  {
+    "id": "pixonara-product-photography-34",
+    "title": "岩石腕表 · 户外质感",
+    "description": "黑色腕表置于岩石之间，利用橙色点缀、硬朗纹理和局部高光突出户外气质。",
+    "prompt": "A rugged, matte-black chronograph watch with bold orange accents is tightly framed between two textured rock formations, creating a natural vignette that directs all focus toward the dial; the scene opens with an ultra-close macro perspective, the camera slowly sliding laterally through the narrow rocky gap, maintaining an intimate, compressed field of view with no zoom-out, as if discovering the watch hidden within a harsh alpine environment. Cold mountain air subtly moves fine dust particles and faint mist across the frame, catching soft, diffused daylight that spills in from above, while a warm, low-angle sunlight grazes the rocks and reflects gently onto the watch face, creating a striking contrast between cool shadows and warm highlights. The camera continues a controlled micro-orbit around the watch at close range, allowing specular highlights to travel across the brushed metal bezel, engraved screws, and slightly textured rubber strap, emphasizing durability and premium craftsmanship. The orange indices and hands glow subtly as light shifts across the sapphire crystal, revealing crisp reflections and slight curvature distortions. In the blurred background, towering mountain peaks remain softly out of focus, adding depth without distraction, while tiny vibrations in the environment cause minuscule pebble shifts near the base, reinforcing realism. As the shot progresses, a faint breeze brushes across the strap, introducing barely perceptible movement, while light intensity fluctuates naturally as if clouds are passing overhead. The sequence ends in a locked, ultra-tight hero composition, perfectly centered within the rock frame, with high contrast, razor-sharp detail on the dial, and a cinematic interplay of shadow, texture, and controlled highlights that reinforce a premium, adventure-driven identity.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-product-photography-34.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "产品摄影",
+      "腕表",
+      "户外",
+      "黑色"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/product-photography.md#34-a-rugged-matte-black-chronograph-watch-with-bold-orange-accents"
+  },
+  {
+    "id": "pixonara-food-and-drink-13",
+    "title": "巧克力蛋糕 · 悬浮分层",
+    "description": "将蛋糕、奶油、巧克力霜与可可粉逐层悬浮展开，搭配简洁英文标注，适合甜品成分海报。",
+    "prompt": "Ultra-realistic premium food photography presented as an exploded-view chocolate cake infographic. Vertically separate the cake components in mid-air above a white ceramic plate: three moist chocolate sponge discs, a thick white cream filling, a rich swirled chocolate frosting layer, and a floating cloud of fine cocoa powder at the top. Keep all layers centered on the same vertical axis, with clear gaps between them. Add fine dotted leader lines and clean small dark-grey English labels on the right: \"COCOA POWDER\", \"CHOCOLATE FROSTING\", \"CHOCOLATE SPONGE\", \"CREAM FILLING\"; place \"CAKE PLATE\" below the plate. Pure white studio background, soft diffused professional lighting, gentle natural shadows, realistic porous sponge and creamy textures, elegant high-end bakery advertising, portrait composition. No watermark, no extra objects.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-food-and-drink-13.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "美食摄影",
+      "蛋糕",
+      "甜品",
+      "柔光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/food-and-drink.md#13-ultra-realistic-premium-food-photography-of-a-layered-chocolate-cake"
+  },
+  {
+    "id": "pixonara-food-and-drink-31",
+    "title": "草莓巧克力 · 飞溅定格",
+    "description": "草莓和巧克力飞溅悬停在切块蛋糕上方，木桌与暖色背景营造浓郁的甜品广告氛围。",
+    "prompt": "Advertising-style food photography of a thick slice of layered chocolate cake on a white plate on a rustic wooden table. Three dark moist chocolate sponge layers alternate with smooth chocolate cream. Glossy chocolate ganache flows down the top and sides. Fresh whole and halved strawberries float above the cake, with a dramatic splash of melted chocolate frozen in mid-air. A few chocolate crumbs and strawberries rest naturally on the table. Warm brown softly blurred background, directional studio lighting, rich appetizing textures, crisp focus on the cake and flying fruit, subtle shallow depth of field, clean negative space on the right for advertising copy, photorealistic high-resolution food photography. Landscape composition, aspect ratio 3:2. No text, no watermark.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-food-and-drink-31.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "美食摄影",
+      "巧克力",
+      "草莓",
+      "广告"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/food-and-drink.md#31-advertising-style-food-photography-of-a-stack-of-pancakes-arranged"
+  },
+  {
+    "id": "pixonara-food-and-drink-27",
+    "title": "青金冰淇淋 · 精品甜点",
+    "description": "青绿色糖衣、金色装饰和纯白背景形成鲜明对比，适合精致甜点与文创食品。",
+    "prompt": "A minimalist, ultra-realistic product shot of a premium ice cream bar inspired by Kazakhstan. The popsicle is coated in glossy turquoise icing with elegant gold ornamental patterns and the word “QAZAQSTAN” embossed in metallic gold, featuring a golden sun-and-eagle motif. The lower half reveals creamy vanilla ice cream with smooth texture and subtle melting drips. Wooden stick engraved with traditional Kazakh patterns. Clean white studio background, soft diffused lighting, sharp focus, luxury food branding aesthetic, high-detail textures, modern cultural fusion design, 8K quality.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-food-and-drink-27.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "美食摄影",
+      "冰淇淋",
+      "青绿色",
+      "极简"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/food-and-drink.md#27-a-minimalist-ultra-realistic-product-shot-of-a-premium-ice"
+  },
+  {
+    "id": "pixonara-food-and-drink-36",
+    "title": "悬浮咖啡 · 风味海报",
+    "description": "咖啡豆、巧克力与咖啡杯悬浮在深色背景中，用层次和动势表现浓郁的风味。",
+    "prompt": "Ultra-cinematic vertical composition of coffee elements suspended in mid-air cascading roasted coffee beans, chocolate bonbons, swirling latte art in a mid-air coffee cup, splashes of milk and espresso frozen in motion, fine coffee grounds dusting through the air captured with rich brown and cream color tones.\nHyper-detailed textures with glossy liquid surfaces, crema bubbles, and matte bean textures, lit with dramatic high-contrast studio lighting against a deep, velvety black background. Cinematic depth of field, splash photography aesthetic, premium café advertising style. Shot with a virtual Nikon D850, 105mm macro lens, aperture f/4.0, crisp editorial clarity.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixonara-food-and-drink-36.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "美食摄影",
+      "咖啡",
+      "悬浮",
+      "海报"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "JeremyGDM / Pixonara",
+    "sourceUrl": "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts/blob/6815dab9c17ce20c5c554df4ecf28336fd0aef0a/prompts/food-and-drink.md#36-ultra-cinematic-vertical-composition-of-coffee-elements-suspended-in-mid-air"
+  }
+]

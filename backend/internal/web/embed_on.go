@@ -88,6 +88,37 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
+		// Hosted React application has its own SPA fallback and no main-console HTML injection.
+		if strings.HasPrefix(path, "/canvas-app/") {
+			clean := strings.TrimPrefix(path, "/")
+			if !s.fileExists(clean) || path == "/canvas-app/" {
+				clean = "canvas-app/index.html"
+			}
+			if !s.fileExists(clean) {
+				c.Status(http.StatusNotFound)
+				c.Abort()
+				return
+			}
+			if strings.HasSuffix(clean, ".html") {
+				data, err := fs.ReadFile(s.distFS, clean)
+				if err != nil {
+					c.Status(http.StatusNotFound)
+				} else {
+					c.Header("Cache-Control", "no-cache")
+					c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+				}
+				c.Abort()
+				return
+			}
+			req := c.Request.Clone(c.Request.Context())
+			copiedURL := *req.URL
+			req.URL = &copiedURL
+			req.URL.Path = "/" + clean
+			applyStaticAssetCacheHeaders(c.Writer.Header(), clean)
+			s.fileServer.ServeHTTP(c.Writer, req)
+			c.Abort()
+			return
+		}
 		// Skip API routes
 		if shouldBypassEmbeddedFrontend(path) {
 			c.Next()

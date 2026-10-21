@@ -7,6 +7,8 @@ import { keysAPI } from '@/api'
 import KeysView from '../KeysView.vue'
 
 const {
+  routeState,
+  replaceRoute,
   listKeys,
   updateKey,
   getPublicSettings,
@@ -19,6 +21,8 @@ const {
   isCurrentStep,
   nextStep,
 } = vi.hoisted(() => ({
+  routeState: { query: {} as Record<string, string> },
+  replaceRoute: vi.fn(),
   listKeys: vi.fn(),
   updateKey: vi.fn(),
   getPublicSettings: vi.fn(),
@@ -57,6 +61,11 @@ const messages: Record<string, string> = {
   'keys.status.quota_exhausted': 'Quota exhausted',
   'keys.usage': 'Usage',
 }
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routeState,
+  useRouter: () => ({ replace: replaceRoute }),
+}))
 
 vi.mock('@/api', () => ({
   keysAPI: {
@@ -269,6 +278,8 @@ const getButtonByText = (wrapper: VueWrapper, text: string) => {
 describe('user KeysView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
+    routeState.query = {}
+    replaceRoute.mockReset()
 
     listKeys.mockReset()
     updateKey.mockReset()
@@ -569,6 +580,7 @@ describe('user KeysView column settings', () => {
       platform,
       rate_multiplier: 1,
       subscription_type: 'standard',
+      status: 'active',
     }))
     const groupSelect = (wrapper: VueWrapper) => wrapper.findComponent('[data-tour="key-form-group"]')
     const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number }) => option.value)
@@ -581,6 +593,26 @@ describe('user KeysView column settings', () => {
 
     beforeEach(() => {
       getAvailableGroups.mockResolvedValue(availableGroups)
+    })
+
+    it.each(['image', 'video', 'text'] as const)('prefills the shared %s form from canvas and returns after creation', async (purpose) => {
+      routeState.query = { create: purpose, return_to: 'canvas' }
+      const groups = ['image', 'video', 'text'].map((kind, index) => ({
+        ...availableGroups[7], id: index + 100, name: `${kind} group`,
+        key_capabilities: { image: kind === 'image', video: kind === 'video', text: kind === 'text' },
+      }))
+      getAvailableGroups.mockResolvedValue(groups)
+      const wrapper = await mountView()
+      expect(wrapper.get<HTMLInputElement>(`input[name="key-purpose"][value="${purpose}"]`).element.checked).toBe(true)
+      const selected = groups.find((group) => group.key_capabilities[purpose])!
+      expect(optionIds(wrapper)).toEqual([selected.id])
+      await groupSelect(wrapper).vm.$emit('update:modelValue', selected.id)
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: selected.id })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(vi.mocked(keysAPI.create).mock.calls[0][8]).toBe(purpose)
+      expect(replaceRoute).toHaveBeenCalledWith('/infinite-canvas')
+      wrapper.unmount()
     })
 
     it('classifies all configured platforms and retains the complete table filter', async () => {

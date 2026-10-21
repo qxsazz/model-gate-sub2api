@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -199,4 +200,45 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 	require.Len(t, logs, 1)
 	require.Equal(t, "<credential-bearing body omitted>", logs[0].RequestBody)
 	require.NotContains(t, logs[0].RequestBody, "audit-canary")
+}
+
+// Private media must remain in the seven-day asset store, never in general audit bodies.
+func TestCanvasAuditOmitsPrivatePayloadButPreservesOperationAndHandlerBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &auditCaptureRepository{}
+	svc := service.NewAuditLogService(repo, nil)
+	svc.Start()
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set(string(ContextKeyUser), AuthSubject{UserID: 77}); c.Next() })
+	router.Use(gin.HandlerFunc(NewAuditLogMiddleware(svc)))
+	seen := 0
+	handle := func(c *gin.Context) {
+		body, err := io.ReadAll(c.Request.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "PRIVATE_IMAGE_CANARY")
+		seen++
+		c.JSON(http.StatusAccepted, gin.H{"ok": true})
+	}
+	router.PUT("/api/v1/canvas/tasks/:task_id/:key_id/*path", handle)
+	router.POST("/api/v1/canvas/gateway/:key_id/*path", handle)
+	router.PUT("/api/v1/canvas/state/:name", handle)
+	for _, tc := range []struct{ method, path string }{{"PUT", "/api/v1/canvas/tasks/task/3/images/edits"}, {"POST", "/api/v1/canvas/gateway/3/gemini/models/image:generateContent"}, {"PUT", "/api/v1/canvas/state/workspace"}} {
+		req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(`{"inlineData":{"data":"PRIVATE_IMAGE_CANARY"}}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusAccepted, rec.Code)
+	}
+	svc.Stop()
+	require.Equal(t, 3, seen)
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Len(t, repo.logs, 3)
+	for _, entry := range repo.logs {
+		require.Equal(t, "<private canvas payload omitted>", entry.RequestBody)
+		require.NotContains(t, entry.RequestBody, "PRIVATE_IMAGE_CANARY")
+		require.Equal(t, int64(77), *entry.ActorUserID)
+		require.Equal(t, http.StatusAccepted, entry.StatusCode)
+		require.NotEmpty(t, entry.Action)
+	}
 }

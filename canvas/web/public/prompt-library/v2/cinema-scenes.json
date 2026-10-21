@@ -1,0 +1,230 @@
+[
+  {
+    "id": "pixmind-01-cinematic-portraits-03",
+    "title": "天台侦探 · 未来雨城",
+    "description": "在高楼天台安排孤独侦探，用全息广告、雨水和层叠霓虹营造未来都市。",
+    "prompt": "Cyberpunk cinematic wide shot. A lone detective in a wet black trench coat stands on a neon-drenched Tokyo rooftop at 3am. Giant holographic advertisements of a geisha float across the skyline behind him, casting shifting pink and cyan light on his face. Light rain catches the glow. Flying cars streak past as horizontal light trails. Shot on anamorphic lens, 2.39:1 aspect, shallow depth of field. Blade Runner 2049 color grade -- teal shadows, orange highlights. Ultra-realistic 4K cinematic frame.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-03.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "科幻",
+      "霓虹"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#03-blade-runner-rooftop"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-04",
+    "title": "粉色酒店 · 对称叙事",
+    "description": "复古酒店礼宾员居中站立，以严格对称、粉色装饰和精确陈设构成戏剧化场景。",
+    "prompt": "Wes Anderson style cinematic composition. A 1960s hotel concierge in a burgundy uniform stands dead-center in a pastel-pink Art Deco lobby, flanked by perfectly symmetrical potted palms and brass sconces. Flat front-on framing, everything on center axis. Soft fluorescent overhead lighting. Pastel pink and mint green color palette. 35mm film look. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-04.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "对称",
+      "复古"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#04-wes-anderson-symmetrical-hotel-lobby"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-05",
+    "title": "凌晨厨房 · 惊悚对峙",
+    "description": "两个人在狭小厨房里紧张对峙，单盏荧光灯与克制构图制造犯罪惊悚片的压迫感。",
+    "prompt": "Cinematic still from a modern Korean crime thriller. Two men face each other across a small Seoul apartment kitchen at 2am, both holding knives but frozen in a tense moment. Single fluorescent tube overhead casts hard green-tinted light and harsh shadows. Steam rises from an abandoned pot on the stove. Tight composition, 40mm lens, handheld feel. Bong Joon-ho style. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-05.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "悬疑",
+      "暗调"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#05-korean-thriller-kitchen-standoff"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-08",
+    "title": "风起山坡 · 夏日物语",
+    "description": "人物站在辽阔绿色山坡上，风吹动衣裙和发丝，白云与柔光营造清新的电影场景。",
+    "prompt": "Cinematic still styled as a live-action Studio Ghibli adaptation. A young woman in a simple blue linen dress stands in a vast green hillside field, wind blowing her hair and skirt. Fluffy white clouds race overhead. Soft golden hour light. Warm, painterly color grading with gentle film grain. Wide lens, low-angle composition making her heroic against the sky. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-08.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "自然光",
+      "夏日"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#08-studio-ghibli-live-action-adaptation"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-15",
+    "title": "孤行沙海 · 史诗远景",
+    "description": "让披袍旅人置于广阔沙丘和巨大夕阳之间，用尺度反差、长阴影与留白建立史诗感。",
+    "prompt": "Epic cinematic wide shot in Denis Villeneuve style. A lone hooded figure in flowing desert robes walks across a vast orange sand dune at sunset. The sun is enormous on the horizon, casting elongated shadows. Scale is extreme -- the figure is tiny, the landscape overwhelming. Dust kicks up in the wind. Warm amber palette with deep violet shadows. Shot on 65mm, ultra-wide aspect. Ultra-realistic 4K cinematic quality.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-15.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "沙漠",
+      "史诗"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#15-villeneuve-desert-epic"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-24",
+    "title": "六九音乐节 · 年代群像",
+    "description": "还原六十年代户外音乐节的人群、服装和舞台环境，适合年代电影的群像场景。",
+    "prompt": "Create a realistic outdoor crowd scene in Bethel, New York on August 16, 1969.\nPhotorealistic, period-accurate clothing, staging, and environment.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-01-cinematic-portraits-24.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "群像",
+      "年代"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#24-woodstock-crowd-scene-world-knowledge"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-05",
+    "title": "巴塔哥尼亚 · 蓝调倒影",
+    "description": "山峰倒映在平静高山湖面，一顶小帐篷与辽阔自然形成尺度对比，呈现蓝调时刻。",
+    "prompt": "Perfect mirror reflection of the jagged Torres del Paine peaks in a glass-still Patagonian alpine lake at blue hour. Pink and purple alpenglow on the snow-capped summits. A single orange tent on the near shore as human scale. Complete symmetry — upper and lower half of frame are near-mirror images. 35mm lens, f/11. Ultra-realistic 4K landscape.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-03-nature-landscapes-05.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "山湖",
+      "蓝调"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#5-patagonia-mountain-reflection"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-06",
+    "title": "沙暴将至 · 驼队剪影",
+    "description": "以逼近的沙墙、绵延沙丘与孤独骑驼人制造危机感，适合沙漠冒险电影远景。",
+    "prompt": "Vast Sahara desert at the start of a sandstorm. Rolling orange dunes extend to the horizon, with a towering wall of sand approaching from the left. A lone nomadic figure on camelback is silhouetted against the dust cloud. Sun struggles through the haze as a dim orange disc. Cinematic wide-angle, heavy atmospheric haze. Monochromatic warm orange palette. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-03-nature-landscapes-06.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "沙漠",
+      "风暴"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#6-sahara-dune-storm"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-08",
+    "title": "草原迁徙 · 落日象群",
+    "description": "夕阳将象群勾勒成剪影，金色草浪和巨大橙色太阳形成辽阔的自然电影画面。",
+    "prompt": "Cinematic wide shot of a family of elephants crossing a golden savanna at sunset in Kenya. The sun is a huge orange disc on the horizon, silhouetting the herd. Long grass ripples in the warm wind. Dust kicked up by the herd diffuses the backlight into warm beams. 200mm telephoto compression. National Geographic editorial style. Ultra-realistic 4K wildlife photography.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-03-nature-landscapes-08.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "野生动物",
+      "落日"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#8-african-savanna-sunset"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-10",
+    "title": "高地风暴 · 一束天光",
+    "description": "苏格兰山谷上方乌云翻涌，一束金光照亮局部地形，突出风暴后的戏剧性光线。",
+    "prompt": "Dramatic landscape of the Scottish Highlands during a clearing thunderstorm. Dark churning clouds above a lone glen, with a single shaft of golden sunlight breaking through and lighting one patch of heather-covered hillside. Rainbow arc barely visible at the edge. Ancient standing stones in the foreground. Moody cinematic color grade — steel blue shadows, warm sunlit highlight. 24mm wide, f/11. Ultra-realistic 4K landscape photography.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-03-nature-landscapes-10.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "山谷",
+      "风暴"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#10-scottish-highlands-storm"
+  },
+  {
+    "id": "pixmind-02-action-sports-06",
+    "title": "腾空芭蕾 · 雕塑侧光",
+    "description": "舞者腾空定格，侧光勾勒身体线条与扬起的粉尘，在简洁影棚里呈现优雅动势。",
+    "prompt": "Contemporary ballet dancer mid-grand jete frozen in the air, arms extended, body perfectly horizontal. She wears a simple nude leotard. Plain gray cyclorama studio background. Strong side-light from camera left creates a sculptural chiaroscuro on her musculature. Powder disturbed from the floor traces her leap in a soft cloud. 1/4000 shutter speed feel. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-02-action-sports-06.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "舞蹈",
+      "侧光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/02-action-sports/README.md#06-ballet-grand-jete-studio"
+  },
+  {
+    "id": "pixmind-02-action-sports-08",
+    "title": "踏浪疾驰 · 黎明逆光",
+    "description": "黑马与骑手穿过浅海，凝固的飞溅水花、薄雾和日出逆光营造奔赴远方的镜头。",
+    "prompt": "A rider on a powerful black horse gallops through knee-deep shallow ocean water at sunrise. Water explodes from each hoofstrike, frozen in a dramatic spray. The rider is leaned low, hair streaming behind. Warm golden backlight from the rising sun. Mist rising off the water. Shot at 1/4000 shutter, 200mm telephoto compression. Ultra-realistic 4K equine photography.",
+    "coverUrl": "/canvas-app/prompt-library/v2/covers/pixmind-02-action-sports-08.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "电影感",
+      "场景",
+      "骑行",
+      "海岸"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/02-action-sports/README.md#08-horse-gallop-ocean-splash"
+  }
+]

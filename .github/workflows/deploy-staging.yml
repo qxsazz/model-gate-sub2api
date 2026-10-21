@@ -14,6 +14,31 @@ permissions:
   packages: write
 
 jobs:
+  audit-key-policy:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: model-gate-staging
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Read staging group access and model policy
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'" \
+            < deploy/sql/audit-key-policy.sql
+
   build:
     if: github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/build-image.yml
@@ -77,3 +102,14 @@ jobs:
           image="ghcr.io/qxsazz/model-gate-sub2api@$IMAGE_DIGEST"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
             "if [ ! -f '$STAGING_DEPLOY_PATH/.env' ]; then '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' '$image'; fi; docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' up -d postgres redis; '$STAGING_DEPLOY_PATH/sub2api-deploy.sh' deploy staging '$image'"
+
+      - name: Verify deployed key group policy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+        run: |
+          set -euo pipefail
+          cat deploy/sql/audit-key-policy.sql deploy/sql/verify-key-policy.sql deploy/sql/verify-canvas-runtime.sql | \
+            ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"

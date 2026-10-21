@@ -473,6 +473,15 @@
       @close="closeModals"
     >
       <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
+        <fieldset v-if="!showEditModal">
+          <legend class="input-label">Key 用途</legend>
+          <div class="grid grid-cols-4 gap-2">
+            <label v-for="choice in KEY_PURPOSES" :key="choice.value" class="cursor-pointer rounded-lg border border-gray-200 p-3 text-center dark:border-dark-600" :class="createPurpose === choice.value && 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'">
+              <input v-model="createPurpose" type="radio" name="key-purpose" :value="choice.value" class="sr-only" />{{ choice.label }}
+            </label>
+          </div>
+          <p class="mt-2 text-xs text-gray-500">用途用于筛选已获授权的分组，实际模型权限由分组决定。专属分组需满足充值条件或获得后台授权。</p>
+        </fieldset>
         <div>
           <label class="input-label">{{ t('keys.nameLabel') }}</label>
           <input
@@ -485,6 +494,7 @@
           />
         </div>
 
+        <p v-if="!showEditModal && purposeGroups.length === 0" role="status" class="text-sm text-gray-500">暂无此用途可用分组，请先获取对应分组权限。</p>
         <fieldset v-if="!showEditModal" data-tour="key-form-provider">
           <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1208,6 +1218,9 @@
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
+import { useRoute, useRouter } from 'vue-router'
+import { KEY_PURPOSES, parseKeyPurpose, supportsKeyPurpose, type KeyPurposeChoice } from '@/utils/keyPurpose'
+
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -1398,6 +1411,10 @@ const filterSearch = ref('')
 const filterStatus = ref('')
 const filterGroupId = ref<string | number>('')
 
+const route = useRoute()
+const router = useRouter()
+const createPurpose = ref<KeyPurposeChoice>('all')
+const purposeGroups = computed(() => groups.value.filter((group) => supportsKeyPurpose(group, createPurpose.value)))
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
@@ -1533,12 +1550,12 @@ const createProvider = ref<KeyGroupProvider>('anthropic')
 const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => ({
   value,
   label: t(`keys.providers.${value}`),
-  count: groups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
+  count: purposeGroups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
 })))
 
 const formGroupOptions = computed(() => showEditModal.value
   ? groupOptions.value
-  : groupOptions.value.filter((group) => getKeyGroupProvider(group.platform) === createProvider.value)
+  : groupOptions.value.filter((group) => purposeGroups.value.some((allowed) => allowed.id === group.value) && getKeyGroupProvider(group.platform) === createProvider.value)
 )
 
 const selectCreateProvider = (provider: KeyGroupProvider) => {
@@ -1808,6 +1825,7 @@ const confirmDelete = (key: ApiKey) => {
 }
 
 const handleSubmit = async () => {
+  const creating = !showEditModal.value
   // Validate group_id is required
   if (formData.value.group_id === null) {
     appStore.showError(t('keys.groupRequired'))
@@ -1890,7 +1908,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        createPurpose.value === 'all' ? undefined : createPurpose.value
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1900,6 +1919,7 @@ const handleSubmit = async () => {
     }
     closeModals()
     loadApiKeys()
+    if (creating && route.query.return_to === 'canvas') void router.replace('/infinite-canvas')
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
     appStore.showError(errorMsg)
@@ -2089,6 +2109,11 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
+  if (typeof route.query.create === 'string' && ['image', 'video', 'text'].includes(route.query.create)) {
+    createPurpose.value = parseKeyPurpose(route.query.create)
+    formData.value.name = `无限画布${KEY_PURPOSES.find((choice) => choice.value === createPurpose.value)?.label || ''}`
+    showCreateModal.value = true
+  }
   loadSavedColumns()
   loadApiKeys()
   loadGroups()
