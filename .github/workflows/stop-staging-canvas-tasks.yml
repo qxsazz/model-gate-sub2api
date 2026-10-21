@@ -34,8 +34,15 @@ jobs:
           test "$staging_dir" = /opt/sub2api-staging
           compose=(docker compose --project-name sub2api-staging --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.base.yml" -f "$staging_dir/docker-compose.staging.yml")
           test "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' sub2api-staging)" = sub2api-staging
+          "${compose[@]}" exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'PRECHECK'
+          SELECT 'active_image_tasks_before_stop=' || count(*) FROM canvas_generation_tasks WHERE status IN ('queued','running');
+          SELECT 'pending_video_tasks_before_stop=' || count(*) FROM canvas_video_tasks WHERE status='pending';
+          PRECHECK
           "${compose[@]}" stop --timeout 1 sub2api
           "${compose[@]}" exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+          SELECT 'batch_diagnostic=' || jsonb_build_object('user_id',user_id,'batch_id',COALESCE(metadata->>'batchId',id::text),'expected_slots',MAX(metadata->>'batchSize'),'submitted_slots',COUNT(*),'slots',jsonb_agg(metadata->'slot'),'statuses',jsonb_agg(status),'response_codes',jsonb_agg(response_status),'oldest_created',MIN(created_at))::text
+          FROM canvas_generation_tasks WHERE created_at>now()-interval '7 days' AND COALESCE(metadata->>'source','')<>'canvas'
+          GROUP BY user_id,COALESCE(metadata->>'batchId',id::text) ORDER BY MIN(created_at) DESC LIMIT 40;
           BEGIN;
           WITH stopped AS (
             UPDATE canvas_generation_tasks
