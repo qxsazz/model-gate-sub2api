@@ -1,0 +1,230 @@
+[
+  {
+    "id": "pixmind-09-poster-graphic-13",
+    "title": "广州印象 · 水墨城市",
+    "description": "用流动墨线、城市地标和东方配色形成富有层次的城市主题视觉。",
+    "prompt": "Pure deep black background, a bold and powerful ink calligraphy S-curve sweeping from one end of the canvas to the other, forming the visual backbone and narrative flow of the entire composition. Above the curve floats a translucent oriole bird with traditional architecture reflections and blue-green light streams inside its body. Along the curve, Guangzhou landmarks and classical buildings are arranged in staggered sequence, with white cranes and a lake in the foreground and layered mountain ranges in the distance. The overall piece uses non-linear perspective, cold tones as the dominant palette with warm accent touches, blending Eastern aesthetics with modern imagery, 8K ultra-HD rendering, 9:16 aspect ratio.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-13.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "海报",
+      "城市",
+      "水墨",
+      "国风"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#13-ink-curve-city-poster-guangzhou-aesthetics"
+  },
+  {
+    "id": "pixmind-09-poster-graphic-02",
+    "title": "电子音乐节 · 霓虹海报",
+    "description": "高对比霓虹、节奏感构图和清晰标题层级，适合音乐活动的主视觉。",
+    "prompt": "Music festival poster design for \"ECHO FESTIVAL 2026\". Psychedelic art style with flowing organic shapes, geometric patterns, and vibrant colors -- electric purple, hot pink, teal, and gold on a dark navy background. Central artwork is an abstract eye surrounded by sound waves morphing into a forest. Festival name in bold distorted typography at the top. Date and location in smaller text at the bottom. Lineup text in the middle. Retro-futuristic psychedelic poster art. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-02.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "海报",
+      "音乐",
+      "霓虹",
+      "排版"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#02-music-festival-poster"
+  },
+  {
+    "id": "pixmind-09-poster-graphic-04",
+    "title": "独立唱片 · 氛围封面",
+    "description": "让抽象场景、色彩情绪与唱片标题共同表达音乐主题，适合专辑与播客封面。",
+    "prompt": "Album cover art for an indie electronic music album. Square format. Abstract geometric composition -- overlapping translucent circles and rectangles in soft pastel colors (blush pink, sage green, pale blue, cream) on a warm off-white background. Subtle paper texture visible. Title \"WAVELENGTHS\" in small elegant sans-serif text at the bottom center. Minimal, sophisticated, modern art gallery aesthetic. 4K quality.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-04.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "海报",
+      "封面",
+      "音乐",
+      "氛围"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#04-album-cover-art"
+  },
+  {
+    "id": "pixmind-09-poster-graphic-05",
+    "title": "复古旅行 · 插画海报",
+    "description": "以复古旅游海报的扁平色块、装饰线条和清晰字形表现目的地特色。",
+    "prompt": "Vintage travel poster for Tokyo in 1930s Art Deco style. Composition: a stylized Mount Fuji in the background with cherry blossoms framing the scene. In the foreground, a geisha in a vibrant red kimono walks along a bridge. Bold flat colors -- red, black, gold, and cream. \"TOKYO\" in large Art Deco typography at the top. \"JAPAN\" in smaller text below. Classic travel poster layout with decorative border. Lithograph print texture.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-05.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "海报",
+      "旅行",
+      "插画",
+      "复古"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#05-retro-travel-poster"
+  },
+  {
+    "id": "pixmind-09-poster-graphic-01",
+    "title": "科幻电影 · 巨构海报",
+    "description": "用宏大场景、渺小人物和精简片名营造科幻电影主视觉的尺度感。",
+    "prompt": "Movie poster design for a sci-fi film titled \"NEXUS\". Composition: a lone astronaut in a white spacesuit stands on a desert planet surface, looking up at a massive floating alien structure that fills the sky -- a geometric crystalline formation emitting cold blue light. Title \"NEXUS\" in clean modern sans-serif at the bottom. Actor names in small text above the title. Credits block at the very bottom. Dramatic vertical composition, 2:3 poster aspect ratio. Cinematic color grade -- orange desert below, blue structure above. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-01.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "海报",
+      "科幻",
+      "电影",
+      "排版"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#01-sci-fi-movie-poster"
+  },
+  {
+    "id": "pixmind-09-poster-graphic-16",
+    "title": "成都味道 · 手绘美食地图",
+    "description": "把成都美食与城市元素组织成一张手绘地图，适合城市文旅与美食主题视觉。",
+    "prompt": "A hand-drawn style city food map themed around Chengdu. The base is a bird's-eye-view hand-drawn simplified city map with major roads and landmarks indicated -- not aiming for precise proportions but rather a charming, hand-drawn feel. Scattered across the map are 12 exquisite hand-drawn mini illustrations of food spots: skewered hot pot (chuanchuan) on Chunxi Road, Sandapao rice balls in Kuanzhai Alley, egg puff cakes (dan hong gao) on Jianshe Road, hot pot on Yulin Road, and more. Each illustration occupies roughly 5% of the map area, with a handwritten-style label next to it showing the shop name and a one-line recommendation. The map edges are framed with hand-drawn vine and chili pepper decorations. A hand-drawn compass and legend sit in the bottom-right corner. The top-left title reads \"Chengdu Foodie Walking Map\" in plump, rounded hand-lettered art typography adorned with chili peppers. The overall art style is a watercolor-plus-colored-pencil mixed hand-drawn texture, dominated by warm tones, with a 1:1 aspect ratio.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-09-poster-graphic-16.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "地图",
+      "美食",
+      "城市"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/09-poster-graphic/README.md#16-chengdu-food-map-illustration"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-15",
+    "title": "沙海浮鲸 · 超现实风景",
+    "description": "巨鲸漂浮在辽阔沙海上方，用生物与环境的尺度反差制造安静的超现实感。",
+    "prompt": "A giant whale floating through a sea of clouds above a desert. The whale's back carries a small, lush forest. Surrealist oil painting style, vibrant colors, dreamlike lighting.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-15.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "超现实",
+      "沙漠",
+      "奇幻"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#15-giant-whale-floating-above-desert"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-13",
+    "title": "针织小镇 · 微缩世界",
+    "description": "把微缩世界表现为柔软的针织材质，用微距和浅景深突出纱线、纹理与温度。",
+    "prompt": "A macro shot of a tiny forest made entirely out of colorful knitted wool. Knitted squirrels and birds. Soft, tactile texture, macro photography style.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-13.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "微缩",
+      "针织",
+      "温暖"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#13-knitted-world-macro"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-10",
+    "title": "荧光森林 · 奇幻夜景",
+    "description": "发光植物与深色森林交织，用点状光源、色彩层次和空气透视塑造奇幻世界。",
+    "prompt": "Fantasy landscape of an alien bioluminescent forest at night. Giant mushroom-like trees glow in neon blue, green, and purple. Floating luminous spores drift through the air like fireflies. A narrow stone path winds through the forest. A lone explorer in a glowing suit stands looking up at the canopy. Avatar Pandora aesthetic with Studio Ghibli softness. Ultra-detailed 4K concept art.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-10.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "森林",
+      "奇幻",
+      "荧光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#10-bioluminescent-forest"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-12",
+    "title": "双重曝光 · 人像剪影",
+    "description": "以人物轮廓承载第二重场景，让剪影与环境自然融合，适合概念封面。",
+    "prompt": "A double exposure silhouette of a man's head. Inside the silhouette is a dense, foggy pine forest with a soaring eagle. White background, artistic fine art style.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-12.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "人像",
+      "双重曝光",
+      "概念"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#12-double-exposure-silhouette"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-14",
+    "title": "像素山谷 · 复古游戏",
+    "description": "用克制的像素色板、分层远景和明确光影，构建复古游戏风格的风景。",
+    "prompt": "A sprawling 8-bit pixel art landscape of a medieval castle during a thunderstorm. Purple lightning bolts. Retro video game aesthetic.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-14.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "像素",
+      "游戏",
+      "风景"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#14-retro-8-bit-pixel-landscape"
+  },
+  {
+    "id": "pixmind-04-fantasy-illustration-09",
+    "title": "哥特教堂 · 彩窗穹顶",
+    "description": "高耸拱顶、石材细节与彩窗光线，适合建筑概念图和奇幻世界的空间设计。",
+    "prompt": "Dark fantasy interior of a vast gothic cathedral at night. Colored light streams through enormous stained glass windows depicting battle scenes, casting ruby and sapphire patterns on the stone floor. Rows of stone pillars recede into darkness. A single cloaked figure stands tiny at the far end for scale. Inspired by Dark Souls environment design. Atmospheric fog, god rays through the windows. Ultra-detailed 4K concept art.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-04-fantasy-illustration-09.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "插画",
+      "建筑",
+      "哥特",
+      "光影"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/04-fantasy-illustration/README.md#09-gothic-cathedral-interior"
+  }
+]
