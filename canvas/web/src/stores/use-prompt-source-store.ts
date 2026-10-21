@@ -2,7 +2,9 @@ import { cloudStateStorage } from "@/lib/model-gate";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { DEFAULT_PROMPT_SOURCES, createPromptSource, mergePromptSources, type PromptSource } from "@/services/api/prompt-source-presets";
+import { DEFAULT_PROMPT_SOURCES, createPromptSource, type PromptSource } from "@/services/api/prompt-source-presets";
+
+import { mergePromptSources } from "@/services/api/prompt-source-migration";
 
 export type PromptSourceSchedule = {
     intervalMinutes: number;
@@ -51,7 +53,7 @@ export const usePromptSourceStore = create<PromptSourceStore>()(
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<PromptSourceStore>;
                 const savedSources = Array.isArray(persistedState.sources) ? persistedState.sources : [];
-                return { ...current, sources: mergePromptSources(savedSources), schedule: { ...defaultSchedule, ...(persistedState.schedule || {}) } };
+                return { ...current, sources: mergePromptSources(savedSources.map(createPromptSource), DEFAULT_PROMPT_SOURCES), schedule: { ...defaultSchedule, ...(persistedState.schedule || {}) } };
             },
         },
     ),

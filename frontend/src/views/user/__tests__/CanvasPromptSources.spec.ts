@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PROMPT_SOURCES, createPromptSource, mergePromptSources } from '../../../../../canvas/web/src/services/api/prompt-source-presets'
+import { mergePromptSources as migrateSources, type PromptSource } from '../../../../../canvas/web/src/services/api/prompt-source-migration'
+
+const DEFAULT_PROMPT_SOURCES: PromptSource[] = ['products', 'photography', 'design'].map(collection => ({
+  id: `model-gate-curated-${collection}`, name: collection, url: new URL(`/canvas-app/prompt-library/v1/${collection}.json`, window.location.origin).href, homepage: '', enabled: true, builtIn: true
+}))
+const createPromptSource = (source: Partial<PromptSource>): PromptSource => ({ id: 'test', name: '', url: '', homepage: '', enabled: true, builtIn: false, ...source })
+const mergePromptSources = (saved: PromptSource[]) => migrateSources(saved, DEFAULT_PROMPT_SOURCES)
 
 describe('curated canvas prompt sources', () => {
   it('replaces retired built-ins while preserving custom sources and their settings', () => {

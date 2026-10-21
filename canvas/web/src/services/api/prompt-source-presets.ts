@@ -1,13 +1,7 @@
 import { nanoid } from "nanoid";
 
-export type PromptSource = {
-    id: string;
-    name: string;
-    url: string;
-    homepage: string;
-    enabled: boolean;
-    builtIn: boolean;
-};
+import type { PromptSource } from "./prompt-source-migration";
+export type { PromptSource } from "./prompt-source-migration";
 
 const PROMPT_LIBRARY_BASE = new URL("/canvas-app/prompt-library/v1/", window.location.origin).href;
 
@@ -32,12 +26,3 @@ function curatedSource(collection: string, name: string, homepage: string): Prom
     return { id: `model-gate-curated-${collection}`, name, url: `${PROMPT_LIBRARY_BASE}${collection}.json`, homepage, enabled: true, builtIn: true };
 }
 
-export function mergePromptSources(savedSources: PromptSource[]): PromptSource[] {
-    const enabledById = new Map(savedSources.map(source => [source.id, source.enabled]));
-    const previousBuiltIns = savedSources.filter(source => source.builtIn);
-    const disabledAll = previousBuiltIns.length > 0 && previousBuiltIns.every(source => !source.enabled);
-    const builtIn = DEFAULT_PROMPT_SOURCES.map(source => ({ ...source, enabled: enabledById.get(source.id) ?? (disabledAll ? false : source.enabled) }));
-    const builtInIds = new Set(builtIn.map(source => source.id));
-    const custom = savedSources.filter(source => !source.builtIn && !builtInIds.has(source.id)).map(source => createPromptSource(source));
-    return [...builtIn, ...custom];
-}
