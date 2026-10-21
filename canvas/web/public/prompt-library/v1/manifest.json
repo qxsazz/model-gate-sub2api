@@ -1,0 +1,627 @@
+{
+  "version": 1,
+  "curatedAt": "2026-10-21T00:00:00Z",
+  "items": [
+    {
+      "id": "pixonara-product-photography-02",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Premium minimalist skincare product photography. A translucent pink liquid…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/433.webp",
+      "originalImageSHA256": "9fa90833d1f9c61df98d339d25c558052604e48ca2ec9313814813ce48f6328e",
+      "promptSHA256": "a0b6597a7150f2b456b7d7a4736c4e64e94ae5ba6e78affcb8db3964be35b8d0",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-02.webp"
+    },
+    {
+      "id": "pixonara-product-photography-09",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Ultra-realistic minimalist studio product photography of a small transparent…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/600.webp",
+      "originalImageSHA256": "3863248d304232aac08062534d1f661994262317137411b08fdbd549a1c8d432",
+      "promptSHA256": "71d96b4692a90593c0b8cd1c6b806f7551654f565c0c34730912edbd0b4333b8",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-09.webp"
+    },
+    {
+      "id": "pixonara-product-photography-15",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "A premium studio product photograph of a tall, slim…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/663.webp",
+      "originalImageSHA256": "978e97cff271342263e9fc9758d28c5218ae2e981bcf420b1e9b7cf02a65e994",
+      "promptSHA256": "fe7d2029b12bf330c5130a02afadf601cda57266ccea6a65695e4f12c3b8a820",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-15.webp"
+    },
+    {
+      "id": "pixonara-product-photography-24",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Luxury perfume product photography in a dark cinematic studio.…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/147.webp",
+      "originalImageSHA256": "76c2a8fb4d07e5d3f2e082ad8175369f267c9b70090357b49bb8363f46be0944",
+      "promptSHA256": "454bd74ed49b329a7f48f923a4e4eee2df6e7d29e0ba6db28cb36ae45af40f12",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-24.webp"
+    },
+    {
+      "id": "pixonara-product-photography-25",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Ultra-realistic premium skincare serum bottle (dark green glass with…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/951.webp",
+      "originalImageSHA256": "904202d1817e453ca8388ece348f9ab6e26cef3723d8377c76cca4a8d0be0373",
+      "promptSHA256": "343939f5898b0d2b3fc76b4a63251428afefd5e1436c32397fc46e1c7c34d6a4",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-25.webp"
+    },
+    {
+      "id": "pixonara-product-photography-29",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Elegant rose-gold lipstick standing upright on a reflective marble…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/1048.webp",
+      "originalImageSHA256": "90b162d15258057d1f83796013dc98005a9bc72c9353a6b69164dd377fbce7b8",
+      "promptSHA256": "432f7550e196b0f439b1057c596e591da9e7a45aeee3b0c8625c8e1472f4af0a",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-29.webp"
+    },
+    {
+      "id": "pixonara-product-photography-30",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "Ultra-realistic cinematic product shot of a premium honey jar…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/1141.webp",
+      "originalImageSHA256": "cf41ec79101f03252d50093cdb32abf4d38585bfc06b0b01cebda5f5dbcc8efc",
+      "promptSHA256": "ee83c18b9cb23e5c4eae17f369d212eec78babbfd65c77b162c8a82d9a0be898",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-30.webp"
+    },
+    {
+      "id": "pixonara-product-photography-34",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/product-photography.md",
+      "originalTitle": "A rugged, matte-black chronograph watch with bold orange accents…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/product-brand/1237.webp",
+      "originalImageSHA256": "49a89e29d741b9e869bdaeab98c308698432203ed207143f33fa3f596e1e60b0",
+      "promptSHA256": "bc113ddf8e50f53f8a10af0a729442d8ae054b6fae026c7094457947e124587c",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-product-photography-34.webp"
+    },
+    {
+      "id": "pixonara-food-and-drink-13",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/food-and-drink.md",
+      "originalTitle": "Ultra-realistic premium food photography of a layered chocolate cake…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/food-drink/719.webp",
+      "originalImageSHA256": "a1352aebce1aca8aff131c43c6e300b83a8cab5e6dd8439ad50ecbbdcf29b5e5",
+      "promptSHA256": "b8ff7e1b73a540889218469e43916ee057147f04eb6b831ff1581c866fe2d671",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP",
+        "基于 CC0 原提示词改写构图、食材及文字要求，以对应上游示例图；移除模型专用参数"
+      ],
+      "localCover": "pixonara-food-and-drink-13.webp"
+    },
+    {
+      "id": "pixonara-food-and-drink-31",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/food-and-drink.md",
+      "originalTitle": "Advertising-style food photography of a stack of pancakes arranged…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/food-drink/177.webp",
+      "originalImageSHA256": "3650659a1ee6826d837eebd88521cd1c9b9799a82097ad329eb62db1cf0f73b3",
+      "promptSHA256": "c683606a27a084293e88771d621702e125ddac1b2c65f76daad164cab3dd1496",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP",
+        "基于 CC0 原提示词改写构图、食材及文字要求，以对应上游示例图；移除模型专用参数"
+      ],
+      "localCover": "pixonara-food-and-drink-31.webp"
+    },
+    {
+      "id": "pixonara-food-and-drink-27",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/food-and-drink.md",
+      "originalTitle": "A minimalist, ultra-realistic product shot of a premium ice…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/food-drink/998.webp",
+      "originalImageSHA256": "483efd7dee65bc7666abcd52a5dd67988377358e14b9073b5f991296f51e0275",
+      "promptSHA256": "5cf5f398aba3eeb141fe753ec8d0b0e2427d948958dca59d3358b9a993c3e341",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-food-and-drink-27.webp"
+    },
+    {
+      "id": "pixonara-food-and-drink-36",
+      "repository": "JeremyGDM/awesome-ai-product-photography-prompts",
+      "commit": "6815dab9c17ce20c5c554df4ecf28336fd0aef0a",
+      "document": "prompts/food-and-drink.md",
+      "originalTitle": "Ultra-cinematic vertical composition of coffee elements suspended in mid-air…",
+      "upstreamCredit": null,
+      "license": "CC0-1.0",
+      "originalImage": "images/food-drink/1150.webp",
+      "originalImageSHA256": "c4c96e21234fedba94d4cd1d6201021bd0bf0612321df9f5152a6993e5277e20",
+      "promptSHA256": "cb499b262c4ad79cd14e3baae3bf3f61ec6bce5874e53a396726fef82014bfd4",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixonara-food-and-drink-36.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-17",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Golden Hour Romantic Portrait",
+      "upstreamCredit": {
+        "name": "gpt-image2-ai.org",
+        "url": "https://gpt-image2-ai.org/blog/gpt-image-2-prompt-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/17-golden-hour-romantic-portrait.webp",
+      "originalImageSHA256": "9571325faee4e2b02f3d6eb39350e91d4d984adb18dd34d5ce0b2fc2b7408b58",
+      "promptSHA256": "3144b0f2435af254e5e6d0824c3a7a98e8e20117ddd799a1ed950ae5e07bf9c4",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-17.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-23",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Soft Airy 35mm Portrait",
+      "upstreamCredit": {
+        "name": "EvoLink.ai",
+        "url": "https://evolink.ai/gpt-image-2-prompts"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/23-soft-airy-35mm-portrait.webp",
+      "originalImageSHA256": "36928118e18c6dee2fc14e4e3beadd568bc94b2dfaefcce66c412bd708f3773a",
+      "promptSHA256": "5cc60dd5b96dc50481216d6624757a9f550a781556e67759f72c23a823ebbd09",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-23.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-10",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Reflection Self-Portrait in Night Train",
+      "upstreamCredit": {
+        "name": "fal.ai Prompting Guide",
+        "url": "https://fal.ai/learn/tools/prompting-gpt-image-2"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/10-reflection-self-portrait-in-night-train.webp",
+      "originalImageSHA256": "99b89b48d31ab1ce27a1c61e47a27fe022a17b717d1f1b413b5d9f398f77388d",
+      "promptSHA256": "e2be7b7e0736bc6d99e42bf0a0b7e759aee0f2324655022b4144e365a0363289",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-10.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-18",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Dark Academia Library Portrait",
+      "upstreamCredit": {
+        "name": "gpt-image2-ai.org",
+        "url": "https://gpt-image2-ai.org/blog/gpt-image-2-prompt-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/18-dark-academia-library-portrait.webp",
+      "originalImageSHA256": "e71e15b982ebe8fe5ace9d171610d9952e5c46e921e67a6c81a1ac3ad9301dde",
+      "promptSHA256": "070a75c98462b014ce51e50889fd044690fa6373b395ed95194f9a814b5e4dfd",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-18.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-22",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Moody Monochrome Portrait",
+      "upstreamCredit": {
+        "name": "gpt-image2-ai.org",
+        "url": "https://gpt-image2-ai.org/blog/gpt-image-2-prompt-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/22-moody-monochrome-portrait.webp",
+      "originalImageSHA256": "62926e672a8031d8f2abd1da529116b2468433eaa423caff6c3005205a7a6f62",
+      "promptSHA256": "caae0873f2c2d940484dee18654957ad6120006892e4e9ce1057b553be65c768",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-22.webp"
+    },
+    {
+      "id": "pixmind-01-cinematic-portraits-09",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/01-cinematic-portraits/README.md",
+      "originalTitle": "Candid Elderly Sailor",
+      "upstreamCredit": {
+        "name": "OpenAI Official Cookbook",
+        "url": "https://developers.openai.com/cookbook/examples/multimodal/image-gen-models-prompting-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/01-cinematic-portraits/09-candid-elderly-sailor.webp",
+      "originalImageSHA256": "cd2b48f1376e52f8deab58791760ac997beac23a811d7a4488b140a84ee028b6",
+      "promptSHA256": "3cc496587f36dbd7208daaf7053c19fd6ecf796d7d71caae98948a7b6a545e81",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-01-cinematic-portraits-09.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-07",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Northern Lights Cabin",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/07-northern-lights-cabin.webp",
+      "originalImageSHA256": "1e1481819a8dd05f44dd27830527ccb50082a695cdfd2476bb3c5b8ebf2a1b6f",
+      "promptSHA256": "0733e37048a2025c04f3dcb82866c7264ca59d7ab8986208f5feb521f5934c16",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-07.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-09",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Cherry Blossom Kyoto",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/09-cherry-blossom-kyoto.webp",
+      "originalImageSHA256": "c8fb4eebd42892fa4bb86da7d2fc9f072b0dd1de573c3ce83f0f1e4d8aaac207",
+      "promptSHA256": "19214be00a8b6714fff9e8c9709903cb38f40799c30352e3daf5bfebef653395",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-09.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-02",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Maldives Aerial Float",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/02-maldives-aerial-float.webp",
+      "originalImageSHA256": "50fe1c76c85a978137764810169a2e7bc824536188e94907363917af94f3b62f",
+      "promptSHA256": "9b4858a01a6311444eb2f38e8c4536ffb7580bc2c29802914f9fe977f7c9044c",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-02.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-03",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Iceland Black Sand Beach",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/03-iceland-black-sand-beach.webp",
+      "originalImageSHA256": "73efb0efee0ec81a8434da355dd4009f9ea29158c43559fc4e51473bcccd11ec",
+      "promptSHA256": "1fc8364bec462e70c1392bad0ad6d48cb0d8ab9165be690c3af028f42a25bbe9",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-03.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-04",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Redwood Cathedral Light",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/04-redwood-cathedral-light.webp",
+      "originalImageSHA256": "b62b9e0e1047691d4efb5db01481c070f5b39e19707221d83e1dacdd27c1b3d3",
+      "promptSHA256": "7241e903d11896af1459a77b7c2ae9ee6f5400208364204c0fd18bd54640d70e",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-04.webp"
+    },
+    {
+      "id": "pixmind-03-nature-landscapes-01",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/03-nature-landscapes/README.md",
+      "originalTitle": "Waterfall Mist Ethereal",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/03-nature-landscapes/01-waterfall-mist-ethereal.webp",
+      "originalImageSHA256": "df2ca3d2b2109cfaa21c0b4647ae8fe697c03275e11d1ea4e1de6a3b974866cf",
+      "promptSHA256": "82d9833695d52d863d3f1f4c81e2c7191ff700f35c0c50551854d33a50b9d6ab",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-03-nature-landscapes-01.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-13",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Ink-Curve City Poster (Guangzhou Aesthetics)",
+      "upstreamCredit": {
+        "name": "EvoLink.ai",
+        "url": "https://evolink.ai/gpt-image-2-prompts"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/13-ink-curve-city-poster-guangzhou-aesthetics.webp",
+      "originalImageSHA256": "8dcc69e816021d6dd040536eeedb940838192128738e122ec3be77a0139dcec2",
+      "promptSHA256": "2eec11a0bfd6d70e0867f4bedcb9301bf85f8f76df2665a6039cfbe8aa820632",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-13.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-02",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Music Festival Poster",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/02-music-festival-poster.webp",
+      "originalImageSHA256": "087d979e4f94a1b6152919a4839236c0b93250cc90a03b43c20ac987ac62a33f",
+      "promptSHA256": "f6b590c9f145dbc4f9ffbd69a5f258e44ca03b1c65c54017f66afc70e3097e35",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-02.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-04",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Album Cover Art",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/04-album-cover-art.webp",
+      "originalImageSHA256": "48a3cd3d81fce5d9957e240b2de1cb330983bd264b5c235e2337d2418dac20bd",
+      "promptSHA256": "a45fddcba3f5e2880599e2e55f3f9f10bfe02b4f8040f79b6317ecc32f0b5b8e",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-04.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-05",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Retro Travel Poster",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/05-retro-travel-poster.webp",
+      "originalImageSHA256": "e72aa589207cddb00879ed43ab2067158f671747c5006ee12b7040fc6716a982",
+      "promptSHA256": "e54f2ae856c0c24dd6bab71e291e7d5b8eac9375104c8adbe673481951c8992e",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-05.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-01",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Sci-Fi Movie Poster",
+      "upstreamCredit": null,
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/01-sci-fi-movie-poster.webp",
+      "originalImageSHA256": "df4c6fd823e7f4e5adf0129f73e86ef58aa417af6006a495217215d947891fa2",
+      "promptSHA256": "ff935e13b780d8160b1625e52251b34105740f9171c77625068e1951ca631132",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-01.webp"
+    },
+    {
+      "id": "pixmind-09-poster-graphic-16",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/09-poster-graphic/README.md",
+      "originalTitle": "Chengdu Food Map Illustration",
+      "upstreamCredit": {
+        "name": "EvoLink.ai",
+        "url": "https://evolink.ai/gpt-image-2-prompts"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/09-poster-graphic/16-chengdu-food-map-illustration.webp",
+      "originalImageSHA256": "1ff57c086cf61059e192bdfbfd5dff9ed11b3c06fa874f2fc2a418639f57d66d",
+      "promptSHA256": "26526ea95f3e41c9a0b7ad0eded238d086ee6d07f7106b4c4f8f96a24f1e4a99",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-09-poster-graphic-16.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-15",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Giant Whale Floating Above Desert",
+      "upstreamCredit": {
+        "name": "NoteGPT",
+        "url": "https://notegpt.io/blog/gpt-image-2-prompt-guide-use-cases"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/15-giant-whale-floating-above-desert.webp",
+      "originalImageSHA256": "d2b9407efb0b407ecf2979c917b9892096a1f8c3a337015f58bbdc73e21359bb",
+      "promptSHA256": "a34af83d20461fbd8450120f88b26f27b5ca8ccf3147edd129b13be1be83d3ce",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-15.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-13",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Knitted World Macro",
+      "upstreamCredit": {
+        "name": "NoteGPT",
+        "url": "https://notegpt.io/blog/gpt-image-2-prompt-guide-use-cases"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/13-knitted-world-macro.webp",
+      "originalImageSHA256": "9a47f9040a9e24ad1078df312cde000186e4ab3584e39611f673bfac14595333",
+      "promptSHA256": "65757f4a36d3aa6b5622f48ea128f7a218588ccfe332ce9bf38200a1e0e47aa7",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-13.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-10",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Bioluminescent Forest",
+      "upstreamCredit": {
+        "name": "gpt-image2-ai.org",
+        "url": "https://gpt-image2-ai.org/blog/gpt-image-2-prompt-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/10-bioluminescent-forest.webp",
+      "originalImageSHA256": "1e1957e8b78138dd94c0b9cb3e0e61498ae245a54ef686cb37de28f0b6422f1b",
+      "promptSHA256": "0733518920f36f0ef6422f66342925b4e7df14489a84b9f74149d21e387248aa",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-10.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-12",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Double Exposure Silhouette",
+      "upstreamCredit": {
+        "name": "NoteGPT",
+        "url": "https://notegpt.io/blog/gpt-image-2-prompt-guide-use-cases"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/12-double-exposure-silhouette.webp",
+      "originalImageSHA256": "d6400f525d28b89a2ccf209030de95cf275397d657ffb97440634746754e5b53",
+      "promptSHA256": "2289ac28b4e781c7c6ee9ca13839fadb465d133d0a08685929ad266a50fa9ed8",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-12.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-14",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Retro 8-Bit Pixel Landscape",
+      "upstreamCredit": {
+        "name": "NoteGPT",
+        "url": "https://notegpt.io/blog/gpt-image-2-prompt-guide-use-cases"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/14-retro-8-bit-pixel-landscape.webp",
+      "originalImageSHA256": "3006a1b5865f19d9fbe541705d969cf9fa3cce56b1f7d78f343ff135e971a008",
+      "promptSHA256": "e738f6a61e80f580cf8086ad62d886d2f1d6a342cc56fd31cae9fbc02ef1010f",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-14.webp"
+    },
+    {
+      "id": "pixmind-04-fantasy-illustration-09",
+      "repository": "Pixmind-io/awesome-gpt-image-2-prompts",
+      "commit": "4ac21d49915fffd5a5be56f2d5b674b6dda34568",
+      "document": "prompts/04-fantasy-illustration/README.md",
+      "originalTitle": "Gothic Cathedral Interior",
+      "upstreamCredit": {
+        "name": "gpt-image2-ai.org",
+        "url": "https://gpt-image2-ai.org/blog/gpt-image-2-prompt-guide"
+      },
+      "license": "MIT",
+      "originalImage": "images-compressed/04-fantasy-illustration/09-gothic-cathedral-interior.webp",
+      "originalImageSHA256": "caa33cfdbfa9b222856b7b6be2aa47c03da20d10ef613195c8fa663c3f4ce320",
+      "promptSHA256": "8fd3f1417a1789d311d396c0f6aa0ec6f00e7f5a0a9388ee103af2283116586a",
+      "modifications": [
+        "中文标题、说明与标签；示例图缩放并转为 WebP"
+      ],
+      "localCover": "pixmind-04-fantasy-illustration-09.webp"
+    }
+  ],
+  "note": "公共 GitHub 提示词示例，与用户上传或生成的私有七天素材分开。示例不自动作为参考图发送到模型。"
+}

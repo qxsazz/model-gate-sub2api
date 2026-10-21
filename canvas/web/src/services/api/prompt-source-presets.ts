@@ -9,8 +9,7 @@ export type PromptSource = {
     builtIn: boolean;
 };
 
-export const PROMPT_REGISTRY_HOMEPAGE = "https://github.com/yukkcat/image-prompts";
-const PROMPT_REGISTRY_SOURCE_BASE = "https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources";
+const PROMPT_LIBRARY_BASE = new URL("/canvas-app/prompt-library/v1/", window.location.origin).href;
 
 export function createPromptSource(source?: Partial<PromptSource>): PromptSource {
     return {
@@ -24,15 +23,21 @@ export function createPromptSource(source?: Partial<PromptSource>): PromptSource
 }
 
 export const DEFAULT_PROMPT_SOURCES: PromptSource[] = [
-    registrySource("banana-prompt-quicker", "Banana Prompt Quicker", "https://glidea.github.io/banana-prompt-quicker/"),
-    registrySource("davidwu-gpt-image2-prompts", "DavidWu GPT Image 2", "https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts"),
-    registrySource("freestylefly-gpt-image-2", "Freestylefly GPT Image 2", "https://github.com/freestylefly/awesome-gpt-image-2"),
-    registrySource("awesome-gpt-image", "Awesome GPT Image", "https://github.com/ZeroLu/awesome-gpt-image"),
-    registrySource("awesome-gpt4o-image-prompts", "Awesome GPT-4o", "https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts"),
-    registrySource("youmind-gpt-image-2", "YouMind GPT Image 2", "https://github.com/YouMind-OpenLab/awesome-gpt-image-2"),
-    registrySource("youmind-nano-banana-pro", "YouMind Nano Banana Pro", "https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts"),
+    curatedSource("products", "精选 · 产品与美食", "https://github.com/JeremyGDM/awesome-ai-product-photography-prompts"),
+    curatedSource("photography", "精选 · 人像与风景", "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/tree/master/prompts/01-cinematic-portraits"),
+    curatedSource("design", "精选 · 海报与插画", "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/tree/master/prompts/09-poster-graphic"),
 ];
 
-function registrySource(id: string, name: string, homepage: string): PromptSource {
-    return { id, name, url: `${PROMPT_REGISTRY_SOURCE_BASE}/${id}.json`, homepage, enabled: true, builtIn: true };
+function curatedSource(collection: string, name: string, homepage: string): PromptSource {
+    return { id: `model-gate-curated-${collection}`, name, url: `${PROMPT_LIBRARY_BASE}${collection}.json`, homepage, enabled: true, builtIn: true };
+}
+
+export function mergePromptSources(savedSources: PromptSource[]): PromptSource[] {
+    const enabledById = new Map(savedSources.map(source => [source.id, source.enabled]));
+    const previousBuiltIns = savedSources.filter(source => source.builtIn);
+    const disabledAll = previousBuiltIns.length > 0 && previousBuiltIns.every(source => !source.enabled);
+    const builtIn = DEFAULT_PROMPT_SOURCES.map(source => ({ ...source, enabled: enabledById.get(source.id) ?? (disabledAll ? false : source.enabled) }));
+    const builtInIds = new Set(builtIn.map(source => source.id));
+    const custom = savedSources.filter(source => !source.builtIn && !builtInIds.has(source.id)).map(source => createPromptSource(source));
+    return [...builtIn, ...custom];
 }
