@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -25,7 +26,10 @@ import (
 	"github.com/google/uuid"
 )
 
+const canvasImageTaskTimeout = 6 * time.Minute
+
 type canvasTask struct {
+	DeletedAt      *time.Time      `json:"deleted_at,omitempty"`
 	ID             string          `json:"id"`
 	KeyID          int64           `json:"key_id"`
 	Path           string          `json:"path"`
@@ -38,11 +42,11 @@ type canvasTask struct {
 	Updated        time.Time       `json:"updated_at"`
 }
 
-const canvasTaskColumns = `id,api_key_id,path,status,metadata,response_status,COALESCE(response_body,'null'::jsonb),error,created_at,updated_at`
+const canvasTaskColumns = `id,api_key_id,path,status,metadata,response_status,COALESCE(response_body,'null'::jsonb),error,created_at,updated_at,deleted_at`
 
 func scanCanvasTask(row interface{ Scan(...any) error }) (canvasTask, error) {
 	var t canvasTask
-	err := row.Scan(&t.ID, &t.KeyID, &t.Path, &t.Status, &t.Metadata, &t.ResponseStatus, &t.Result, &t.Error, &t.Created, &t.Updated)
+	err := row.Scan(&t.ID, &t.KeyID, &t.Path, &t.Status, &t.Metadata, &t.ResponseStatus, &t.Result, &t.Error, &t.Created, &t.Updated, &t.DeletedAt)
 	return t, err
 }
 func canvasTaskPath(path string) bool {
@@ -201,7 +205,7 @@ func (h *CanvasHandler) GetTask(c *gin.Context) {
 	response.Success(c, task)
 }
 func (h *CanvasHandler) ListTasks(c *gin.Context) {
-	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT `+canvasTaskColumns+` FROM canvas_generation_tasks WHERE user_id=$1 AND expires_at>now() ORDER BY (status IN ('queued','running')) DESC,created_at DESC LIMIT 220`, canvasUser(c))
+	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT `+canvasTaskColumns+` FROM canvas_generation_tasks WHERE user_id=$1 AND expires_at>now() ORDER BY (status IN ('queued','running')) DESC,(deleted_at IS NULL) DESC,created_at DESC LIMIT 220`, canvasUser(c))
 	if err != nil {
 		canvasFailure(c, err)
 		return
@@ -241,8 +245,10 @@ func (h *CanvasHandler) ProcessImageTask(ctx context.Context) (bool, error) {
 	return true, nil
 }
 func (h *CanvasHandler) executeImageTask(parent context.Context, id string, user, keyID int64, path, ct string, body []byte, remote, agent, host string) {
-	ctx, cancel := context.WithTimeout(parent, 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.WithValue(parent, ctxkey.ManagedImageTask, true), canvasImageTaskTimeout)
 	defer cancel()
+	h.taskCancels.Store(id, cancel)
+	defer h.taskCancels.Delete(id)
 	stopped := make(chan struct{})
 	defer close(stopped)
 	go func() {
@@ -276,7 +282,14 @@ func (h *CanvasHandler) executeImageTask(parent context.Context, id string, user
 		if recovered := recover(); recovered != nil {
 			log.Printf("canvas task execution panic: %v", recovered)
 		}
-		if ctx.Err() != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			status = "failed"
+			code = http.StatusGatewayTimeout
+			message = "生图已超过6分钟，本站已终止上游连接。请确认生成记录后手动重试，上游可能已计费。"
+			result, _ = json.Marshal(gin.H{"message": message})
+		} else if ctx.Err() != nil {
+			code = http.StatusServiceUnavailable
+			result = []byte(`null`)
 			status = "interrupted"
 			message = "任务已中断，结果待确认，请查看生成记录后再重试"
 		}
@@ -357,10 +370,42 @@ func (h *CanvasHandler) CancelTask(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	_, err := h.db.ExecContext(c.Request.Context(), `UPDATE canvas_generation_tasks SET cancel_requested=true,status=CASE WHEN status='queued' THEN 'failed' ELSE status END,error=CASE WHEN status='queued' THEN '任务已取消' ELSE error END,request_body=CASE WHEN status='queued' THEN NULL ELSE request_body END,updated_at=now() WHERE id=$1 AND user_id=$2 AND status IN ('queued','running')`, c.Param("task_id"), canvasUser(c))
+	changed, err := h.db.ExecContext(c.Request.Context(), `UPDATE canvas_generation_tasks SET cancel_requested=true,status=CASE WHEN status='queued' THEN 'failed' ELSE status END,error=CASE WHEN status='queued' THEN '任务已取消' ELSE error END,request_body=CASE WHEN status='queued' THEN NULL ELSE request_body END,updated_at=now() WHERE id=$1 AND user_id=$2 AND status IN ('queued','running')`, c.Param("task_id"), canvasUser(c))
 	if err != nil {
 		canvasFailure(c, err)
 		return
 	}
+	if count, _ := changed.RowsAffected(); count > 0 {
+		if cancel, ok := h.taskCancels.Load(c.Param("task_id")); ok {
+			if stop, valid := cancel.(context.CancelFunc); valid {
+				stop()
+			}
+		}
+	}
 	h.GetTask(c)
+}
+
+// Hide terminal tasks while retaining idempotency and recovery receipts until normal expiry.
+// Active tasks must be stopped before deletion so removal cannot orphan an upstream request.
+func (h *CanvasHandler) DeleteTask(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("task_id"))
+	if err != nil {
+		c.Status(404)
+		return
+	}
+	var pending bool
+	err = h.db.QueryRowContext(c.Request.Context(), `UPDATE canvas_generation_tasks SET deleted_at=CASE WHEN status IN ('queued','running') THEN deleted_at ELSE COALESCE(deleted_at,now()) END WHERE id=$1 AND user_id=$2 AND expires_at>now() RETURNING status IN ('queued','running')`, id.String(), canvasUser(c)).Scan(&pending)
+	if errors.Is(err, sql.ErrNoRows) {
+		c.Status(404)
+		return
+	}
+	if err != nil {
+		canvasFailure(c, err)
+		return
+	}
+	if pending {
+		c.JSON(409, gin.H{"message": "请先停止任务，待状态更新后再删除"})
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
 }

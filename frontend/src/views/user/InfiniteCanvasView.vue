@@ -39,7 +39,7 @@ async function receive(event: MessageEvent) {
   }
   if (msg?.type !== 'mg-canvas-request' || typeof msg.id !== 'string') return
   const source = event.source as Window
-  const reply = (value?: unknown, error?: string) => { if (active) source.postMessage({ type: 'mg-canvas-response', id: msg.id, value, error }, location.origin) }
+  const reply = (value?: unknown, error?: string, status?: number) => { if (active) source.postMessage({ type: 'mg-canvas-response', id: msg.id, value, error, ...(status ? { status } : {}) }, location.origin) }
   if (msg.path === 'context') { reply({ userId: auth.user?.id, theme: theme(), keys: [] }); status.value = '正在加载云端项目'; return }
   const method = String(msg.method || 'GET').toUpperCase()
   // Reuse the main API Key deletion flow; the server enforces authenticated ownership.
@@ -50,7 +50,7 @@ async function receive(event: MessageEvent) {
     catch (error) { reply(undefined, error instanceof Error ? error.message : '删除失败，请重试') }
     return
   }
-  const taskPath = typeof msg.path === 'string' && (/^\/canvas\/tasks(?:\/[a-f0-9-]+)?$/.test(msg.path) && method === 'GET' || /^\/canvas\/tasks\/[a-f0-9-]+\/cancel$/.test(msg.path) && method === 'POST' || /^\/canvas\/tasks\/[a-f0-9-]+\/\d+\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9][A-Za-z0-9._-]*:generateContent)$/.test(msg.path) && method === 'PUT')
+  const taskPath = typeof msg.path === 'string' && (/^\/canvas\/tasks(?:\/[a-f0-9-]+)?$/.test(msg.path) && (method === 'GET' || method === 'DELETE' && /^\/canvas\/tasks\/[a-f0-9-]+$/.test(msg.path)) || /^\/canvas\/tasks\/[a-f0-9-]+\/cancel$/.test(msg.path) && method === 'POST' || /^\/canvas\/tasks\/[a-f0-9-]+\/\d+\/(?:images\/(?:generations|edits)|gemini\/models\/[A-Za-z0-9][A-Za-z0-9._-]*:generateContent)$/.test(msg.path) && method === 'PUT')
   // No administrative or arbitrary host API is reachable through the child bridge.
   if (!taskPath && (typeof msg.path !== 'string' || !/^\/canvas\/(capabilities|state\/[^/]+|storage\/[^/]+|assets\/[a-f0-9-]+\/content|gateway\/\d+\/(?:models|responses|audio\/speech|gemini\/models(?:\/[A-Za-z0-9][A-Za-z0-9._-]*:(?:generateContent|streamGenerateContent))?|images\/(?:generations|edits)|videos\/(?:generations|[^/?]+(?:\/content)?)))$/.test(msg.path) || !['GET', 'PUT', 'POST'].includes(method))) { reply(undefined, '不允许的画布请求'); return }
   const controller = new AbortController(); if (!(taskPath && method === 'PUT')) pending.add(controller)
@@ -73,7 +73,10 @@ async function receive(event: MessageEvent) {
     })
     if (gateway) reply({ data: result.data, status: result.status, headers: { 'content-type': result.headers['content-type'] || '' } })
     else reply(result.data)
-  } catch (error) { reply(undefined, error instanceof Error ? error.message : '请求失败，请重试') }
+  } catch (error) {
+    const failure = error as { status?: number; message?: string } | null
+    reply(undefined, failure?.message || '请求失败，请重试', failure?.status)
+  }
   finally { pending.delete(controller) }
 }
 watch(() => auth.user?.id, () => { active = false; pending.forEach((c) => c.abort()); if (frame.value) frame.value.src = 'about:blank' })

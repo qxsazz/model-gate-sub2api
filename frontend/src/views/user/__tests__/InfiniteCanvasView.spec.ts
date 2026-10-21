@@ -55,3 +55,34 @@ describe('canvas shared API Key deletion bridge', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('canvas task removal bridge', () => {
+  beforeEach(() => { vi.clearAllMocks(); request.mockResolvedValue({ data: { deleted: true } }) })
+  it('allows deleting one task but rejects collection and cancellation deletion', async () => {
+    const { wrapper, reply, send } = setup()
+    const id = '54acfc99-6722-45f0-9856-5eb9279b50a1'
+    send('/canvas/tasks/' + id, 'DELETE'); await flushPromises()
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ url: '/canvas/tasks/' + id, method: 'DELETE' }))
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ value: { deleted: true } }), location.origin)
+    request.mockClear()
+    send('/canvas/tasks', 'DELETE')
+    send('/canvas/tasks/' + id + '/cancel', 'DELETE')
+    await flushPromises()
+    expect(request).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+
+describe('canvas private media errors', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('preserves status and explanation so deleted media cannot be treated as pending generation', async () => {
+    request.mockRejectedValue({ status: 410, message: '素材已删除' })
+    const { wrapper, reply, send } = setup()
+    send('/canvas/assets/54acfc99-6722-45f0-9856-5eb9279b50a1/content', 'GET')
+    await flushPromises()
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ error: '素材已删除', status: 410 }), location.origin)
+    wrapper.unmount()
+  })
+})
