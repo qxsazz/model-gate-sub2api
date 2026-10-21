@@ -60,7 +60,7 @@ data: {"type":"response.failed","response":{"error":{"code":"server_error","mess
 
 回归测试包括分类模板、不可变输入、机器字段、敏感文案、SSE 分片与 framing、原始 Ops 证据、管理员文案豁免，以及真实 native／passthrough 转发的改写前后对照。使用本地模拟上游，不调用付费推理。
 
-需要 Go 1.27.2 及项目依赖。此环境使用 `/workspace/.onboarding/env.sh` 配置工具链。在 `backend` 目录执行：
+需要 Go 1.27.3 及项目依赖。此环境使用 `/workspace/.onboarding/env.sh` 配置工具链。在 `backend` 目录执行：
 
 ```sh
 go test ./internal/service ./internal/handler ./internal/server/routes -run '^TestGatewayClientError' -count=1
