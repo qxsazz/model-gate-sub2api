@@ -377,7 +377,9 @@ func (h *CanvasHandler) CancelTask(c *gin.Context) {
 	}
 	if count, _ := changed.RowsAffected(); count > 0 {
 		if cancel, ok := h.taskCancels.Load(c.Param("task_id")); ok {
-			cancel.(context.CancelFunc)()
+			if stop, valid := cancel.(context.CancelFunc); valid {
+				stop()
+			}
 		}
 	}
 	h.GetTask(c)
