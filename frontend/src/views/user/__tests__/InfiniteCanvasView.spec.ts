@@ -73,3 +73,16 @@ describe('canvas task removal bridge', () => {
     wrapper.unmount()
   })
 })
+
+
+describe('canvas private media errors', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('preserves status and explanation so deleted media cannot be treated as pending generation', async () => {
+    request.mockRejectedValue({ status: 410, message: '素材已删除' })
+    const { wrapper, reply, send } = setup()
+    send('/canvas/assets/54acfc99-6722-45f0-9856-5eb9279b50a1/content', 'GET')
+    await flushPromises()
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ error: '素材已删除', status: 410 }), location.origin)
+    wrapper.unmount()
+  })
+})

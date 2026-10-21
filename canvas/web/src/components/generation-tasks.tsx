@@ -42,8 +42,10 @@ export function GenerationTasks() {
                     }
                 })
                 .catch(() => {
-                    if (active) setError("任务状态暂时无法刷新，正在进行的任务仍保存在服务器");
+                    if (active) { setRevision(v => v + 1); setError("部分生成记录暂时无法同步，任务状态以服务器为准，请稍后重试"); }
                 });
+        const changed = () => { if (active) setRevision(v => v + 1); };
+        window.addEventListener("mg-tasks-updated", changed);
         load();
         const timer = setInterval(load, 2500);
         window.addEventListener("mg-tasks-refresh", load);
@@ -51,6 +53,7 @@ export function GenerationTasks() {
             active = false;
             clearInterval(timer);
             window.removeEventListener("mg-tasks-refresh", load);
+            window.removeEventListener("mg-tasks-updated", changed);
         };
     }, []);
     void revision;

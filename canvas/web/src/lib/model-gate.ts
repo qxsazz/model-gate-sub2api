@@ -38,7 +38,7 @@ export async function initializeHosted() {
             const item = pending.get(data.id);
             if (!item) return;
             pending.delete(data.id);
-            if (data.error) item.reject(new Error(data.error));
+            if (data.error) item.reject(Object.assign(new Error(data.error), { status: data.status }));
             else item.resolve(data.value);
         }
         if (data?.type === "mg-canvas-refresh") window.dispatchEvent(new Event("mg-key-settings"));

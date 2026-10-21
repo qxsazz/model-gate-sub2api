@@ -1,4 +1,5 @@
-import { getCanvasTasks, getTaskImages, taskPending, taskError, getTaskMediaError } from "@/lib/canvas-tasks";
+import { IMAGE_BATCH_WAIT_MS, recoveredImagePhase, recoveredImageSlots } from "@/lib/image-task-recovery";
+import { getCanvasTasks, getTaskImages, taskPending, taskError, getTaskMediaError, retryTaskImages } from "@/lib/canvas-tasks";
 import { createCloudLogStore, notifyHost } from "@/lib/model-gate";
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -37,7 +38,7 @@ type GeneratedImage = {
 
 type GenerationResult = {
     id: string;
-    status: "pending" | "success" | "failed";
+    status: "pending" | "success" | "failed" | "unavailable";
     image?: GeneratedImage;
     error?: string;
 };
@@ -103,6 +104,7 @@ export default function ImagePage() {
     const processedCommandRef = useRef(0);
     const agentTaskIdRef = useRef<string | undefined>(undefined);
     const activeBatch = useRef<string | null>(null);
+    const activeBatchSince = useRef(0);
     const adoptedSignature = useRef("");
 
     const model = effectiveConfig.imageModel;
@@ -123,26 +125,43 @@ export default function ImagePage() {
     useEffect(() => {
         const restore = () => {
             const tasks=getCanvasTasks().filter(task=>task.metadata.source!=="canvas");
-            if (!tasks.length || activeBatch.current === "dismissed") return;
-            activeBatch.current ||= tasks[0].metadata.batchId || tasks[0].id;
+            if (activeBatch.current === "dismissed") return;
+            const abandonMissingBatch = () => {
+                if (!activeBatchSince.current || Date.now() - activeBatchSince.current < IMAGE_BATCH_WAIT_MS) return;
+                setRunning(false); setStartedAt(0); setElapsedMs(0);
+                setResults(results => results.map(result => result.status === "pending" ? { ...result, status: "failed", error: "服务器已没有对应的生成任务，已停止等待。请手动重试。" } : result));
+            };
+            if (!tasks.length) { abandonMissingBatch(); return; }
+            const latest = tasks.find(task => !task.deleted_at);
+            if (!activeBatch.current && !latest) return;
+            activeBatch.current ||= latest!.metadata.batchId || latest!.id;
             const group=tasks.filter(task=>(task.metadata.batchId||task.id)===activeBatch.current).sort((a,b)=>(a.metadata.slot||0)-(b.metadata.slot||0));
-            if(!group.length)return;
-            const signature=JSON.stringify(group.map(t=>[t.id,t.status,getTaskImages(t.id).length,getTaskMediaError(t.id)]));
+            if (!group.length) { abandonMissingBatch(); return; }
+            const recovered = recoveredImageSlots(group);
+            activeBatchSince.current = recovered.startedAt;
+            const signature=JSON.stringify([recovered.expired,group.map(t=>[t.id,t.status,t.metadata.slot,t.metadata.batchSize,getTaskImages(t.id).length,getTaskMediaError(t.id)])]);
             if(signature===adoptedSignature.current)return;adoptedSignature.current=signature;
-            const count=group[0].metadata.batchSize||group.length;
-            const current=Array.from({length:count},(_,index):GenerationResult=>{
-                const task=group.find(t=>(t.metadata.slot||0)===index);
-                if(!task)return {id:`pending-${index}`,status:"pending"};
-                const image=getTaskImages(task.id)[0];
-                return image ? {id:task.id,status:"success",image} : taskPending(task)||task.status==="completed"&&!getTaskMediaError(task.id) ? {id:task.id,status:"pending"} : {id:task.id,status:"failed",error:taskError(task)};
+            const current = recovered.slots.map((task, index): GenerationResult => {
+                if (!task) return { id: `missing-${index}`, status: recovered.expired ? "failed" : "pending", error: recovered.expired ? "这张图片没有对应的生成任务，已停止等待。请手动重试。" : undefined };
+                const image = getTaskImages(task.id)[0];
+                return { id: task.id, status: recoveredImagePhase(task, Boolean(image)), image, error: task.status === "completed" ? getTaskMediaError(task.id) || "任务已完成，图片正在恢复或暂不可用，请重新加载图片。" : taskError(task) };
             });
-            setResults(current);setRunning(current.some(r=>r.status==="pending"));
-            setStartedAt(performance.now()-(Date.now()-Date.parse(group[0].created_at)));
+            const pending = current.some(result => result.status === "pending");
+            setResults(current); setRunning(pending);
+            setStartedAt(pending ? performance.now() - (Date.now() - recovered.startedAt) : 0);
+            setElapsedMs(pending ? Date.now() - recovered.startedAt : 0);
             setPrompt(value=>value||group[0].metadata.prompt||"");void refreshLogs();
         };
         window.addEventListener("mg-tasks-updated",restore);restore();
         return()=>window.removeEventListener("mg-tasks-updated",restore);
     }, []);
+
+    const reloadCompletedImage = async (id: string) => {
+        const task = getCanvasTasks().find(task => task.id === id);
+        if (!task) { message.warning("任务记录已过期，请查看生成历史"); return; }
+        try { await retryTaskImages(task); }
+        catch { message.warning("图片暂不可用，请稍后重新加载；不会再次提交生图任务"); }
+    };
 
     const addReferences = async (files?: FileList | null) => {
         const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
@@ -199,6 +218,7 @@ export default function ImagePage() {
         }
 
         activeBatch.current = snapshot.batchId;
+        activeBatchSince.current = Date.now();
         setElapsedMs(0);
         setRunning(true);
         if (agentTaskId) updateAgentTask(agentTaskId, { status: "running", error: undefined });
@@ -537,6 +557,12 @@ export default function ImagePage() {
                                 {results.map((result, index) =>
                                     result.status === "success" && result.image ? (
                                         <ResultImageCard key={result.id} image={result.image} index={index} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
+                                    ) : result.status === "unavailable" ? (
+                                        <div key={result.id} className="rounded-lg border border-stone-200 bg-background p-5 text-center">
+                                            <p className="font-medium">生成已完成</p>
+                                            <p className="my-3 text-sm text-muted-foreground">{result.error}</p>
+                                            <Button onClick={() => void reloadCompletedImage(result.id)}>重新加载图片</Button>
+                                        </div>
                                     ) : result.status === "failed" ? (
                                         <FailedImageCard key={result.id} error={result.error || t("workbench.generationFailed")} onRetry={() => retryResult(index)} />
                                     ) : (

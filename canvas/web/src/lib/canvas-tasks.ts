@@ -144,31 +144,45 @@ export async function loadTaskImages(t: CanvasTask) {
             };
         }),
     );
+    mediaErrors.delete(t.id);
     images.set(t.id, values);
     if (!values.length) mediaErrors.set(t.id, "任务未返回图片");
 }
+export async function retryTaskImages(task: CanvasTask) {
+    images.delete(task.id);
+    mediaErrors.delete(task.id);
+    try { await loadTaskImages(task); }
+    catch (error) { mediaErrors.set(task.id, "任务已完成，图片暂不可用，请稍后重新加载"); throw error; }
+    finally { window.dispatchEvent(new Event("mg-tasks-updated")); }
+}
 export async function refreshCanvasTasks() {
+    const value = await listHostedImageTasks<CanvasTask>();
+    tasks = value.tasks;
+    // Publish authoritative status before any image download or history persistence.
+    window.dispatchEvent(new Event("mg-tasks-updated"));
     if (loading) return;
     loading = true;
     try {
-        const value = await listHostedImageTasks<CanvasTask>();
-        tasks = value.tasks;
         receiptIds ||= new Set<string>();
-        await receipts.iterate((_value, id) => receiptIds!.add(id));
+        let historyError: unknown;
+        try { await receipts.iterate((_value, id) => receiptIds!.add(id)); }
+        catch (error) { historyError = error; }
         const latestWorkbench = tasks.find((t) => t.metadata.source !== "canvas");
         const latestBatch = latestWorkbench?.metadata.batchId || latestWorkbench?.id;
         for (const t of tasks) {
             const project = useCanvasStore.getState().projects.find((p) => p.id === t.metadata.projectId);
             const referenced = project?.nodes.some((n) => n.metadata?.generationTaskIds?.[t.metadata.imageId || "primary"] === t.id);
             const id = t.metadata.batchId || t.id;
-            if ((t.metadata.source === "canvas" && !referenced) || (t.metadata.source !== "canvas" && receiptIds.has(id) && id !== latestBatch)) continue;
+            if ((t.metadata.source === "canvas" && !referenced) || (t.metadata.source !== "canvas" && (receiptIds.has(id) || historyError) && id !== latestBatch)) continue;
             if (t.status !== "completed" || images.has(t.id) || mediaErrors.has(t.id)) continue;
             try {
                 await loadTaskImages(t);
             } catch (error) {
-                if (/410|403|404|已删除|过期|屏蔽/.test(String(error))) mediaErrors.set(t.id, "素材已删除、过期或被屏蔽");
+                const status = (error as { status?: number })?.status;
+                mediaErrors.set(t.id, [403, 404, 410].includes(status || 0) || /410|403|404|已删除|过期|屏蔽/.test(String(error)) ? "素材已删除、过期或被屏蔽" : "任务已完成，图片暂不可用，请重新加载");
             }
         }
+        if (historyError) throw historyError;
         const groups = new Map<string, CanvasTask[]>();
         for (const t of tasks.filter((t) => t.metadata.source !== "canvas")) {
             const id = t.metadata.batchId || t.id;
@@ -221,5 +235,7 @@ export async function refreshCanvasTasks() {
         window.dispatchEvent(new Event("mg-tasks-updated"));
     } finally {
         loading = false;
+        // Recovery/persistence failures must never suppress a fresh server status.
+        window.dispatchEvent(new Event("mg-tasks-updated"));
     }
 }

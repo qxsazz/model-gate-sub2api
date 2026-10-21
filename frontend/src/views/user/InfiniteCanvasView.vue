@@ -39,7 +39,7 @@ async function receive(event: MessageEvent) {
   }
   if (msg?.type !== 'mg-canvas-request' || typeof msg.id !== 'string') return
   const source = event.source as Window
-  const reply = (value?: unknown, error?: string) => { if (active) source.postMessage({ type: 'mg-canvas-response', id: msg.id, value, error }, location.origin) }
+  const reply = (value?: unknown, error?: string, status?: number) => { if (active) source.postMessage({ type: 'mg-canvas-response', id: msg.id, value, error, ...(status ? { status } : {}) }, location.origin) }
   if (msg.path === 'context') { reply({ userId: auth.user?.id, theme: theme(), keys: [] }); status.value = '正在加载云端项目'; return }
   const method = String(msg.method || 'GET').toUpperCase()
   // Reuse the main API Key deletion flow; the server enforces authenticated ownership.
@@ -73,7 +73,10 @@ async function receive(event: MessageEvent) {
     })
     if (gateway) reply({ data: result.data, status: result.status, headers: { 'content-type': result.headers['content-type'] || '' } })
     else reply(result.data)
-  } catch (error) { reply(undefined, error instanceof Error ? error.message : '请求失败，请重试') }
+  } catch (error) {
+    const failure = error as { status?: number; message?: string } | null
+    reply(undefined, failure?.message || '请求失败，请重试', failure?.status)
+  }
   finally { pending.delete(controller) }
 }
 watch(() => auth.user?.id, () => { active = false; pending.forEach((c) => c.abort()); if (frame.value) frame.value.src = 'about:blank' })
