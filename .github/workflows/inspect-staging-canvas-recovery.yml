@@ -1,3 +1,4 @@
+# Post-account-test verification of staging task counts. Read-only.
 name: Inspect Staging Canvas Recovery
 'on':
   push:
