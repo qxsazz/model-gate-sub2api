@@ -1,0 +1,230 @@
+[
+  {
+    "id": "pixmind-01-cinematic-portraits-17",
+    "title": "麦田落日 · 逆光人像",
+    "description": "低角度夕阳勾勒发丝和亚麻面料，暖蜂蜜色调搭配长焦虚化，适合温柔的户外人像。",
+    "prompt": "Sun-drenched golden hour portrait. A woman in a flowing cream linen dress stands in a wheat field at 7pm on a summer evening. The sun is low behind her, creating a halo of golden backlight through her hair and the sheer fabric. Lens flare across the frame. Her eyes are closed, face tilted up to the warmth. 135mm telephoto lens, f/2, compressed background. Warm honey color grade. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-17.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "自然光",
+      "暖色"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#17-golden-hour-romantic-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-23",
+    "title": "午后窗光 · 胶片人像",
+    "description": "以通透空气感、柔和窗光和细微胶片颗粒表现自然的人像状态。",
+    "prompt": "Analog 35mm film photography, soft airy Japanese-style aesthetic, gentle diffused natural window light, slight overexposure, pastel tones, low contrast, soft highlights, minimal indoor setting near a window with white curtains, clean light-colored wall, natural composition, eye-level, slightly closer full-body framing (mid-thigh to head), young East Asian woman, natural minimal makeup, soft realistic skin texture, long slightly messy dark hair, oversized white button-up shirt, light casual shorts, barefoot, simple and relaxed styling, standing naturally with relaxed posture, arms loosely at sides, facing camera, gentle soft smile, subtle stillness, focus on light, air, and quiet everyday mood, soft film grain, dreamy and understated atmosphere.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-23.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "胶片",
+      "柔光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#23-soft-airy-35mm-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-10",
+    "title": "夜行列车 · 玻璃倒影",
+    "description": "车内冷光与窗外暖光交织，玻璃倒影和掠过的风景营造安静的电影叙事。",
+    "prompt": "Create a reflection self portrait in a night train window showing a young traveler with headphones and a tired expression, while the landscape outside blurs past at speed. Cool overhead train light mixed with warm town lights outside, ghosted double reflection on the glass, condensation at the edge, a thermos and a book on the tray table. Cinematic but believable. No watermark.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-10.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "电影感",
+      "夜景"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#10-reflection-self-portrait-in-night-train"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-18",
+    "title": "古典书房 · 暗调人像",
+    "description": "旧图书馆、皮面书籍和暖色台灯组成深蓝与橄榄绿的学院氛围。",
+    "prompt": "Dark academia editorial portrait. A young woman with auburn hair in a loose braid wears a wool cardigan over a white collared shirt in an old university library. She holds an open leather-bound book, reading by the light of a green banker's lamp. Towering bookshelves around her fade into shadow. Warm tungsten light, deep navy and olive color palette. 50mm lens, f/2.8. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-18.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "暗调",
+      "复古"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#18-dark-academia-library-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-22",
+    "title": "黑白侧影 · 情绪肖像",
+    "description": "用黑白明暗、克制构图和细腻皮肤质感突出人物情绪，适合艺术肖像。",
+    "prompt": "Dramatic black and white portrait. A man with a short salt-and-pepper beard and intense dark eyes stares into the lens. Only half his face is lit -- hard side light from camera right, pure black shadow on the other side. Textured gray background fades to black. Shot on medium format film aesthetic, 80mm lens. Film grain. Peter Lindbergh style monochrome. Ultra-detailed.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-22.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "黑白",
+      "情绪"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#22-moody-monochrome-portrait"
+  },
+  {
+    "id": "pixmind-01-cinematic-portraits-09",
+    "title": "风霜水手 · 纪实肖像",
+    "description": "以真实皮肤纹理、自然光和有故事感的环境，表现年长水手的日常与经历。",
+    "prompt": "Create a photorealistic candid photograph of an elderly sailor standing on a small fishing boat. He has weathered skin with visible wrinkles, pores, and sun texture, and a few faded traditional sailor tattoos on his arms. He is calmly adjusting a net while his dog sits nearby on the deck. Shot like a 35mm film photograph, medium close-up at eye level, using a 50mm lens. Soft coastal daylight, shallow depth of field, subtle film grain, natural color balance. The image should feel honest and unposed, with real skin texture, worn materials, and everyday detail. No glamorization, no heavy retouching.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-01-cinematic-portraits-09.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "人像",
+      "摄影",
+      "纪实",
+      "纹理"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/01-cinematic-portraits/README.md#09-candid-elderly-sailor"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-07",
+    "title": "极光木屋 · 冬日夜色",
+    "description": "冷色极光映入湖面，远处木屋透出暖光，用冷暖对比表现宁静的北欧冬夜。",
+    "prompt": "Wide landscape of a tiny warm-lit wooden cabin in a Norwegian fjord valley at 1am. A spectacular green and purple aurora borealis dances overhead, reflecting in the still black fjord water. Snow-dusted pine trees and mountains frame the scene. The cabin glow is the only warm color in an otherwise cold composition. 20-second long exposure feel. Ultra-realistic 4K astrophotography.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-07.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "极光",
+      "夜景"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#7-northern-lights-cabin"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-09",
+    "title": "京都樱巷 · 春日街景",
+    "description": "樱花、传统街巷与柔和春光，适合清新、安静的旅行摄影画面。",
+    "prompt": "Serene wide landscape of the Philosopher's Path in Kyoto at peak cherry blossom season. Pink petals float on the narrow canal, with more drifting down from the trees above. Traditional wooden bridges arch over the water. Early morning mist softens the light into diffused pink. A solo figure in a dark kimono walks along the stone path for scale. 50mm lens, f/4, gentle pastel color grade. Ultra-realistic 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-09.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "樱花",
+      "旅行"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#9-cherry-blossom-kyoto"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-02",
+    "title": "海岛漂浮 · 航拍夏日",
+    "description": "从高处俯视漂浮在清澈浅海中的泳装人物，发丝、水波和细沙色阶构成轻盈的度假画面。",
+    "prompt": "Overhead drone shot of a beautiful woman in a minimal white bikini floating on her back in crystal-clear turquoise shallow water over white sand in the Maldives. Her long dark hair fans out in the water like a halo. The water is so clear her full body is visible through the translucent surface. Tiny fish swim nearby. Travel photography editorial style. Ultra-realistic 4K aerial quality.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-02.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "航拍",
+      "海岛"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#2-maldives-aerial-float"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-03",
+    "title": "冰岛黑沙 · 冷峻海岸",
+    "description": "黑色沙滩、海浪白沫和冷色天空形成强烈反差，适合开阔、冷峻的风景画面。",
+    "prompt": "Dramatic wide landscape of Iceland's Reynisfjara black sand beach at dawn. Massive basalt sea stacks rise from the churning North Atlantic. Low fog drifts across the black sand. A single figure in a red rain jacket walks along the shoreline for scale. Moody desaturated color grade — almost monochrome with just the red jacket as accent. 24mm wide lens, f/11 for deep focus. Ultra-detailed 4K.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-03.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "海岸",
+      "冷色"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#3-iceland-black-sand-beach"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-04",
+    "title": "红杉森林 · 光束秘境",
+    "description": "高大的红杉与透过树冠的光束构成自然穹顶，突出森林的尺度与空气感。",
+    "prompt": "Vertical composition looking up through towering California redwood trees. Shafts of golden morning sunlight cut through the fog between the trunks like cathedral light rays. Ferns carpet the forest floor. A tiny hiker in the distance gives scale. Ultra-wide 14mm lens distorting the trunks into a radial pattern toward the sky. Warm green and gold palette. Ultra-realistic 4K nature photography.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-04.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "森林",
+      "光束"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#4-redwood-cathedral-light"
+  },
+  {
+    "id": "pixmind-03-nature-landscapes-01",
+    "title": "雾瀑森林 · 柔光秘境",
+    "description": "瀑布水雾、湿润植被与柔和散射光，营造空灵、层次丰富的自然景观。",
+    "prompt": "Ethereal fantasy nature scene. A graceful young woman in a flowing sheer gossamer dress stands at the edge of a towering waterfall cliff. Dense tropical mist swirls around her legs and the translucent fabric. She extends one arm toward the cascade, water droplets catching golden light. Aerial perspective slightly from above showing the dramatic cliff drop. Lush green ferns frame the composition. Golden hour light filtering through the mist. Ultra-realistic 4K cinematic quality.",
+    "coverUrl": "/canvas-app/prompt-library/v1/covers/pixmind-03-nature-landscapes-01.webp",
+    "referenceImageUrls": [],
+    "tags": [
+      "风景",
+      "摄影",
+      "瀑布",
+      "柔光"
+    ],
+    "preview": "",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "updatedAt": "2026-10-21T00:00:00Z",
+    "author": "Awesome GPT Image 2 Prompts Contributors",
+    "sourceUrl": "https://github.com/Pixmind-io/awesome-gpt-image-2-prompts/blob/4ac21d49915fffd5a5be56f2d5b674b6dda34568/prompts/03-nature-landscapes/README.md#1-waterfall-mist-ethereal"
+  }
+]

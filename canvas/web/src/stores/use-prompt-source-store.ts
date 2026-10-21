@@ -1,8 +1,10 @@
-import { cloudStateStorage } from "@/lib/model-gate";
+import { canManageCanvasSettings, cloudStateStorage, requireCanvasSettingsAdmin } from "@/lib/model-gate";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { DEFAULT_PROMPT_SOURCES, createPromptSource, type PromptSource } from "@/services/api/prompt-source-presets";
+
+import { mergePromptSources } from "@/services/api/prompt-source-migration";
 
 export type PromptSourceSchedule = {
     intervalMinutes: number;
@@ -33,28 +35,31 @@ export const usePromptSourceStore = create<PromptSourceStore>()(
         (set) => ({
             sources: DEFAULT_PROMPT_SOURCES,
             schedule: defaultSchedule,
-            addSource: () => createPromptSource(),
-            saveSource: (source) =>
+            addSource: () => { requireCanvasSettingsAdmin(); return createPromptSource(); },
+            saveSource: (source) => {
+                requireCanvasSettingsAdmin();
                 set((state) => ({
                     sources: state.sources.some((item) => item.id === source.id)
                         ? state.sources.map((item) => (item.id === source.id && !item.builtIn ? createPromptSource(source) : item))
                         : [...state.sources, createPromptSource(source)],
-                })),
-            removeSource: (id) => set((state) => ({ sources: state.sources.filter((item) => item.id !== id || item.builtIn) })),
-            toggleSource: (id, enabled) => set((state) => ({ sources: state.sources.map((item) => (item.id === id ? { ...item, enabled } : item)) })),
+                }));
+            },
+            removeSource: (id) => { requireCanvasSettingsAdmin(); set((state) => ({ sources: state.sources.filter((item) => item.id !== id || item.builtIn) })); },
+            toggleSource: (id, enabled) => { requireCanvasSettingsAdmin(); set((state) => ({ sources: state.sources.map((item) => (item.id === id ? { ...item, enabled } : item)) })); },
             updateSchedule: (key, value) => set((state) => ({ schedule: { ...state.schedule, [key]: value } })),
         }),
         {
             name: PROMPT_SOURCE_STORE_KEY,
-            storage: createJSONStorage(() => cloudStateStorage),
+            storage: createJSONStorage(() => ({
+                getItem: (name) => canManageCanvasSettings() ? cloudStateStorage.getItem(name) : Promise.resolve(null),
+                setItem: async (name, value) => { if (canManageCanvasSettings()) await cloudStateStorage.setItem(name, value); },
+                removeItem: async (name) => { if (canManageCanvasSettings()) await cloudStateStorage.removeItem(name); },
+            })),
             partialize: (state) => ({ sources: state.sources, schedule: state.schedule }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<PromptSourceStore>;
                 const savedSources = Array.isArray(persistedState.sources) ? persistedState.sources : [];
-                const enabledById = new Map(savedSources.map((source) => [source.id, source.enabled]));
-                const builtIn = DEFAULT_PROMPT_SOURCES.map((source) => ({ ...source, enabled: enabledById.get(source.id) ?? source.enabled }));
-                const custom = savedSources.filter((source) => !source.builtIn).map((source) => createPromptSource(source));
-                return { ...current, sources: [...builtIn, ...custom], schedule: { ...defaultSchedule, ...(persistedState.schedule || {}) } };
+                return { ...current, sources: mergePromptSources(savedSources.map(createPromptSource), DEFAULT_PROMPT_SOURCES), schedule: { ...defaultSchedule, ...(persistedState.schedule || {}) } };
             },
         },
     ),

@@ -135,6 +135,13 @@ func (h *CanvasHandler) State(c *gin.Context) {
 		response.BadRequest(c, "不支持的画布状态")
 		return
 	}
+	if name == "infinite-canvas:prompt_source_store_v2" {
+		role, _ := middleware.GetUserRoleFromContext(c)
+		if role != service.RoleAdmin {
+			response.Forbidden(c, "仅管理员可管理提示词来源")
+			return
+		}
+	}
 	user := canvasUser(c)
 	if c.Request.Method == http.MethodGet {
 		var payload []byte
@@ -460,7 +467,8 @@ func (h *CanvasHandler) Capabilities(c *gin.Context) {
 			break
 		}
 	}
-	response.Success(c, gin.H{"keys": all, "retention_days": 7})
+	role, _ := middleware.GetUserRoleFromContext(c)
+	response.Success(c, gin.H{"keys": all, "retention_days": 7, "can_manage_settings": role == service.RoleAdmin})
 }
 
 type canvasAsset struct {

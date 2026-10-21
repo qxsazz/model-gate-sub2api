@@ -155,3 +155,31 @@ func TestCanvasGoogleImagesAreArchivedWithOwnerPromptAndUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, m.ExpectationsWereMet())
 }
+
+func TestCanvasPromptSourcesRequireAdministrator(t *testing.T) {
+	for _, role := range []string{"", "user", "admin"} {
+		for _, method := range []string{http.MethodGet, http.MethodPut} {
+			t.Run(role+method, func(t *testing.T) {
+				h, m, c, w := canvasTest(t)
+				c.Set(string(middleware.ContextKeyUserRole), role)
+				c.Params = gin.Params{{Key: "name", Value: "infinite-canvas:prompt_source_store_v2"}}
+				c.Request = httptest.NewRequest(method, "/", strings.NewReader(`{"value":"{\"state\":{}}","revision":0}`))
+				c.Request.Header.Set("Content-Type", "application/json")
+				if role == "admin" {
+					if method == http.MethodGet {
+						m.ExpectQuery("SELECT payload,revision FROM canvas_states").WithArgs(int64(7), "infinite-canvas:prompt_source_store_v2").WillReturnError(sql.ErrNoRows)
+					} else {
+						m.ExpectQuery("INSERT INTO canvas_states").WithArgs(int64(7), "infinite-canvas:prompt_source_store_v2", `{"state":{}}`, int64(0)).WillReturnRows(sqlmock.NewRows([]string{"revision"}).AddRow(1))
+					}
+				}
+				h.State(c)
+				if role == "admin" {
+					require.Equal(t, 200, w.Code)
+				} else {
+					require.Equal(t, 403, w.Code)
+				}
+				require.NoError(t, m.ExpectationsWereMet())
+			})
+		}
+	}
+}

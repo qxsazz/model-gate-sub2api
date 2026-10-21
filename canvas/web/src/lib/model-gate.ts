@@ -1,8 +1,12 @@
 import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 
 export type ManagedKey = { id: number; name: string; image: boolean; video: boolean; text?: boolean; audio?: boolean; formats?: Array<"openai" | "gemini"> };
-export type HostedContext = { keys: ManagedKey[]; theme: "light" | "dark"; userId: number };
+export type HostedContext = { keys: ManagedKey[]; theme: "light" | "dark"; userId: number; canManageSettings?: boolean };
 export let hosted: HostedContext;
+export const canManageCanvasSettings = () => hosted?.canManageSettings === true;
+export function requireCanvasSettingsAdmin() {
+    if (!canManageCanvasSettings()) throw new Error("仅管理员可使用此配置功能");
+}
 const pending = new Map<string, { resolve: (value: any) => void; reject: (reason: Error) => void }>();
 
 export function request<T = any>(path: string, method = "GET", body?: unknown, binary = false, taskMeta?: string): Promise<T> {
@@ -45,6 +49,8 @@ export async function initializeHosted() {
         if (data?.type === "mg-canvas-theme") window.dispatchEvent(new CustomEvent("mg-theme", { detail: data.theme }));
     });
     hosted = await request<HostedContext>("context");
+    const permissions = await request<{ can_manage_settings: boolean }>("/canvas/capabilities");
+    hosted.canManageSettings = permissions.can_manage_settings === true;
     // Every AI request uses the authenticated host broker. No API credential is passed to this frame.
     axios.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
         const url = new URL(config.url || "", window.location.origin);
