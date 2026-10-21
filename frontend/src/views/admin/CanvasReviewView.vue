@@ -43,9 +43,29 @@ const deleting = ref<Asset | null>(null), deleteReason = ref('')
 const labels: Record<string, string> = { unreviewed: '未审核', approved: '正常', blocked: '已屏蔽' }
 const items = ref<Asset[]>([]), userId = ref(''), reviewStatus = ref(''), page = ref(1), hasMore = ref(false), loading = ref(false), error = ref(''), reviewing = ref('')
 const urls = reactive<Record<string, string>>({}), notes = reactive<Record<string, string>>({})
+let loadSequence = 0
+let disposed = false
 function clearUrls() { Object.keys(urls).forEach((id) => { URL.revokeObjectURL(urls[id]); delete urls[id] }) }
-async function load() { loading.value = true; error.value = ''; clearUrls(); try { const { data } = await apiClient.get('/admin/canvas/assets', { params: { user_id: userId.value, status: reviewStatus.value, page: page.value } }); items.value = data.items; hasMore.value = data.has_more; items.value.forEach((a) => { notes[a.id] = a.review_note }) } catch (e) { error.value = (e as Error).message } finally { loading.value = false } }
-async function preview(item: Asset) { try { const { data } = await apiClient.get<Blob>(`/admin/canvas/assets/${item.id}/content`, { responseType: 'blob' }); urls[item.id] = URL.createObjectURL(data) } catch (e) { error.value = (e as Error).message } }
+async function load() {
+  const sequence = ++loadSequence
+  loading.value = true; error.value = ''; clearUrls()
+  try {
+    const { data } = await apiClient.get('/admin/canvas/assets', { params: { user_id: userId.value, status: reviewStatus.value, page: page.value } })
+    if (disposed || sequence !== loadSequence) return
+    items.value = data.items; hasMore.value = data.has_more
+    Object.keys(notes).forEach(id => { delete notes[id] })
+    items.value.forEach(a => { notes[a.id] = a.review_note })
+  } catch (e) { if (!disposed && sequence === loadSequence) error.value = (e as Error).message }
+  finally { if (!disposed && sequence === loadSequence) loading.value = false }
+}
+async function preview(item: Asset) {
+  try {
+    const { data } = await apiClient.get<Blob>(`/admin/canvas/assets/${item.id}/content`, { responseType: 'blob' })
+    if (disposed || !items.value.some(a => a.id === item.id)) return
+    if (urls[item.id]) URL.revokeObjectURL(urls[item.id])
+    urls[item.id] = URL.createObjectURL(data)
+  } catch (e) { if (!disposed) error.value = (e as Error).message }
+}
 async function review(item: Asset, status: string) { reviewing.value = item.id; error.value = ''; try { await apiClient.put(`/admin/canvas/assets/${item.id}/review`, { status, note: notes[item.id] || '' }); item.review_status = status } catch (e) { error.value = (e as Error).message } finally { reviewing.value = '' } }
 async function deleteAsset() {
   if (!deleting.value || reviewing.value) return
@@ -54,12 +74,16 @@ async function deleteAsset() {
   reviewing.value = item.id; error.value = ''
   try {
     await apiClient.delete(`/admin/canvas/assets/${item.id}`, { data: { reason: deleteReason.value.trim() } })
-    item.available = false
+    ++loadSequence
+    items.value = items.value.filter(asset => asset.id !== item.id)
+    delete notes[item.id]
     if (urls[item.id]) { URL.revokeObjectURL(urls[item.id]); delete urls[item.id] }
     deleting.value = null
+    if (!items.value.length && page.value > 1) page.value--
+    await load()
   } catch (e) { error.value = (e as Error).message } finally { reviewing.value = '' }
 }
-onMounted(load); onBeforeUnmount(clearUrls)
+onMounted(load); onBeforeUnmount(() => { disposed = true; ++loadSequence; clearUrls() })
 </script>
 <style scoped>
 .review-card { overflow: hidden; border: 1px solid var(--mg-line-warm, #e7e1d4); background: var(--mg-surface, white); border-radius: 12px; }

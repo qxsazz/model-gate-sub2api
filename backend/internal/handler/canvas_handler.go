@@ -488,7 +488,7 @@ func (h *CanvasHandler) AdminList(c *gin.Context) {
 	}
 	user, _ := strconv.ParseInt(c.Query("user_id"), 10, 64)
 	status := c.Query("status")
-	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT a.id,a.user_id,COALESCE(u.email,''),a.mime_type,a.byte_size,a.api_key_id,a.model,a.prompt,a.source,a.review_status,a.review_note,a.created_at,a.expires_at,a.deleted_at FROM canvas_assets a LEFT JOIN users u ON u.id=a.user_id WHERE ($1=0 OR a.user_id=$1) AND ($2='' OR a.review_status=$2) ORDER BY a.created_at DESC LIMIT 30 OFFSET $3`, user, status, (page-1)*30)
+	rows, err := h.db.QueryContext(c.Request.Context(), `SELECT a.id,a.user_id,COALESCE(u.email,''),a.mime_type,a.byte_size,a.api_key_id,a.model,a.prompt,a.source,a.review_status,a.review_note,a.created_at,a.expires_at,a.deleted_at FROM canvas_assets a LEFT JOIN users u ON u.id=a.user_id WHERE a.deleted_at IS NULL AND a.expires_at>now() AND ($1=0 OR a.user_id=$1) AND ($2='' OR a.review_status=$2) ORDER BY a.created_at DESC,a.id DESC LIMIT 31 OFFSET $3`, user, status, (page-1)*30)
 	if err != nil {
 		canvasFailure(c, err)
 		return
@@ -508,7 +508,11 @@ func (h *CanvasHandler) AdminList(c *gin.Context) {
 		canvasFailure(c, err)
 		return
 	}
-	response.Success(c, gin.H{"items": items, "page": page, "has_more": len(items) == 30})
+	hasMore := len(items) > 30
+	if hasMore {
+		items = items[:30]
+	}
+	response.Success(c, gin.H{"items": items, "page": page, "has_more": hasMore})
 }
 func (h *CanvasHandler) Review(c *gin.Context) {
 	id := c.Param("id")
