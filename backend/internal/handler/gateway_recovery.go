@@ -55,8 +55,6 @@ func beginGatewayRecovery(c *gin.Context, cfg *config.Config, key *service.APIKe
 	if key.GroupID != nil {
 		r.groupID = *key.GroupID
 	}
-	r.deadline = r.now().Add(time.Duration(r.cfg.BudgetSeconds) * time.Second)
-	r.heartbeatAt = r.now().Add(10 * time.Second)
 	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), gatewayRecoveryKey{}, r))
 	return r.close
 }
@@ -69,8 +67,22 @@ func recoveryFromContext(ctx context.Context) *gatewayRecovery {
 	return r
 }
 
+// Merely enabling recovery must not change normal scheduling or its WaitPlan.
+// Start the window only after a confirmed recoverable failure, once per turn.
+func (r *gatewayRecovery) active() bool {
+	return r != nil && !r.deadline.IsZero()
+}
+
+func (r *gatewayRecovery) activate() {
+	if !r.active() {
+		now := r.now()
+		r.deadline = now.Add(time.Duration(r.cfg.BudgetSeconds) * time.Second)
+		r.heartbeatAt = now.Add(10 * time.Second)
+	}
+}
+
 func (r *gatewayRecovery) available() bool {
-	return r != nil && r.c.Request.Context().Err() == nil && r.now().Before(r.deadline) && r.failures < r.cfg.MaxAttempts
+	return r.active() && r.c.Request.Context().Err() == nil && r.now().Before(r.deadline) && r.failures < r.cfg.MaxAttempts
 }
 
 func (r *gatewayRecovery) admit() bool {
@@ -127,9 +139,10 @@ func recoverableGatewayFailure(e *service.UpstreamFailoverError) bool {
 
 func observeGatewayRecoveryFailure(ctx context.Context, id int64, e *service.UpstreamFailoverError, sameAccountLimit int) bool {
 	r := recoveryFromContext(ctx)
-	if r == nil {
+	if r == nil || !eligibleGatewayRecoveryFailure(e) {
 		return true
 	}
+	r.activate()
 	r.failures++
 	r.accountFailures[id]++
 	delete(r.retryAt, id)
@@ -157,16 +170,25 @@ func observeGatewayRecoveryFailure(ctx context.Context, id int64, e *service.Ups
 // semantic output or overrides provider-specific continuation / OAuth guards.
 func gatewayRecoveryCanRetry(ctx context.Context, e *service.UpstreamFailoverError) bool {
 	r := recoveryFromContext(ctx)
-	return r != nil && r.available() && e != nil && e.ShouldRetryNextAccount() && !e.BoundUpstreamPassthrough &&
+	return r.available() && eligibleGatewayRecoveryFailure(e)
+}
+
+func eligibleGatewayRecoveryFailure(e *service.UpstreamFailoverError) bool {
+	return e != nil && e.ShouldRetryNextAccount() && !e.BoundUpstreamPassthrough &&
 		(recoverableGatewayFailure(e) || e.IsCredentialFailure())
 }
 
 func tryGatewaySelectionRecovery(c *gin.Context, err error, diag service.ModelAvailabilityDiagnoser, key *service.APIKey, model, platform string, excluded map[int64]struct{}) bool {
 	r := recoveryFromContext(c.Request.Context())
-	if !r.available() || !errors.Is(err, service.ErrNoAvailableAccounts) || diag == nil || key == nil {
+	if r == nil || c.Request.Context().Err() != nil || (r.active() && !r.available()) || !errors.Is(err, service.ErrNoAvailableAccounts) || diag == nil || key == nil {
 		return false
 	}
-	remaining := min(r.deadline.Sub(r.now()), time.Duration(r.cfg.SelectionWaitSeconds)*time.Second-r.selectionWait)
+	remaining := time.Duration(r.cfg.SelectionWaitSeconds)*time.Second - r.selectionWait
+	if r.active() {
+		remaining = min(remaining, r.deadline.Sub(r.now()))
+	} else {
+		remaining = min(remaining, time.Duration(r.cfg.BudgetSeconds)*time.Second)
+	}
 	if remaining <= 0 {
 		return false
 	}
@@ -183,7 +205,12 @@ func tryGatewaySelectionRecovery(c *gin.Context, err error, diag service.ModelAv
 		}
 		candidates = append(candidates, id)
 	}
-	if len(candidates) == 0 || !r.admit() {
+	if len(candidates) == 0 {
+		return false
+	}
+	r.activate()
+	remaining = min(remaining, r.deadline.Sub(r.now()))
+	if remaining <= 0 || !r.available() || !r.admit() {
 		return false
 	}
 	delay := min(time.Duration(1<<min(r.waits, 3))*time.Second, remaining)
@@ -242,7 +269,7 @@ func gatewayRecoveryOnlyHeartbeat(c *gin.Context) bool {
 // Same-account sleeps share the same recovery window and heartbeat path.
 func waitGatewayRecovery(ctx context.Context, delay time.Duration) bool {
 	r := recoveryFromContext(ctx)
-	if r == nil {
+	if !r.active() {
 		return sleepWithContext(ctx, delay)
 	}
 	if !r.available() {
@@ -284,7 +311,8 @@ func startNewGatewayRecoveryTurn(ctx context.Context) bool {
 	}
 	r.close()
 	r.nextTurn = false
-	r.deadline = r.now().Add(time.Duration(r.cfg.BudgetSeconds) * time.Second)
+	r.deadline = time.Time{}
+	r.heartbeatAt = time.Time{}
 	r.selectionWait = 0
 	r.failures = 0
 	r.waits = 0

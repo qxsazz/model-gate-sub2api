@@ -49,3 +49,26 @@ the terminal marker are required.
 After collecting evidence, stop the PIDs recorded in `server.pid` and `mock.pid`
 and remove only the two named temporary containers and their anonymous volumes.
 Do not run these commands against a shared Docker context or real database.
+
+## Normal scheduling comparison
+
+`normal_schedule.py` compares the same binary with recovery off/on/on/off. Use
+the same dedicated container names and ports, but initialize a **fresh** database
+with `DATA_DIR=/workspace/.onboarding/recovery-normal-load/data`. Build the current
+backend as `/workspace/.onboarding/recovery-normal-load/server`. After stopping
+the bootstrap gateway, seed that workspace with:
+
+```sh
+python -B -c "from pathlib import Path; import sys; sys.path.insert(0, 'tools/loadtest'); import gateway_recovery as m; m.ROOT=Path('/workspace/.onboarding/recovery-normal-load'); m.seed()"
+python -B tools/loadtest/normal_schedule.py
+```
+
+The comparison prewarms synthetic keys so the existing 64-lookup authentication
+admission limit does not obscure account scheduling. It checks healthy HTTP and
+SSE, 96 requests waiting for two account slots, unsupported models, partial 503,
+and first-selection temporary unavailability. It requires every supported normal
+request to complete with exactly one upstream call, and no recovery wait logs in
+normal runs. Normal timeouts and full recovery queues are additionally compared
+in `gateway_recovery_normal_test.go`. Results/logs stay in the separate workspace;
+the script stops its gateway and mock processes but leaves the two fixture
+containers for inspection and manual cleanup.

@@ -2744,7 +2744,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if account == nil || failoverErr == nil || failoverErr.StatusCode != http.StatusTooManyRequests || failoverErr.SameAccountRetryDeadline.IsZero() {
 			return false
 		}
-		if r := recoveryFromContext(ctx); r != nil && !r.available() {
+		if r := recoveryFromContext(ctx); r.active() && !r.available() {
 			return false
 		}
 		retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
@@ -2914,7 +2914,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return
 			}
 			if !fastAcquired {
-				if recoveryFromContext(ctx) != nil {
+				if recoveryFromContext(ctx).active() {
 					fastReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, accountMaxConcurrency, maxConcurrencyWait, false, nil)
 					fastAcquired = err == nil
 				}
@@ -3136,7 +3136,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusTryAgainLater, "too many concurrent requests, please retry later", nil)
 				}
 				accountReleaseFunc, accountAcquired, err := h.concurrencyHelper.TryAcquireAccountSlot(ctx, account.ID, accountMaxConcurrency)
-				if err == nil && !accountAcquired && recoveryFromContext(ctx) != nil {
+				if err == nil && !accountAcquired && recoveryFromContext(ctx).active() {
 					accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, accountMaxConcurrency, maxConcurrencyWait, false, nil)
 					accountAcquired = err == nil
 				}

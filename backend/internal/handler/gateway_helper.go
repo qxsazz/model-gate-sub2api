@@ -448,7 +448,7 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 
 // AcquireAccountSlotWithWaitTimeout acquires an account slot with a custom timeout (keeps SSE ping).
 func (h *ConcurrencyHelper) AcquireAccountSlotWithWaitTimeout(c *gin.Context, accountID int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {
-	if r := recoveryFromContext(c.Request.Context()); r != nil {
+	if r := recoveryFromContext(c.Request.Context()); r.active() {
 		release, acquired, err := h.TryAcquireAccountSlot(c.Request.Context(), accountID, maxConcurrency)
 		if err != nil {
 			return nil, err

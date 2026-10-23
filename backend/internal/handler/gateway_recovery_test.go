@@ -43,15 +43,17 @@ func newRecoveryTest(t *testing.T, stream bool) (*gin.Context, *gatewayRecovery,
 		now = now.Add(d)
 		return true
 	}
-	r.deadline = now.Add(300 * time.Second)
-	r.heartbeatAt = now.Add(10 * time.Second)
 	return c, r, key
 }
 
 func TestGatewayRecoveryFirstSelectionWaitsWithoutWritingError(t *testing.T) {
 	c, r, key := newRecoveryTest(t, false)
+	require.False(t, r.active())
+	require.True(t, r.sleep(c.Request.Context(), time.Hour))
 	diag := &fakeDiagnoser{resp: service.ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true, RecoveryAccountIDs: []int64{1}}}
 	require.True(t, tryGatewaySelectionRecovery(c, service.ErrNoAvailableAccounts, diag, key, "model", service.PlatformOpenAI, nil))
+	require.True(t, r.active())
+	require.Equal(t, r.now().Add(300*time.Second-r.selectionWait), r.deadline)
 	require.Equal(t, 1, r.waits)
 	require.False(t, c.Writer.Written(), "a transient first selection failure must not emit a 503")
 	require.Equal(t, "model", diag.calls[0].Model)
@@ -99,6 +101,7 @@ func TestGatewayRecoveryImmediateFailuresDoNotWait(t *testing.T) {
 			c, r, key := newRecoveryTest(t, false)
 			require.False(t, tryGatewaySelectionRecovery(c, tc.err, &fakeDiagnoser{resp: tc.diag}, key, "model", service.PlatformOpenAI, nil))
 			require.Zero(t, r.waits)
+			require.False(t, r.active())
 		})
 	}
 }
@@ -154,6 +157,7 @@ func TestGatewayRecoveryHeartbeatPreservesProtocolAndReplayBoundary(t *testing.T
 			if protocol == "responses" {
 				c.Request.URL.Path = "/v1/responses"
 			}
+			r.activate()
 			require.True(t, r.wait(11*time.Second))
 			require.True(t, gatewayRecoveryOnlyHeartbeat(c))
 			if protocol == "responses" {
@@ -181,6 +185,7 @@ func TestGatewayRecoveryHeartbeatPreservesProtocolAndReplayBoundary(t *testing.T
 		})
 	}
 	c, r, _ := newRecoveryTest(t, true)
+	r.activate()
 	require.True(t, r.wait(11*time.Second))
 	before := c.Writer.Size()
 	_, err := fmt.Fprint(c.Writer, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n")
@@ -208,6 +213,7 @@ func TestGatewayRecoverySameAccountBackoffUsesWaiterAdmission(t *testing.T) {
 	require.True(t, busy.admit())
 	c, waiting, _ := newRecoveryTest(t, false)
 	waiting.cfg.MaxWaitersPerUser = 1
+	waiting.activate()
 	require.False(t, waitGatewayRecovery(c.Request.Context(), time.Second))
 	busy.close()
 	require.True(t, waitGatewayRecovery(c.Request.Context(), time.Second))
@@ -217,6 +223,7 @@ func TestGatewayRecoverySameAccountBackoffUsesWaiterAdmission(t *testing.T) {
 func TestGatewayRecoveryWebSocketBudgetResetsOnlyForNewCompletedTurn(t *testing.T) {
 	c, r, _ := newRecoveryTest(t, false)
 	ctx := c.Request.Context()
+	r.activate()
 	r.failures = r.cfg.MaxAttempts
 	r.selectionWait = 120 * time.Second
 	r.retryAt[1] = r.now().Add(time.Second)
@@ -226,10 +233,14 @@ func TestGatewayRecoveryWebSocketBudgetResetsOnlyForNewCompletedTurn(t *testing.
 	// A long idle conversation may outlive the previous turn's deadline.
 	r.deadline = r.now().Add(-time.Hour)
 	require.True(t, startNewGatewayRecoveryTurn(ctx))
-	require.True(t, r.available())
+	require.False(t, r.active(), "a new healthy turn must use normal scheduling")
+	require.False(t, r.available())
 	require.Zero(t, r.failures)
 	require.Zero(t, r.selectionWait)
 	require.Empty(t, r.retryAt)
+	require.True(t, r.deadline.IsZero())
+	require.True(t, r.sleep(ctx, time.Hour))
+	require.True(t, observeGatewayRecoveryFailure(ctx, 1, &service.UpstreamFailoverError{StatusCode: 503}, 3))
 	require.Equal(t, r.now().Add(300*time.Second), r.deadline)
 	require.False(t, startNewGatewayRecoveryTurn(ctx))
 }
@@ -248,7 +259,8 @@ func TestGatewayRecoveryExplicitZeroRetryAndPermanentFailureStayExcluded(t *test
 
 func TestGatewayRecoveryAccountSlotWaitIsBoundedAndReleasesAdmission(t *testing.T) {
 	c, r, _ := newRecoveryTest(t, false)
-	// Exercise the real concurrency helper, including cancellation and admission.
+	require.True(t, observeGatewayRecoveryFailure(c.Request.Context(), 1, &service.UpstreamFailoverError{StatusCode: 502}, 3))
+	// Exercise the real concurrency helper after a recoverable upstream failure.
 	cache := &helperConcurrencyCacheStub{accountSeq: []bool{false, false, true}}
 	helper := NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second)
 	release, err := helper.AcquireAccountSlotWithWaitTimeout(c, 1, 1, time.Millisecond, false, nil)
@@ -268,6 +280,7 @@ func TestGatewayRecoveryHeartbeatAfterContentDoesNotResetReplayBoundary(t *testi
 	c, r, _ := newRecoveryTest(t, true)
 	_, err := fmt.Fprint(c.Writer, "data: assistant-content\n\n")
 	require.NoError(t, err)
+	r.activate()
 	require.True(t, r.wait(11*time.Second))
 	require.False(t, gatewayRecoveryOnlyHeartbeat(c))
 }

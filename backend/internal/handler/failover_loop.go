@@ -277,7 +277,7 @@ func (s *FailoverState) HandleFailoverError(
 // 返回 FailoverExhausted 时，调用方应返回错误响应。
 // 返回 FailoverCanceled 时，调用方应直接 return。
 func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAction {
-	if recoveryFromContext(ctx) != nil {
+	if recoveryFromContext(ctx).active() {
 		if ctx.Err() != nil {
 			return FailoverCanceled
 		}
