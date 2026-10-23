@@ -89,6 +89,12 @@ jobs:
       - name: Install hosted canvas
         working-directory: canvas/web
         run: npm ci
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - name: Test managed model discovery and selection
+        working-directory: canvas/web
+        run: bun test tests/managed-models.test.ts
       - name: Check and build hosted canvas
         working-directory: canvas/web
         run: npm run typecheck && npm run build
