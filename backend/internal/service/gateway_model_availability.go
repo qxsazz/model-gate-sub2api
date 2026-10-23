@@ -124,6 +124,6 @@ func (s *GatewayService) DiagnoseModelAvailabilityForPlatform(
 // that will recover just by polling. The normal scheduler remains authoritative.
 func accountCanRecoverCapacity(a *Account) bool {
 	return a != nil && a.IsActive() && a.Schedulable &&
-		!(a.AutoPauseOnExpired && a.ExpiresAt != nil && !time.Now().Before(*a.ExpiresAt)) &&
-		!(a.SupportsAccountQuota() && a.IsQuotaExceeded())
+		(!a.AutoPauseOnExpired || a.ExpiresAt == nil || time.Now().Before(*a.ExpiresAt)) &&
+		(!a.SupportsAccountQuota() || !a.IsQuotaExceeded())
 }
