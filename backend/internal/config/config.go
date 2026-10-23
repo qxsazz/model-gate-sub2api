@@ -1110,6 +1110,8 @@ type GatewayConfig struct {
 	// Gemini 账户切换最大次数（Gemini 平台单独配置，因 API 限制更严格）
 	MaxAccountSwitchesGemini int `mapstructure:"max_account_switches_gemini"`
 
+	Recovery GatewayRecoveryConfig `mapstructure:"recovery"`
+
 	// Antigravity 429 fallback 限流时间（分钟），解析重置时间失败时使用
 	AntigravityFallbackCooldownMinutes int `mapstructure:"antigravity_fallback_cooldown_minutes"`
 
@@ -1486,6 +1488,18 @@ type TLSProfileConfig struct {
 	// 空则使用内置默认顺序 [0,11,10,35,16,22,23,13,43,45,51]
 	// GREASE值(如0x0a0a)会自动插入GREASE扩展
 	Extensions []uint16 `mapstructure:"extensions"`
+}
+
+// GatewayRecoveryConfig bounds recovery before semantic output. Existing generation
+// timeouts still apply to individual attempts; recovery never detaches client cancellation.
+type GatewayRecoveryConfig struct {
+	Enabled              bool `mapstructure:"enabled"`
+	BudgetSeconds        int  `mapstructure:"budget_seconds"`
+	SelectionWaitSeconds int  `mapstructure:"selection_wait_seconds"`
+	MaxAttempts          int  `mapstructure:"max_attempts"`
+	MaxWaiters           int  `mapstructure:"max_waiters"`
+	MaxWaitersPerGroup   int  `mapstructure:"max_waiters_per_group"`
+	MaxWaitersPerUser    int  `mapstructure:"max_waiters_per_user"`
 }
 
 // GatewaySchedulingConfig accounts scheduling configuration.
@@ -2434,6 +2448,14 @@ func setDefaults() {
 	viper.SetDefault("gateway.failover_on_400", false)
 	viper.SetDefault("gateway.max_account_switches", 10)
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
+	viper.SetDefault("gateway.recovery.enabled", true)
+	viper.SetDefault("gateway.recovery.budget_seconds", 300)
+	viper.SetDefault("gateway.recovery.selection_wait_seconds", 120)
+	viper.SetDefault("gateway.recovery.max_attempts", 12)
+	viper.SetDefault("gateway.recovery.max_waiters", 256)
+	viper.SetDefault("gateway.recovery.max_waiters_per_group", 64)
+	viper.SetDefault("gateway.recovery.max_waiters_per_user", 2)
+
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.disable_codex_identity_enforcement", false)
 	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
@@ -3378,6 +3400,12 @@ func (c *Config) Validate() error {
 	if c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds < 0 || c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds > 1800 ||
 		(c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds > 0 && c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds < 30) {
 		return fmt.Errorf("gateway.openai_high_effort_first_output_timeout_seconds must be 0 or between 30-1800 seconds")
+	}
+
+	if r := c.Gateway.Recovery; r.Enabled {
+		if r.BudgetSeconds < 1 || r.BudgetSeconds > 1800 || r.SelectionWaitSeconds < 1 || r.SelectionWaitSeconds > r.BudgetSeconds || r.MaxAttempts < 1 || r.MaxAttempts > 30 || r.MaxWaiters < 1 || r.MaxWaitersPerGroup < 1 || r.MaxWaitersPerUser < 1 {
+			return fmt.Errorf("gateway.recovery requires budget_seconds 1-1800, selection_wait_seconds 1-budget, max_attempts 1-30 and positive waiter limits")
+		}
 	}
 	if c.Gateway.Live.MaxSessionDurationSeconds <= 0 {
 		c.Gateway.Live.MaxSessionDurationSeconds = 3600
