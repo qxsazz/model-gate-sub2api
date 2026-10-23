@@ -140,6 +140,7 @@ docs/*
 !docs/upstream-0.2.18-merge.md
 !docs/cicd-ui-handoff.md
 !docs/gateway-client-error-messages.zh.md
+!docs/gemini-canvas-model-list-fix.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
@@ -173,3 +174,6 @@ issues/
 # Vendored canvas build output
 canvas/web/node_modules/
 canvas/web/dist/
+!canvas/web/tests/
+canvas/web/tests/*
+!canvas/web/tests/managed-models.test.ts

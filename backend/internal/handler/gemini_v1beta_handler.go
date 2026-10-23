@@ -96,6 +96,12 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(mergeGeminiModelLists(gemini.DefaultModels(), agModels))})
 		return
 	}
+	originalBody := res.Body
+	if res.StatusCode == http.StatusOK {
+		if normalized, ok := normalizeGeminiModelsBody(res.Body); ok {
+			res.Body = normalized
+		}
+	}
 	if res.StatusCode == http.StatusOK && len(agModels) > 0 {
 		if merged, ok := appendUpstreamGeminiModels(res.Body, agModels); ok {
 			res.Body = merged
@@ -107,6 +113,16 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 			// 只在确有条目被过滤时替换响应体；全命中或解析失败时保持原始响应，
 			// 统一经 writeUpstreamResponse 写出（保留全部上游响应头）。
 			res.Body = filtered
+		}
+	}
+	if !bytes.Equal(originalBody, res.Body) {
+		res.Headers = res.Headers.Clone()
+		if res.Headers == nil {
+			res.Headers = make(http.Header)
+		}
+		res.Headers.Set("Content-Type", "application/json")
+		for _, name := range []string{"Content-Length", "Content-Encoding", "ETag", "Content-MD5"} {
+			res.Headers.Del(name)
 		}
 	}
 	writeUpstreamResponse(c, res)
