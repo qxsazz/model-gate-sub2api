@@ -76,7 +76,7 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		return
 	}
 
-	account, err := h.geminiCompatService.SelectAccountForModelsEndpoints(c.Request.Context(), apiKey.GroupID)
+	sources, err := h.geminiCompatService.ReadModelsLists(c.Request.Context(), apiKey.GroupID)
 	if err != nil {
 		if len(agModels) > 0 {
 			c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
@@ -87,9 +87,18 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		return
 	}
 
-	res, err := h.geminiCompatService.ForwardListModels(c.Request.Context(), account)
-	if err != nil {
-		googleError(c, http.StatusBadGateway, err.Error())
+	for _, source := range sources {
+		status := 0
+		if source.Response != nil {
+			status = source.Response.StatusCode
+		}
+		if source.Err != nil || status != http.StatusOK {
+			logger.L().Warn("gemini.models_discovery_source_failed", zap.Int64("account_id", source.AccountID), zap.Int("status", status), zap.Bool("transport_error", source.Err != nil))
+		}
+	}
+	res := combineGeminiModelsSources(sources)
+	if res == nil {
+		googleError(c, http.StatusBadGateway, "上游模型列表暂时不可用，请稍后重试或联系管理员检查上游账号")
 		return
 	}
 	if shouldFallbackGeminiModels(res) {
@@ -124,6 +133,12 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		for _, name := range []string{"Content-Length", "Content-Encoding", "ETag", "Content-MD5"} {
 			res.Headers.Del(name)
 		}
+	}
+	// Authentication already succeeded for the user's site Key. An upstream
+	// credential failure must not tell them to replace that valid site Key.
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		googleError(c, http.StatusBadGateway, "上游模型列表认证或权限异常，请联系管理员检查上游账号；无需更换本站 Key")
+		return
 	}
 	writeUpstreamResponse(c, res)
 }

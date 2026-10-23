@@ -4,9 +4,11 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -17,6 +19,60 @@ import (
 )
 
 const canvasGeminiOpenAIModels = `{"object":"list","data":[{"id":"gemini-3.1-flash-lite-image","object":"model"},{"id":"gemini-3.1-flash-image-preview","object":"model"},{"id":"gemini-nano-banana-2.1","object":"model"},{"id":"gemini-3-pro-image-preview","object":"model"}]}`
+
+type geminiDiscoveryUpstream struct{ service.HTTPUpstream }
+
+func (u *geminiDiscoveryUpstream) Do(req *http.Request, proxy string, id int64, concurrency int) (*http.Response, error) {
+	status, body := 200, `{"models":[{"name":"models/gemini-allowed-image","displayName":"native metadata"},{"name":"models/blocked-image"}]}`
+	switch id {
+	case 1:
+		status, body = 401, `{"error":{"message":"invalid upstream credential"}}`
+	case 2:
+		status, body = 403, `{"error":{"message":"upstream quota exhausted"}}`
+	case 3:
+		body = `{"object":"list","data":[{"id":"gemini-allowed-image"},{"id":"gemini-extra-image"}]}`
+	}
+	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+}
+
+func TestCanvasGeminiDiscoverySkipsFailedSourcesAndAppliesWhitelist(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		h, key := geminiModelsNormalizationFixture(t, 200, "", service.GroupModelAllowlist{Enabled: enabled, Models: []string{"gemini-allowed-image"}}, false)
+		accounts := make([]service.Account, 4)
+		for i := range accounts {
+			accounts[i] = service.Account{ID: int64(i + 1), Platform: service.PlatformGemini, Type: service.AccountTypeAPIKey, Priority: i, Credentials: map[string]any{"api_key": "upstream-key"}}
+		}
+		repo := &geminiAllowlistAccountRepoStub{gatewayModelsAccountRepoStub: gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{*key.GroupID: accounts}}}
+		h.geminiCompatService = service.NewGeminiMessagesCompatService(repo, nil, nil, nil, nil, nil, &geminiDiscoveryUpstream{}, nil, &config.Config{})
+		// A fresh site Key uses the same authenticated broker as the UI.
+		gateway := gin.New()
+		gateway.Use(func(c *gin.Context) { c.Set(string(middleware.ContextKeyAPIKey), key); c.Next() })
+		gateway.GET("/v1beta/models", h.GeminiV1BetaListModels)
+		canvas := &CanvasHandler{keys: service.NewAPIKeyService(&dailyUsageAPIKeyRepoStub{keys: map[int64]*service.APIKey{key.ID: key}}, nil, nil, nil, nil, nil, &config.Config{}), maxBody: 1024, gateway: gateway}
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: key.UserID})
+			c.Next()
+		})
+		router.GET("/api/v1/canvas/gateway/:key_id/*path", canvas.Gateway)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/canvas/gateway/479/gemini/models", nil))
+		require.Equal(t, 200, rec.Code, rec.Body.String())
+		var result struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+		if enabled {
+			require.Len(t, result.Models, 1)
+			require.Equal(t, "models/gemini-allowed-image", result.Models[0].Name)
+		} else {
+			require.Len(t, result.Models, 3)
+		}
+		require.NotContains(t, rec.Body.String(), "invalid upstream credential")
+	}
+}
 
 type geminiNormalizationHeaderUpstream struct{ geminiMixedModelsUpstream }
 
@@ -167,6 +223,11 @@ func TestGeminiModelsNormalizationHandlerErrorsRemainErrors(t *testing.T) {
 	for _, status := range []int{401, 403, 429, 500, 502, 503} {
 		for _, body := range []string{canvasGeminiOpenAIModels, `{"error":{"message":"upstream failure"}}`, `<html>upstream failure</html>`} {
 			rec := serveGeminiNormalizedModels(t, status, body, service.GroupModelAllowlist{}, true)
+			if status == 401 || status == 403 {
+				require.Equal(t, 502, rec.Code)
+				require.Contains(t, rec.Body.String(), "上游模型列表")
+				continue
+			}
 			require.Equal(t, status, rec.Code)
 			require.Equal(t, body, rec.Body.String(), "non-200 results must not be normalized or merged")
 		}

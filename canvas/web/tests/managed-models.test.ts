@@ -43,3 +43,19 @@ test("image-disabled groups do not gain usable image models", async () => {
     expect(useConfigStore.getState().config.channels[0].models).toEqual([]);
     expect(useConfigStore.getState().config.imageModel).toBe("");
 });
+
+test("a refreshed allowlist removes saved models outside the server catalogue", async () => {
+    const allowed = "gemini-3.1-flash-image-preview";
+    fetchedNames = [allowed];
+    useConfigStore.setState({ config: {
+        ...defaultConfig,
+        channels: [{ id: "479-gemini", name: "saved", baseUrl: "", apiKey: "", apiFormat: "gemini", modelsConfigured: true, models: [
+            { name: "gemini-nano-banana-2.1", capability: "image" },
+            { name: allowed, capability: "image" },
+        ] }],
+        imageModel: "479-gemini::gemini-nano-banana-2.1",
+    } });
+    expect(await refreshManagedModels()).toEqual([]);
+    expect(useConfigStore.getState().config.channels[0].models.map((m) => m.name)).toEqual([allowed]);
+    expect(useConfigStore.getState().config.imageModel).toBe("479-gemini::" + allowed);
+});
