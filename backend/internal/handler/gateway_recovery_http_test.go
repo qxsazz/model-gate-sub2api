@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -72,23 +73,33 @@ func TestGatewayRecoveryHTTPUnsupportedModelDoesNotQueue(t *testing.T) {
 	require.Equal(t, 1, repo.selectorCalls())
 }
 
-func TestGatewayRecoveryHTTP503SwitchesHealthyBeforeReturningError(t *testing.T) {
-	h, _, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_429")
-	defer cleanup()
-	h.cfg.Gateway.Recovery = recoveryTestConfig().Gateway.Recovery
-	h.maxAccountSwitches = 0
-	upstream.rateLimitIDs = nil
-	upstream.failureStatus = map[int64]int{801: 503}
-	w := recoveryHTTPRequest(router, "/openai/v1/responses", `{"model":"grok","input":"hello","stream":false}`)
-	require.Equal(t, 200, w.Code, w.Body.String())
-	hits := upstream.accountHits()
-	require.Contains(t, hits, int64(801))
-	require.Equal(t, int64(802), hits[len(hits)-1])
-	require.LessOrEqual(t, len(hits), 12)
+func TestGatewayRecoveryHTTPTransient5xxSwitchesHealthyBeforeReturningError(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable} {
+		for _, tc := range []struct{ path, body string }{
+			{"/openai/v1/responses", `{"model":"grok","input":"hello","stream":false}`},
+			{"/openai/v1/chat/completions", `{"model":"grok","messages":[{"role":"user","content":"hello"}],"stream":false}`},
+			{"/openai/v1/messages", `{"model":"grok","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`},
+		} {
+			t.Run(strconv.Itoa(status)+tc.path, func(t *testing.T) {
+				h, _, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_429")
+				defer cleanup()
+				h.cfg.Gateway.Recovery = recoveryTestConfig().Gateway.Recovery
+				h.maxAccountSwitches = 0
+				upstream.rateLimitIDs = nil
+				upstream.failureStatus = map[int64]int{801: status}
+				w := recoveryHTTPRequest(router, tc.path, tc.body)
+				require.Equal(t, 200, w.Code, w.Body.String())
+				hits := upstream.accountHits()
+				require.Contains(t, hits, int64(801))
+				require.Equal(t, int64(802), hits[len(hits)-1])
+				require.LessOrEqual(t, len(hits), 12)
+			})
+		}
+	}
 }
 
-func TestGatewayRecoveryWebSocketFirstSelectionAnd503Recover(t *testing.T) {
-	for _, scenario := range []string{"first selection busy", "upstream 503"} {
+func TestGatewayRecoveryWebSocketFirstSelectionAndTransient5xxRecover(t *testing.T) {
+	for _, scenario := range []string{"first selection busy", "upstream 502", "upstream 503"} {
 		t.Run(scenario, func(t *testing.T) {
 			h, repo, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_429")
 			defer cleanup()
@@ -98,7 +109,11 @@ func TestGatewayRecoveryWebSocketFirstSelectionAnd503Recover(t *testing.T) {
 			if scenario == "first selection busy" {
 				repo.unavailableSelections = 1
 			} else {
-				upstream.failureStatus = map[int64]int{801: 503}
+				status := http.StatusServiceUnavailable
+				if scenario == "upstream 502" {
+					status = http.StatusBadGateway
+				}
+				upstream.failureStatus = map[int64]int{801: status}
 			}
 			server := httptest.NewServer(router)
 			defer server.Close()
