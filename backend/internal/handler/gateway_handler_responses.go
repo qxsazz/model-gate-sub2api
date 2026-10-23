@@ -185,6 +185,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
 	// 3. Account selection + failover loop
+	defer beginTextGatewayRecovery(c, h.cfg, apiKey, reqStream, &streamStarted, reqModel, body)()
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 
 	for {
@@ -195,6 +196,12 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("gateway.responses.account_select_aborted_client_disconnected", zap.Error(err))
+				return
+			}
+			if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, reqModel, effectiveAPIKeyPlatform(c, apiKey), fs.FailedAccountIDs) {
+				continue
+			}
+			if failoverClientGone(c) {
 				return
 			}
 			if len(fs.FailedAccountIDs) == 0 {
@@ -226,6 +233,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				return
 			}
 		}
+		releaseGatewayRecoveryWait(c)
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -349,7 +357,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 					h.handleResponsesFailoverExhausted(c, failoverErr, true)
 					return
 				}
-				action := fs.HandleFailoverError(requestCtx, h.gatewayService, account.ID, account.Platform, account.GetPoolModeRetryCount(), failoverErr)
+				action := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, account.GetPoolModeRetryCount(), failoverErr)
 				switch action {
 				case FailoverContinue:
 					continue
@@ -386,6 +394,10 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 
 // responsesErrorResponse writes an error in OpenAI Responses API format.
 func (h *GatewayHandler) responsesErrorResponse(c *gin.Context, status int, code, message string) {
+	if gatewayRecoveryOnlyHeartbeat(c) {
+		h.handleStreamingAwareErrorWithCode(c, status, "server_error", code, message, true)
+		return
+	}
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    code,

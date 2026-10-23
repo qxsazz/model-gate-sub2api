@@ -141,6 +141,7 @@ docs/*
 !docs/cicd-ui-handoff.md
 !docs/gateway-client-error-messages.zh.md
 !docs/gemini-canvas-model-list-fix.md
+!docs/gateway-recovery.zh.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

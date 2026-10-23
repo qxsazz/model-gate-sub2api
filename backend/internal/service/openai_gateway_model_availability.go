@@ -53,6 +53,8 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 		return ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 
+	recoveryCtx := s.withOpenAIProfitControlGate(ctx, groupID)
+	recoveryAllowed := !s.checkChannelPricingRestriction(ctx, groupID, requestedModel)
 	diag := ModelAvailabilityDiagnosis{}
 	for i := range accounts {
 		diag.HasAccountsInPool = true
@@ -65,7 +67,10 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 		// mapping must match.
 		if accounts[i].IsModelSupported(requestedModel) {
 			diag.HasModelSupport = true
-			return diag
+			vetoed, _ := openAIProfitControlVetoReason(recoveryCtx, &accounts[i])
+			if accountCanRecoverCapacity(&accounts[i]) && !vetoed && recoveryAllowed {
+				diag.RecoveryAccountIDs = append(diag.RecoveryAccountIDs, accounts[i].ID)
+			}
 		}
 	}
 	return diag

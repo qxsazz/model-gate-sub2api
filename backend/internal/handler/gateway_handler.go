@@ -240,6 +240,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	// Track if we've started streaming (for error handling)
 	streamStarted := false
+	defer beginTextGatewayRecovery(c, h.cfg, apiKey, reqStream, &streamStarted, reqModel, body)()
 
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	if h.errorPassthroughService != nil {
@@ -354,6 +355,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					reqLog.Info("gateway.account_select_aborted_client_disconnected", zap.Error(err))
 					return
 				}
+				if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, reqModel, service.PlatformGemini, fs.FailedAccountIDs) {
+					continue
+				}
+				if failoverClientGone(c) {
+					return
+				}
 				if len(fs.FailedAccountIDs) == 0 {
 					cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, service.PlatformGemini)
 					if !cls.ModelNotFound {
@@ -391,6 +398,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 			}
+			releaseGatewayRecoveryWait(c)
 			account := selection.Account
 			setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -685,6 +693,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					reqLog.Info("gateway.account_select_aborted_client_disconnected", zap.Error(err))
 					return
 				}
+				if tryGatewaySelectionRecovery(c, err, h.gatewayService, currentAPIKey, reqModel, platform, fs.FailedAccountIDs) {
+					continue
+				}
+				if failoverClientGone(c) {
+					return
+				}
 				if len(fs.FailedAccountIDs) == 0 {
 					cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, reqModel, reqModel, platform)
 					if !cls.ModelNotFound {
@@ -723,6 +737,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 			}
+			releaseGatewayRecoveryWait(c)
 			account := selection.Account
 			setOpsSelectedAccount(c, account.ID, account.Platform)
 

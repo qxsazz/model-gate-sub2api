@@ -217,6 +217,15 @@ security:
 # 网关配置
 # =============================================================================
 gateway:
+  # Pre-output transient failure recovery; false restores legacy failover behavior.
+  recovery:
+    enabled: true
+    budget_seconds: 300
+    selection_wait_seconds: 120
+    max_attempts: 12
+    max_waiters: 256
+    max_waiters_per_group: 64
+    max_waiters_per_user: 2
   # Minimum max_output_tokens when converting Chat Completions or Anthropic requests to Responses (minimum 16, default 128)
   # Chat Completions 或 Anthropic 请求转换为 Responses 时的最小 max_output_tokens（最小 16，默认 128）
   min_output_tokens: 128

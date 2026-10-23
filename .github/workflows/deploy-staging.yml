@@ -113,3 +113,14 @@ jobs:
           cat deploy/sql/audit-key-policy.sql deploy/sql/verify-key-policy.sql deploy/sql/verify-canvas-runtime.sql | \
             ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
             "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
+
+      - name: Verify deployed gateway recovery configuration
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+        run: |
+          set -euo pipefail
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T sub2api sh" \
+            < deploy/scripts/verify-gateway-recovery.sh

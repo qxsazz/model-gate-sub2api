@@ -185,6 +185,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		selectionSessionHash = "gemini:" + selectionSessionHash
 	}
 	// 3. Account selection + failover loop
+	defer beginTextGatewayRecovery(c, h.cfg, apiKey, reqStream, &streamStarted, reqModel, body)()
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	if groupPlatform == service.PlatformGemini {
 		fs = NewFailoverState(h.maxAccountSwitchesGemini, false)
@@ -198,6 +199,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("gateway.cc.account_select_aborted_client_disconnected", zap.Error(err))
+				return
+			}
+			if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, reqModel, groupPlatform, fs.FailedAccountIDs) {
+				continue
+			}
+			if failoverClientGone(c) {
 				return
 			}
 			if len(fs.FailedAccountIDs) == 0 {
@@ -229,6 +236,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				return
 			}
 		}
+		releaseGatewayRecoveryWait(c)
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -403,6 +411,10 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 
 // chatCompletionsErrorResponse writes an error in OpenAI Chat Completions format.
 func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int, errType, message string) {
+	if gatewayRecoveryOnlyHeartbeat(c) {
+		h.handleStreamingAwareError(c, status, errType, message, true)
+		return
+	}
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"type":    errType,
@@ -414,6 +426,9 @@ func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int
 // handleCCFailoverExhausted writes a failover-exhausted error in CC format.
 func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *service.UpstreamFailoverError, streamStarted bool) {
 	if streamStarted {
+		if gatewayRecoveryOnlyHeartbeat(c) {
+			h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "server_error", "Service recovery exhausted", true)
+		}
 		return
 	}
 	if lastErr != nil {

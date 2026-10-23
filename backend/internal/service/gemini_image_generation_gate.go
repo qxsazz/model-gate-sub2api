@@ -92,3 +92,9 @@ func geminiModalitiesContainImage(modalities gjson.Result) bool {
 	})
 	return found
 }
+
+// IsGeminiImageGenerationIntent identifies generation requests that must keep
+// their existing task/idempotency semantics instead of using text recovery.
+func IsGeminiImageGenerationIntent(body []byte, models ...string) bool {
+	return isGeminiImageGenerationIntent(body, models...)
+}
