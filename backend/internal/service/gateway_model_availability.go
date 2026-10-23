@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
@@ -14,6 +15,8 @@ import (
 // on the "no available accounts" error path to distinguish 404
 // model_not_found from 503 service_unavailable.
 type ModelAvailabilityDiagnosis struct {
+	RecoveryAccountIDs []int64
+
 	// HasAccountsInPool is true if the group has at least one persistently
 	// eligible account on the queried platform (or, for Anthropic/Gemini, on
 	// the platform plus mixed-scheduled Antigravity accounts).
@@ -99,6 +102,8 @@ func (s *GatewayService) DiagnoseModelAvailabilityForPlatform(
 		return ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 
+	recoveryCtx := s.withGatewayProfitControlGate(ctx, groupID)
+	recoveryAllowed := !s.checkChannelPricingRestriction(ctx, groupID, requestedModel)
 	diag := ModelAvailabilityDiagnosis{}
 	for i := range accounts {
 		if useMixed && accounts[i].Platform == PlatformAntigravity && !accounts[i].IsMixedSchedulingEnabled() {
@@ -107,8 +112,18 @@ func (s *GatewayService) DiagnoseModelAvailabilityForPlatform(
 		diag.HasAccountsInPool = true
 		if s.isModelSupportedByAccountWithContext(ctx, &accounts[i], requestedModel) {
 			diag.HasModelSupport = true
-			return diag
+			if accountCanRecoverCapacity(&accounts[i]) && s.isGatewayAccountProfitEligible(recoveryCtx, &accounts[i]) && recoveryAllowed {
+				diag.RecoveryAccountIDs = append(diag.RecoveryAccountIDs, accounts[i].ID)
+			}
 		}
 	}
 	return diag
+}
+
+// Authentication failures and depleted quotas must not be treated as capacity
+// that will recover just by polling. The normal scheduler remains authoritative.
+func accountCanRecoverCapacity(a *Account) bool {
+	return a != nil && a.IsActive() && a.Schedulable &&
+		!(a.AutoPauseOnExpired && a.ExpiresAt != nil && !time.Now().Before(*a.ExpiresAt)) &&
+		!(a.SupportsAccountQuota() && a.IsQuotaExceeded())
 }

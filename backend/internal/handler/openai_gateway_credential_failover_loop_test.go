@@ -27,22 +27,27 @@ import (
 
 type grokCredentialHandlerRepo struct {
 	service.AccountRepository
-	mu             sync.Mutex
-	accounts       []service.Account
-	setErrorIDs    []int64
-	setTempIDs     []int64
-	rateLimitIDs   []int64
-	updateExtraIDs []int64
-	selectionCalls int
-	setErrorErr    error
-	setTempErr     error
-	missingOnGet   map[int64]bool
+	mu                    sync.Mutex
+	accounts              []service.Account
+	setErrorIDs           []int64
+	setTempIDs            []int64
+	rateLimitIDs          []int64
+	updateExtraIDs        []int64
+	unavailableSelections int
+	selectionCalls        int
+	setErrorErr           error
+	setTempErr            error
+	missingOnGet          map[int64]bool
 }
 
 func (r *grokCredentialHandlerRepo) ListSchedulableByPlatform(_ context.Context, platform string) ([]service.Account, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.selectionCalls++
+	if r.unavailableSelections > 0 {
+		r.unavailableSelections--
+		return nil, nil
+	}
 	out := make([]service.Account, 0, len(r.accounts))
 	for _, account := range r.accounts {
 		if account.Platform == platform && account.IsSchedulable() {

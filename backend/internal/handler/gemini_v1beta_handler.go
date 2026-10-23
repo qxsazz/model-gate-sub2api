@@ -566,6 +566,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			return
 		}
 	}
+	if cachedContentBinding == nil {
+		defer beginTextGatewayRecovery(c, h.cfg, apiKey, stream, &streamStarted, modelName, body)()
+	}
 	fs := NewFailoverState(maxAccountSwitches, hasBoundSession)
 
 	// 单账号分组首次 503 就不设模型限流标记，避免设 29s 限流导致后续请求连续快速失败；
@@ -599,6 +602,16 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				googleError(c, http.StatusServiceUnavailable, geminiCachedContentUnavailableMessage)
 				return
 			}
+			diagRecoveryPlatform := service.PlatformGemini
+			if effectiveAPIKeyPlatform(c, apiKey) == service.PlatformAntigravity {
+				diagRecoveryPlatform = service.PlatformAntigravity
+			}
+			if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, modelName, diagRecoveryPlatform, fs.FailedAccountIDs) {
+				continue
+			}
+			if failoverClientGone(c) {
+				return
+			}
 			if len(fs.FailedAccountIDs) == 0 {
 				diagPlatform := service.PlatformGemini
 				if p := effectiveAPIKeyPlatform(c, apiKey); p == service.PlatformAntigravity {
@@ -629,6 +642,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				return
 			}
 		}
+		releaseGatewayRecoveryWait(c)
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -949,6 +963,13 @@ func googlePlatformError(c *gin.Context, status int, message string) {
 // googleErrorWithType 以 Google 错误格式回写错误，并向 ops 登记错误类型与错误码（Google 错误体没有 type 字段），
 // 与 Claude / OpenAI 格式错误同口径分类；errType 为空时不登记。
 func googleErrorWithType(c *gin.Context, status int, errType, code, message string) {
+	if gatewayRecoveryOnlyHeartbeat(c) {
+		service.MarkOpsStreamFailure(c, errType, code, message, status)
+		c.SSEvent("", gin.H{"error": gin.H{"code": status, "message": message, "status": googleapi.HTTPStatusToGoogleStatus(status)}})
+		c.Writer.Flush()
+		return
+	}
+
 	service.SetOpsLocalErrorType(c, errType, code)
 	c.JSON(status, gin.H{
 		"error": gin.H{
