@@ -137,6 +137,7 @@ vite.config.js
 docs/*
 !docs/cicd.md
 !docs/cicd-release-runbook.md
+!docs/upstream-0.2.18-merge.md
 !docs/cicd-ui-handoff.md
 !docs/gateway-client-error-messages.zh.md
 !docs/PAYMENT.md
