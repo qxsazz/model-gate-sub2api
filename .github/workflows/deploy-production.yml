@@ -88,4 +88,37 @@ jobs:
             deploy/scripts/sub2api-deploy.sh \
             "$target:$PRODUCTION_DEPLOY_PATH/"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
-            "chmod 700 '$PRODUCTION_DEPLOY_PATH/sub2api-deploy.sh'; '$PRODUCTION_DEPLOY_PATH/sub2api-deploy.sh' verify-staging '$image'; '$PRODUCTION_DEPLOY_PATH/sub2api-deploy.sh' deploy production '$image'"
+            sh -s -- "$PRODUCTION_DEPLOY_PATH" "$image" <<'REMOTE'
+          set -eu
+          production_root="$1"
+          target_image="$2"
+          db_before=$(docker inspect sub2api-postgres --format '{{.Id}}|{{.State.StartedAt}}')
+          redis_before=$(docker inspect sub2api-redis --format '{{.Id}}|{{.State.StartedAt}}')
+          chmod 700 "$production_root/sub2api-deploy.sh"
+          "$production_root/sub2api-deploy.sh" verify-staging "$target_image"
+          "$production_root/sub2api-deploy.sh" deploy production "$target_image"
+          test "$(docker inspect sub2api --format '{{.Config.Image}}')" = "$target_image"
+          test "$db_before" = "$(docker inspect sub2api-postgres --format '{{.Id}}|{{.State.StartedAt}}')"
+          test "$redis_before" = "$(docker inspect sub2api-redis --format '{{.Id}}|{{.State.StartedAt}}')"
+          release_file=$(ls -1t "$production_root"/releases/deploy-*.env | head -n 1)
+          test "$(sed -n 's/^target_image=//p' "$release_file")" = "$target_image"
+          started_at=$(sed -n 's/^started_at=//p' "$release_file")
+          test -n "$started_at"
+          backup_file="$production_root/backups/postgres-$started_at.dump"
+          test -s "$backup_file"
+          docker exec -i sub2api-postgres pg_restore --list < "$backup_file" >/dev/null
+          printf 'production_backup=%s verified=true\n' "${backup_file##*/}"
+          printf 'production_database_containers_unchanged=true\n'
+          printf 'production_image=%s\n' "$target_image"
+          REMOTE
+
+      - name: Verify deployed gateway recovery configuration
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          PRODUCTION_DEPLOY_PATH: ${{ vars.PRODUCTION_DEPLOY_PATH || '/opt/sub2api' }}
+        run: |
+          set -euo pipefail
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose --project-name sub2api --env-file '$PRODUCTION_DEPLOY_PATH/.env' -f '$PRODUCTION_DEPLOY_PATH/docker-compose.yml' -f '$PRODUCTION_DEPLOY_PATH/docker-compose.cicd.yml' exec -T sub2api sh" \
+            < deploy/scripts/verify-gateway-recovery.sh
