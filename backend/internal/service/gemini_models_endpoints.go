@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
@@ -86,6 +89,73 @@ func (s *GeminiMessagesCompatService) SelectAccountForModelsEndpoints(ctx contex
 		return nil, errors.New("no available Gemini accounts")
 	}
 	return s.hydrateSelectedAccount(ctx, selected)
+}
+
+// GeminiModelsSource keeps discovery failures scoped to the upstream account.
+// A failed source must not hide a catalogue supplied by another eligible account.
+type GeminiModelsSource struct {
+	AccountID int64
+	Response  *UpstreamHTTPResult
+	Err       error
+}
+
+// ReadModelsLists reads a bounded set of schedulable accounts in the requested
+// group. It never changes account state or borrows accounts from another group.
+func (s *GeminiMessagesCompatService) ReadModelsLists(ctx context.Context, groupID *int64) ([]GeminiModelsSource, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	accounts, err := s.listSchedulableAccountsOnce(ctx, groupID, PlatformGemini, true)
+	if err != nil {
+		return nil, fmt.Errorf("query accounts failed: %w", err)
+	}
+	if len(accounts) == 0 {
+		return nil, errors.New("no available Gemini accounts")
+	}
+	accounts = slices.Clone(accounts)
+	slices.SortStableFunc(accounts, func(a, b Account) int {
+		if r := modelsEndpointAccountRank(&a) - modelsEndpointAccountRank(&b); r != 0 {
+			return r
+		}
+		if a.Priority < b.Priority {
+			return -1
+		}
+		if a.Priority > b.Priority {
+			return 1
+		}
+		if a.LastUsedAt == nil && b.LastUsedAt != nil {
+			return -1
+		}
+		if b.LastUsedAt == nil && a.LastUsedAt != nil {
+			return 1
+		}
+		if a.LastUsedAt != nil && b.LastUsedAt != nil {
+			return a.LastUsedAt.Compare(*b.LastUsedAt)
+		}
+		return 0
+	})
+	// Limit fan-out and total latency, including broken or slow model endpoints.
+	if len(accounts) > 12 {
+		accounts = accounts[:12]
+	}
+	results := make([]GeminiModelsSource, len(accounts))
+	var workers errgroup.Group
+	workers.SetLimit(3)
+	for i := range accounts {
+		workers.Go(func() error {
+			results[i].AccountID = accounts[i].ID
+			sourceCtx, sourceCancel := context.WithTimeout(ctx, 5*time.Second)
+			defer sourceCancel()
+			account, err := s.hydrateSelectedAccount(sourceCtx, &accounts[i])
+			if err != nil {
+				results[i].Err = err
+				return nil
+			}
+			results[i].Response, results[i].Err = s.ForwardListModels(sourceCtx, account)
+			return nil
+		})
+	}
+	_ = workers.Wait()
+	return results, nil
 }
 
 // modelsEndpointAccountRank 返回账号在模型接口选号中的优先级，数值越小越优先，顺序见 SelectAccountForModelsEndpoints。
@@ -272,7 +342,10 @@ func (s *GeminiMessagesCompatService) doGeminiModelsGET(req *http.Request, accou
 	defer func() { _ = resp.Body.Close() }()
 
 	bodyLimit := resolveModelsListReadLimit(s.cfg)
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
+	if err != nil {
+		return nil, fmt.Errorf("read upstream model list: %w", err)
+	}
 	if int64(len(body)) > bodyLimit {
 		return nil, fmt.Errorf("upstream model list response exceeds %d bytes", bodyLimit)
 	}

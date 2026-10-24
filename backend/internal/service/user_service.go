@@ -36,6 +36,7 @@ var (
 	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
 	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
 	ErrAvatarNotImage           = infraerrors.BadRequest("AVATAR_NOT_IMAGE", "avatar content must be an image")
+	ErrAvatarDimensionsTooLarge = infraerrors.BadRequest("AVATAR_DIMENSIONS_TOO_LARGE", "avatar dimensions must be at most 4096 pixels per side and 4 megapixels in total")
 	ErrIdentityProviderInvalid  = infraerrors.BadRequest("IDENTITY_PROVIDER_INVALID", "identity provider is invalid")
 	ErrIdentityRedirectInvalid  = infraerrors.BadRequest("IDENTITY_REDIRECT_INVALID", "identity redirect path is invalid")
 	ErrIdentityUnbindLastMethod = infraerrors.Conflict(
@@ -48,6 +49,8 @@ const (
 	maxNotifyEmails      = 3 // Maximum number of notification emails per user
 	maxInlineAvatarBytes = 100 * 1024
 	targetAvatarBytes    = 20 * 1024
+	maxAvatarDimension   = 4096
+	maxAvatarPixels      = 4 * 1024 * 1024
 
 	// User-level rate limiting for notify email verification codes
 	notifyCodeUserRateLimit  = 5
@@ -645,6 +648,9 @@ func normalizeInlineUserAvatarInput(raw string) (UpsertUserAvatarInput, error) {
 	if contentType == "" || !strings.HasPrefix(strings.ToLower(contentType), "image/") {
 		return UpsertUserAvatarInput{}, ErrAvatarNotImage
 	}
+	if len(encoded) > base64.StdEncoding.EncodedLen(maxInlineAvatarBytes) {
+		return UpsertUserAvatarInput{}, ErrAvatarTooLarge
+	}
 
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -673,6 +679,15 @@ func normalizeInlineUserAvatarInput(raw string) (UpsertUserAvatarInput, error) {
 }
 
 func compressInlineAvatar(decoded []byte) ([]byte, string, error) {
+	// Compressed byte limits do not bound decoder allocations. Read dimensions
+	// before image.Decode can allocate a full pixel buffer from untrusted input.
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(decoded))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+		return nil, "", ErrAvatarInvalid
+	}
+	if cfg.Width > maxAvatarDimension || cfg.Height > maxAvatarDimension || cfg.Width > maxAvatarPixels/cfg.Height {
+		return nil, "", ErrAvatarDimensionsTooLarge
+	}
 	src, _, err := image.Decode(bytes.NewReader(decoded))
 	if err != nil {
 		return nil, "", ErrAvatarInvalid

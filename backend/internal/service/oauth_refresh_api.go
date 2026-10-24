@@ -256,12 +256,7 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 	// 4. 执行平台特定刷新逻辑
 	attemptedAccount := snapshotOAuthRefreshAccount(freshAccount)
 	newCredentials, refreshErr := executor.Refresh(ctx, freshAccount)
-	ctxErr := ctx.Err()
-	if deadline, ok := ctx.Deadline(); ctxErr == nil && ok && !time.Now().Before(deadline) {
-		// Under CPU contention the context timer may not have run yet. The
-		// persistence boundary must still reject credentials returned too late.
-		ctxErr = context.DeadlineExceeded
-	}
+	ctxErr := oauthRefreshContextError(ctx)
 	if ctxErr != nil {
 		// A provider implementation may ignore cancellation and return late
 		// credentials. Never persist them after the attempt/cycle boundary.
@@ -470,4 +465,16 @@ func BuildClaudeAccountCredentials(tokenInfo *TokenInfo) map[string]any {
 		creds["scope"] = tokenInfo.Scope
 	}
 	return creds
+}
+
+// A context deadline can pass before its timer goroutine publishes Err(). Keep
+// the same deadline check at both refresh persistence paths under CPU pressure.
+func oauthRefreshContextError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }

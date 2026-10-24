@@ -4,12 +4,67 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
 )
+
+func TestReadDecompressedBodyRejectsOverflowInsteadOfTruncating(t *testing.T) {
+	for _, size := range []int{31, 32, 33} {
+		got, err := readDecompressedBody(strings.NewReader(strings.Repeat("x", size)), 32)
+		if size <= 32 {
+			if err != nil || len(got) != size {
+				t.Fatalf("size %d: got %d bytes, err %v", size, len(got), err)
+			}
+		} else {
+			var tooLarge *http.MaxBytesError
+			if !errors.As(err, &tooLarge) || tooLarge.Limit != 32 || got != nil {
+				t.Fatalf("overflow must fail without returning a partial body: %v", err)
+			}
+		}
+	}
+}
+
+func TestCompressedRequestOverflowKeepsOriginalRequestMetadata(t *testing.T) {
+	// Stream a highly compressible oversized body without allocating it in the
+	// test fixture. The existing implementation silently accepted its prefix.
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	block := bytes.Repeat([]byte(" "), 1<<20)
+	for written := int64(0); written <= maxDecompressedBodySize; written += int64(len(block)) {
+		if _, err := writer.Write(block); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := newRequestWithBody(t, compressed.Bytes(), "gzip")
+	originalLength := req.ContentLength
+	got, err := ReadRequestBodyWithPrealloc(req)
+	var tooLarge *http.MaxBytesError
+	if !errors.As(err, &tooLarge) || got != nil {
+		t.Fatalf("expected size error, got %v", err)
+	}
+	if req.ContentLength != originalLength || req.Header.Get("Content-Encoding") != "gzip" {
+		t.Fatal("failed decompression must not advertise a successful decoded request")
+	}
+}
+
+func TestReadDecompressedBodyPreservesReaderErrors(t *testing.T) {
+	_, err := readDecompressedBody(io.MultiReader(strings.NewReader("x"), failingBodyReader{}), 32)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("reader error lost: %v", err)
+	}
+}
+
+type failingBodyReader struct{}
+
+func (failingBodyReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
 
 const samplePayload = `{"model":"gpt-5.5","input":"hi","stream":false}`
 

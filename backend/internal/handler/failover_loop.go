@@ -204,7 +204,7 @@ func (s *FailoverState) HandleFailoverError(
 		return FailoverCanceled
 	}
 	s.LastFailoverErr = failoverErr
-	if failoverErr == nil || !failoverErr.ShouldRetryNextAccount() {
+	if failoverErr == nil || !failoverErr.ShouldRetryNextAccount() || !observeGatewayRecoveryFailure(ctx, accountID, failoverErr, retryLimit) {
 		return FailoverExhausted
 	}
 
@@ -227,8 +227,11 @@ func (s *FailoverState) HandleFailoverError(
 			zap.Int("same_account_retry_max", retryLimit),
 			zap.Duration("retry_delay", retryDelay),
 		)
-		if !sleepWithContext(ctx, retryDelay) {
-			return FailoverCanceled
+		if !waitGatewayRecovery(ctx, retryDelay) {
+			if ctx.Err() != nil {
+				return FailoverCanceled
+			}
+			return FailoverExhausted
 		}
 		return FailoverContinue
 	}
@@ -242,7 +245,7 @@ func (s *FailoverState) HandleFailoverError(
 	s.FailedAccountIDs[accountID] = struct{}{}
 
 	// 检查是否耗尽
-	if s.SwitchCount >= s.MaxSwitches {
+	if s.SwitchCount >= s.MaxSwitches && !gatewayRecoveryCanRetry(ctx, failoverErr) {
 		return FailoverExhausted
 	}
 
@@ -274,6 +277,12 @@ func (s *FailoverState) HandleFailoverError(
 // 返回 FailoverExhausted 时，调用方应返回错误响应。
 // 返回 FailoverCanceled 时，调用方应直接 return。
 func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAction {
+	if recoveryFromContext(ctx).active() {
+		if ctx.Err() != nil {
+			return FailoverCanceled
+		}
+		return FailoverExhausted
+	}
 	// 客户端已断开时选号失败是 context canceled 的必然结果，
 	// 不代表账号耗尽，直接按取消终止。
 	if ctx.Err() != nil {
