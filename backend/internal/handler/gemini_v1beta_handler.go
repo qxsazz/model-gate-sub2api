@@ -76,7 +76,7 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		return
 	}
 
-	account, err := h.geminiCompatService.SelectAccountForModelsEndpoints(c.Request.Context(), apiKey.GroupID)
+	sources, err := h.geminiCompatService.ReadModelsLists(c.Request.Context(), apiKey.GroupID)
 	if err != nil {
 		if len(agModels) > 0 {
 			c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(agModels)})
@@ -87,14 +87,29 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		return
 	}
 
-	res, err := h.geminiCompatService.ForwardListModels(c.Request.Context(), account)
-	if err != nil {
-		googleError(c, http.StatusBadGateway, err.Error())
+	for _, source := range sources {
+		status := 0
+		if source.Response != nil {
+			status = source.Response.StatusCode
+		}
+		if source.Err != nil || status != http.StatusOK {
+			logger.L().Warn("gemini.models_discovery_source_failed", zap.Int64("account_id", source.AccountID), zap.Int("status", status), zap.Bool("transport_error", source.Err != nil))
+		}
+	}
+	res := combineGeminiModelsSources(sources)
+	if res == nil {
+		googleError(c, http.StatusBadGateway, "上游模型列表暂时不可用，请稍后重试或联系管理员检查上游账号")
 		return
 	}
 	if shouldFallbackGeminiModels(res) {
 		c.JSON(http.StatusOK, gemini.ModelsListResponse{Models: filterGeminiModels(mergeGeminiModelLists(gemini.DefaultModels(), agModels))})
 		return
+	}
+	originalBody := res.Body
+	if res.StatusCode == http.StatusOK {
+		if normalized, ok := normalizeGeminiModelsBody(res.Body); ok {
+			res.Body = normalized
+		}
 	}
 	if res.StatusCode == http.StatusOK && len(agModels) > 0 {
 		if merged, ok := appendUpstreamGeminiModels(res.Body, agModels); ok {
@@ -108,6 +123,22 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 			// 统一经 writeUpstreamResponse 写出（保留全部上游响应头）。
 			res.Body = filtered
 		}
+	}
+	if !bytes.Equal(originalBody, res.Body) {
+		res.Headers = res.Headers.Clone()
+		if res.Headers == nil {
+			res.Headers = make(http.Header)
+		}
+		res.Headers.Set("Content-Type", "application/json")
+		for _, name := range []string{"Content-Length", "Content-Encoding", "ETag", "Content-MD5"} {
+			res.Headers.Del(name)
+		}
+	}
+	// Authentication already succeeded for the user's site Key. An upstream
+	// credential failure must not tell them to replace that valid site Key.
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		googleError(c, http.StatusBadGateway, "上游模型列表认证或权限异常，请联系管理员检查上游账号；无需更换本站 Key")
+		return
 	}
 	writeUpstreamResponse(c, res)
 }
@@ -328,6 +359,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		googleError(c, http.StatusBadRequest, "Invalid model in URL")
 		return
 	}
+	urlModel := modelName
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
 		modelName = strings.TrimSpace(resolvedModel)
 	}
@@ -358,14 +390,19 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 
-	if decision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
+	// 解析渠道级模型映射
+	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
+	reqModel := modelName // 保存映射前的原始模型名
+	if action != "countTokens" && geminiImageGenerationRejected(c, apiKey, body, urlModel, reqModel, channelMapping.MappedModel) {
+		googleError(c, http.StatusBadRequest, service.ImageGenerationPermissionMessage())
+		return
+	}
+
+	if decision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, reqModel, body); decision != nil && !decision.AllowNextStage {
 		googleSecurityAuditError(c, decision)
 		return
 	}
 
-	// 解析渠道级模型映射
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
-	reqModel := modelName // 保存映射前的原始模型名
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
 	}
@@ -544,14 +581,14 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			return
 		}
 	}
+	if cachedContentBinding == nil {
+		defer beginTextGatewayRecovery(c, h.cfg, apiKey, stream, &streamStarted, modelName, body)()
+	}
 	fs := NewFailoverState(maxAccountSwitches, hasBoundSession)
 
-	// 单账号分组提前设置 SingleAccountRetry 标记，让 Service 层首次 503 就不设模型限流标记。
-	// 避免单账号分组收到 503 (MODEL_CAPACITY_EXHAUSTED) 时设 29s 限流，导致后续请求连续快速失败。
-	if h.gatewayService.IsSingleAntigravityAccountGroup(c.Request.Context(), apiKey.GroupID) {
-		ctx := service.WithSingleAccountRetry(c.Request.Context(), true, h.metadataBridgeEnabled())
-		c.Request = c.Request.WithContext(ctx)
-	}
+	// 单账号分组首次 503 就不设模型限流标记，避免设 29s 限流导致后续请求连续快速失败；
+	// 是否单账号分组在 antigravity 账号遇到 503 或模型限流预检查时才判定。
+	c.Request = c.Request.WithContext(h.gatewayService.WithSingleAntigravityAccountGroupProbe(c.Request.Context(), apiKey.GroupID))
 
 	for {
 		excludedAccountIDs := fs.FailedAccountIDs
@@ -578,6 +615,16 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				reqLog.Info("gemini.cached_content.bound_account_unavailable", zap.Int64("account_id", cachedContentBinding.AccountID), zap.Error(err))
 				markOpsRoutingCapacityLimited(c)
 				googleError(c, http.StatusServiceUnavailable, geminiCachedContentUnavailableMessage)
+				return
+			}
+			diagRecoveryPlatform := service.PlatformGemini
+			if effectiveAPIKeyPlatform(c, apiKey) == service.PlatformAntigravity {
+				diagRecoveryPlatform = service.PlatformAntigravity
+			}
+			if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, modelName, diagRecoveryPlatform, fs.FailedAccountIDs) {
+				continue
+			}
+			if failoverClientGone(c) {
 				return
 			}
 			if len(fs.FailedAccountIDs) == 0 {
@@ -610,6 +657,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				return
 			}
 		}
+		releaseGatewayRecoveryWait(c)
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -930,6 +978,13 @@ func googlePlatformError(c *gin.Context, status int, message string) {
 // googleErrorWithType 以 Google 错误格式回写错误，并向 ops 登记错误类型与错误码（Google 错误体没有 type 字段），
 // 与 Claude / OpenAI 格式错误同口径分类；errType 为空时不登记。
 func googleErrorWithType(c *gin.Context, status int, errType, code, message string) {
+	if gatewayRecoveryOnlyHeartbeat(c) {
+		service.MarkOpsStreamFailure(c, errType, code, message, status)
+		c.SSEvent("", gin.H{"error": gin.H{"code": status, "message": message, "status": googleapi.HTTPStatusToGoogleStatus(status)}})
+		c.Writer.Flush()
+		return
+	}
+
 	service.SetOpsLocalErrorType(c, errType, code)
 	c.JSON(status, gin.H{
 		"error": gin.H{

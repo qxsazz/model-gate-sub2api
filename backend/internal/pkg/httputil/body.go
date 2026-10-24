@@ -168,29 +168,42 @@ func ReadLenientJSONRequestBodyWithPrealloc(req *http.Request, maxNormalizedByte
 func decompressRequestBody(encoding string, raw []byte) ([]byte, error) {
 	switch encoding {
 	case "zstd":
-		dec, err := zstd.NewReader(bytes.NewReader(raw))
+		dec, err := zstd.NewReader(bytes.NewReader(raw), zstd.WithDecoderMaxMemory(maxDecompressedBodySize), zstd.WithDecoderMaxWindow(maxDecompressedBodySize), zstd.WithDecoderConcurrency(1))
 		if err != nil {
 			return nil, err
 		}
 		defer dec.Close()
-		return io.ReadAll(io.LimitReader(dec, maxDecompressedBodySize))
+		return readDecompressedBody(dec, maxDecompressedBodySize)
 	case "gzip", "x-gzip":
 		gr, err := gzip.NewReader(bytes.NewReader(raw))
 		if err != nil {
 			return nil, err
 		}
 		defer func() { _ = gr.Close() }()
-		return io.ReadAll(io.LimitReader(gr, maxDecompressedBodySize))
+		return readDecompressedBody(gr, maxDecompressedBodySize)
 	case "deflate":
 		zr, err := zlib.NewReader(bytes.NewReader(raw))
 		if err != nil {
 			return nil, err
 		}
 		defer func() { _ = zr.Close() }()
-		return io.ReadAll(io.LimitReader(zr, maxDecompressedBodySize))
+		return readDecompressedBody(zr, maxDecompressedBodySize)
 	default:
 		return nil, errors.New("unsupported Content-Encoding")
 	}
+}
+
+// Never turn an oversized compressed request into a successful truncated body.
+// Keep a typed size error so callers can return their existing HTTP 413 response.
+func readDecompressedBody(reader io.Reader, limit int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, &http.MaxBytesError{Limit: limit}
+	}
+	return body, nil
 }
 
 // NormalizeLenientJSONRequestBody escapes raw control bytes that broken

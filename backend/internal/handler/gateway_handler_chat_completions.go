@@ -113,6 +113,10 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			"This group is restricted to Claude Code clients (/v1/messages only)")
 		return
 	}
+	if geminiImageGenerationRejected(c, apiKey, nil, reqModel, channelMapping.MappedModel) {
+		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", service.ImageGenerationPermissionMessage())
+		return
+	}
 
 	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.openAISecurityAuditError(c, decision)
@@ -181,6 +185,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		selectionSessionHash = "gemini:" + selectionSessionHash
 	}
 	// 3. Account selection + failover loop
+	defer beginTextGatewayRecovery(c, h.cfg, apiKey, reqStream, &streamStarted, reqModel, body)()
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	if groupPlatform == service.PlatformGemini {
 		fs = NewFailoverState(h.maxAccountSwitchesGemini, false)
@@ -194,6 +199,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("gateway.cc.account_select_aborted_client_disconnected", zap.Error(err))
+				return
+			}
+			if tryGatewaySelectionRecovery(c, err, h.gatewayService, apiKey, reqModel, groupPlatform, fs.FailedAccountIDs) {
+				continue
+			}
+			if failoverClientGone(c) {
 				return
 			}
 			if len(fs.FailedAccountIDs) == 0 {
@@ -225,6 +236,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				return
 			}
 		}
+		releaseGatewayRecoveryWait(c)
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -317,6 +329,44 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			accountReleaseFunc()
 		}
 
+		// 提交 usage 记录。成功路径与"流中断但 Forward 已观测到 usage 的部分结果"
+		// 错误路径共用；failover 错误恒定 result=nil，不会重复计费。
+		submitForwardUsage := func(result *service.ForwardResult) {
+			userAgent := c.GetHeader("User-Agent")
+			clientIP := ip.GetClientIP(c)
+			requestPayloadHash := service.HashUsageRequestPayload(body)
+			inboundEndpoint := GetInboundEndpoint(c)
+			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+
+			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+			sessionID := service.ExtractClientSessionID(c)
+			stampForwardRequestedReasoningEffort(result, service.RequestedReasoningEffortFromContext(c.Request.Context()))
+			h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+					Result:             result,
+					QuotaPlatform:      quotaPlatform,
+					APIKey:             apiKey,
+					User:               apiKey.User,
+					Account:            account,
+					Subscription:       subscription,
+					PricingAt:          pricingAt,
+					InboundEndpoint:    inboundEndpoint,
+					UpstreamEndpoint:   upstreamEndpoint,
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: requestPayloadHash,
+					APIKeyService:      h.apiKeyService,
+					SessionID:          sessionID,
+					ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
+				}); err != nil {
+					reqLog.Error("gateway.cc.record_usage_failed",
+						zap.Int64("account_id", account.ID),
+						zap.Error(err),
+					)
+				}
+			})
+		}
+
 		if err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
@@ -347,49 +397,24 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 				zap.Error(err),
 			)
+			if result != nil {
+				submitForwardUsage(result)
+			}
 			return
 		}
 
 		// 6. Record usage
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		sessionID := service.ExtractClientSessionID(c)
-		stampForwardRequestedReasoningEffort(result, service.RequestedReasoningEffortFromContext(c.Request.Context()))
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-				Result:             result,
-				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				PricingAt:          pricingAt,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				APIKeyService:      h.apiKeyService,
-				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
-			}); err != nil {
-				reqLog.Error("gateway.cc.record_usage_failed",
-					zap.Int64("account_id", account.ID),
-					zap.Error(err),
-				)
-			}
-		})
+		submitForwardUsage(result)
 		return
 	}
 }
 
 // chatCompletionsErrorResponse writes an error in OpenAI Chat Completions format.
 func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int, errType, message string) {
+	if gatewayRecoveryOnlyHeartbeat(c) {
+		h.handleStreamingAwareError(c, status, errType, message, true)
+		return
+	}
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"type":    errType,
@@ -401,6 +426,9 @@ func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int
 // handleCCFailoverExhausted writes a failover-exhausted error in CC format.
 func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *service.UpstreamFailoverError, streamStarted bool) {
 	if streamStarted {
+		if gatewayRecoveryOnlyHeartbeat(c) {
+			h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "server_error", "Service recovery exhausted", true)
+		}
 		return
 	}
 	if lastErr != nil {
