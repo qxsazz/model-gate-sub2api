@@ -180,3 +180,4 @@ canvas/web/dist/
 !canvas/web/tests/
 canvas/web/tests/*
 !canvas/web/tests/managed-models.test.ts
+!canvas/web/tests/task-history.test.ts

@@ -1,5 +1,5 @@
 import { IMAGE_BATCH_WAIT_MS, recoveredImagePhase, recoveredImageSlots } from "@/lib/image-task-recovery";
-import { getCanvasTasks, getTaskImages, taskPending, taskError, getTaskMediaError, retryTaskImages } from "@/lib/canvas-tasks";
+import { getCanvasTasks, getTaskImages, saveWorkbenchLog, taskPending, taskError, getTaskMediaError, retryTaskImages } from "@/lib/canvas-tasks";
 import { createCloudLogStore, notifyHost } from "@/lib/model-gate";
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -120,6 +120,9 @@ export default function ImagePage() {
 
     useEffect(() => {
         void refreshLogs();
+        const changed = () => { void refreshLogs(); };
+        window.addEventListener("mg-image-history-updated", changed);
+        return () => window.removeEventListener("mg-image-history-updated", changed);
     }, []);
 
     useEffect(() => {
@@ -338,7 +341,8 @@ export default function ImagePage() {
     };
 
     const saveLog = (log: GenerationLog) => {
-        void logStore.setItem(log.id, serializeLog(log)).then(refreshLogs);
+        void saveWorkbenchLog(serializeLog(log)).then(refreshLogs)
+            .catch(() => message.warning("生成记录暂时无法同步，任务状态以服务器为准，请稍后重试"));
     };
 
     const refreshLogs = async () => setLogs(await readStoredLogs());
@@ -372,7 +376,12 @@ export default function ImagePage() {
     const runGenerationSlot = async (index: number, snapshot: { text: string; config: AiConfig; references: ReferenceImage[]; batchId: string; batchCount: number }) => {
         const itemStartedAt = performance.now();
         try {
-            const options={taskContext:{source:"image-workbench",batchId:snapshot.batchId,batchSize:snapshot.batchCount,slot:snapshot.batchCount===1?0:index,config:{model:snapshot.config.model,imageModel:snapshot.config.model,quality:snapshot.config.quality,size:snapshot.config.size,count:String(snapshot.batchCount)}}};
+            const options = { taskContext: {
+                source: "image-workbench", batchId: snapshot.batchId, batchSize: snapshot.batchCount,
+                slot: snapshot.batchCount === 1 ? 0 : index,
+                references: snapshot.references.filter(item => item.storageKey).map(item => ({ ...item, dataUrl: "" })),
+                config: { model: snapshot.config.model, imageModel: snapshot.config.model, quality: snapshot.config.quality, size: snapshot.config.size, count: String(snapshot.batchCount) },
+            } };
             const result = snapshot.references.length ? await requestEdit(snapshot.config, snapshot.text, snapshot.references,options) : await requestGeneration(snapshot.config, snapshot.text,options);
             const image = result[0];
             if (!image) throw new Error(t("imageWorkbench.missingResult"));
@@ -802,6 +811,9 @@ function LogCard({ log, selected, active, onSelectedChange, onClick }: { log: Ge
                                 ))}
                             </div>
                         ) : null}
+                        {log.successCount > log.images.length && (
+                            <p className="mt-2 text-xs text-amber-700">已生成，图片暂未载入，可在“生成任务”中重新加载。</p>
+                        )}
                     </div>
                 </div>
                 <div className="grid justify-items-end gap-2">
