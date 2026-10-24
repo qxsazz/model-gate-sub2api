@@ -139,14 +139,45 @@ def parse_date(value: str) -> date | None:
         return None
 
 
+def validate_audit_report(audit: object) -> str | None:
+    # An unavailable registry or unsupported report must never look like a
+    # clean scan simply because iter_vulns has nothing to iterate over.
+    if not isinstance(audit, dict) or "error" in audit:
+        return "Audit did not complete successfully."
+    if not isinstance(audit.get("advisories"), dict) and not isinstance(audit.get("vulnerabilities"), dict):
+        return "Audit report has no supported vulnerability inventory."
+    metadata = audit.get("metadata")
+    counts = metadata.get("vulnerabilities") if isinstance(metadata, dict) else None
+    if not isinstance(counts, dict):
+        return "Audit report has no vulnerability counts."
+    for severity in HIGH_SEVERITIES:
+        count = counts.get(severity)
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return "Audit report has invalid vulnerability counts."
+    if counts["high"] + counts["critical"] > 0 and not any(
+        normalize_severity(severity) in HIGH_SEVERITIES
+        for _, severity, _, _ in iter_vulns(audit)
+    ):
+        return "Audit report is missing its High/Critical vulnerability details."
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--audit", required=True)
     parser.add_argument("--exceptions", required=True)
     args = parser.parse_args()
 
-    with open(args.audit, "r", encoding="utf-8") as handle:
-        audit = json.load(handle)
+    try:
+        with open(args.audit, "r", encoding="utf-8") as handle:
+            audit = json.load(handle)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"Cannot read audit report: {exc}\n")
+        return 1
+    report_error = validate_audit_report(audit)
+    if report_error:
+        sys.stderr.write(report_error + "\n")
+        return 1
 
     # 读取异常清单并建立索引，便于快速匹配包名 + advisory。
     exceptions = parse_exceptions(args.exceptions)

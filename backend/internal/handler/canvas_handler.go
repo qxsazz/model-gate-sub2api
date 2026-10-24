@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	mimepkg "mime"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -252,7 +253,18 @@ func (h *CanvasHandler) content(c *gin.Context, id string, admin bool) {
 			return
 		}
 	}
-	c.Header("Content-Type", mime)
+	// Upstream media MIME metadata is untrusted, including already archived
+	// rows. Active document formats must not execute in the console's origin.
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'")
+	mediaType, _, parseErr := mimepkg.ParseMediaType(mime)
+	passiveMedia := strings.HasPrefix(mediaType, "image/") || strings.HasPrefix(mediaType, "audio/") || strings.HasPrefix(mediaType, "video/")
+	if parseErr != nil || !passiveMedia || mediaType == "image/svg+xml" {
+		c.Header("Content-Type", "application/octet-stream")
+		c.Header("Content-Disposition", `attachment; filename="`+id+`"`)
+	} else {
+		c.Header("Content-Type", mime)
+	}
 	c.File(h.assetPath(id))
 }
 

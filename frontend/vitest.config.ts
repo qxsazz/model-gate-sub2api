@@ -4,6 +4,8 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
+  // Keep public asset URLs stable when Vitest transforms Vue templates.
+  build: { assetsInlineLimit: 0 },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
