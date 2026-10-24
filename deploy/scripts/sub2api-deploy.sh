@@ -82,6 +82,7 @@ healthcheck() {
 
 backup_postgres() {
   database_container="$1"
+  backup_file=""
   if ! docker inspect "$database_container" >/dev/null 2>&1; then
     return 0
   fi
@@ -134,6 +135,7 @@ environment=$environment
 previous_image=$previous
 previous_digest=$previous_digest
 target_image=$target
+backup_file=$backup_file
 started_at=$timestamp
 EOF
   chmod 600 "$release_file"

@@ -102,9 +102,11 @@ jobs:
           test "$redis_before" = "$(docker inspect sub2api-redis --format '{{.Id}}|{{.State.StartedAt}}')"
           release_file=$(ls -1t "$production_root"/releases/deploy-*.env | head -n 1)
           test "$(sed -n 's/^target_image=//p' "$release_file")" = "$target_image"
-          started_at=$(sed -n 's/^started_at=//p' "$release_file")
-          test -n "$started_at"
-          backup_file="$production_root/backups/postgres-$started_at.dump"
+          backup_file=$(sed -n 's/^backup_file=//p' "$release_file")
+          case "$backup_file" in
+            "$production_root"/backups/postgres-*.dump) ;;
+            *) echo 'release backup path is missing or unexpected' >&2; exit 1 ;;
+          esac
           test -s "$backup_file"
           docker exec -i sub2api-postgres pg_restore --list < "$backup_file" >/dev/null
           printf 'production_backup=%s verified=true\n' "${backup_file##*/}"
