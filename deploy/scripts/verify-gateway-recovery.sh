@@ -4,7 +4,7 @@ set -eu
 # Run inside the deployed application container. Only print these non-secret
 # recovery settings; never dump the environment or application configuration.
 if [ "${GATEWAY_RECOVERY_ENABLED:-}" != true ]; then
-  echo 'gateway recovery must be enabled for combined staging acceptance' >&2
+  echo 'gateway recovery must be enabled for combined deployment acceptance' >&2
   exit 1
 fi
 
