@@ -92,9 +92,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.4'
-      - name: Test managed model discovery and selection
+      - name: Test managed models and task history recovery
         working-directory: canvas/web
-        run: bun test tests/managed-models.test.ts
+        run: bun run test
       - name: Check and build hosted canvas
         working-directory: canvas/web
         run: npm run typecheck && npm run build

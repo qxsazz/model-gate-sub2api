@@ -21,6 +21,7 @@ export type CanvasTask = {
         model?: string;
         prompt?: string;
         config?: { model?: string; imageModel?: string; quality?: string; size?: string; count?: string };
+        references?: Array<{ id: string; name: string; type: string; dataUrl: string; storageKey?: string }>;
     };
     response_status: number;
     result: unknown;
@@ -155,6 +156,14 @@ export async function retryTaskImages(task: CanvasTask) {
     catch (error) { mediaErrors.set(task.id, "任务已完成，图片暂不可用，请稍后重新加载"); throw error; }
     finally { window.dispatchEvent(new Event("mg-tasks-updated")); }
 }
+export async function saveWorkbenchLog<T extends { id: string }>(log: T) {
+    await refreshCanvasTasks();
+    // Only plugin generations without a hosted task use the request callback's
+    // outcome. Hosted histories must not be overwritten by media handling errors.
+    if (!tasks.some(task => (task.metadata.batchId || task.id) === log.id)) {
+        await logs.setItem(log.id, log);
+    }
+}
 export async function refreshCanvasTasks() {
     const value = await listHostedImageTasks<CanvasTask>();
     tasks = value.tasks;
@@ -164,8 +173,13 @@ export async function refreshCanvasTasks() {
     loading = true;
     try {
         receiptIds ||= new Set<string>();
+        type History = { images?: TaskImage[]; references?: unknown[]; [key: string]: unknown };
+        const history = new Map<string, History>();
         let historyError: unknown;
-        try { await receipts.iterate((_value, id) => receiptIds!.add(id)); }
+        try {
+            await receipts.iterate((_value, id) => receiptIds!.add(id));
+            await logs.iterate<History, void>((value, id) => { history.set(id, value); });
+        }
         catch (error) { historyError = error; }
         const latestWorkbench = tasks.find((t) => t.metadata.source !== "canvas");
         const latestBatch = latestWorkbench?.metadata.batchId || latestWorkbench?.id;
@@ -173,7 +187,9 @@ export async function refreshCanvasTasks() {
             const project = useCanvasStore.getState().projects.find((p) => p.id === t.metadata.projectId);
             const referenced = project?.nodes.some((n) => n.metadata?.generationTaskIds?.[t.metadata.imageId || "primary"] === t.id);
             const id = t.metadata.batchId || t.id;
-            if ((t.metadata.source === "canvas" && !referenced) || (t.metadata.source !== "canvas" && (receiptIds.has(id) || historyError) && id !== latestBatch)) continue;
+            const saved = history.get(id);
+            const needsHistoryImage = saved && (saved.status === "failed" || (saved.images?.length || 0) < Number(saved.successCount || 0));
+            if ((t.metadata.source === "canvas" && !referenced) || (t.metadata.source !== "canvas" && (receiptIds.has(id) || historyError) && id !== latestBatch && !needsHistoryImage)) continue;
             if (t.status !== "completed" || images.has(t.id) || mediaErrors.has(t.id)) continue;
             try {
                 await loadTaskImages(t);
@@ -190,20 +206,23 @@ export async function refreshCanvasTasks() {
         }
         for (const [id, group] of groups) {
             if (
-                receiptIds.has(id) ||
+                (receiptIds.has(id) && !history.has(id)) || // Respect histories explicitly deleted by the user.
                 group.some(taskPending) ||
-                group.length < (group[0].metadata.batchSize || 1) ||
-                group.some((t) => t.status === "completed" && !images.has(t.id) && !mediaErrors.has(t.id))
+                group.length < (group[0].metadata.batchSize || 1)
             )
                 continue;
             const meta = group[0].metadata;
             const output = group.flatMap((t) => getTaskImages(t.id));
+            const previous = history.get(id);
+            // Generation outcome comes from the server, never from a media read/save.
+            const successCount = group.filter(t => t.status === "completed").length;
             const count = meta.batchSize || group.length;
             const created = Date.parse(group.map((t) => t.created_at).sort()[0]);
             const model = meta.model || "";
             const prompt = meta.prompt || "";
             const config = { model, imageModel: model, quality: "auto", size: "auto", ...meta.config, count: String(count) };
-            await logs.setItem(id, {
+            const record = {
+                ...previous,
                 id,
                 createdAt: created,
                 title: prompt.slice(0, 12),
@@ -211,18 +230,24 @@ export async function refreshCanvasTasks() {
                 time: new Date(created).toLocaleString(),
                 model,
                 config,
-                references: [],
+                references: previous?.references || meta.references || [],
                 durationMs: Math.max(...group.map(task=>Date.parse(task.updated_at))) - created,
-                successCount: output.length,
-                failCount: count - output.length,
+                successCount,
+                failCount: count - successCount,
                 imageCount: count,
                 size: config.size,
                 quality: config.quality,
-                status: output.length ? "success" : "failed",
-                images: output.map((image) => ({ ...image, dataUrl: "" })),
-            });
-            await receipts.setItem(id, true);
-            receiptIds.add(id);
+                status: successCount ? "success" : "failed",
+                images: output.length >= (previous?.images?.length || 0) ? output.map((image) => ({ ...image, dataUrl: "" })) : previous!.images,
+            };
+            if (JSON.stringify(record) !== JSON.stringify(previous)) {
+                await logs.setItem(id, record);
+                window.dispatchEvent(new Event("mg-image-history-updated"));
+            }
+            if (!receiptIds.has(id)) {
+                await receipts.setItem(id, true);
+                receiptIds.add(id);
+            }
         }
         const state = useCanvasStore.getState();
         if (state.hydrated)
