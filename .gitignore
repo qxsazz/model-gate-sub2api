@@ -144,6 +144,8 @@ docs/*
 !docs/gateway-recovery.zh.md
 !docs/gateway-recovery-loadtest.zh.md
 !docs/project-security-review-2026-10-23.zh.md
+!docs/admin-api-keys.md
+!docs/upstream-0.2.19-merge.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

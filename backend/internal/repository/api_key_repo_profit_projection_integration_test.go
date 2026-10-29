@@ -25,6 +25,8 @@ func TestGetByKeyForAuthCarriesProfitControlProjection(t *testing.T) {
 		Name:                 fmt.Sprintf("profit-proj-group-%d", suffix),
 		Platform:             service.PlatformOpenAI,
 		RateMultiplier:       0.06,
+		AllowImageGeneration: true,
+		ImageCountBilling:    true,
 		ProfitControlEnabled: true,
 		ProfitMinMargin:      0.2,
 		ProfitSafetyBuffer:   0.05,
@@ -53,6 +55,8 @@ func TestGetByKeyForAuthCarriesProfitControlProjection(t *testing.T) {
 	require.NotNil(t, got.Group, "认证查询必须带出分组")
 
 	require.Equal(t, service.PlatformOpenAI, got.Group.Platform)
+	require.True(t, got.Group.AllowImageGeneration)
+	require.True(t, got.Group.ImageCountBilling, "按张计费必须与 MG 利润策略一同进入认证投影")
 	require.InDelta(t, 0.06, got.Group.RateMultiplier, 1e-9)
 	require.True(t, got.Group.ProfitControlEnabled, "profit_control_enabled 必须进入认证投影（投影漏列会让门静默失效）")
 	require.InDelta(t, 0.2, got.Group.ProfitMinMargin, 1e-9)

@@ -81,6 +81,12 @@ const {
 
 const localeRef = vi.hoisted(() => ({ value: "zh-CN" }));
 
+// This view suite exercises parent settings. The key editor has its own API
+// tests; mounting it here would make an unrelated real HTTP request per case.
+vi.mock("@/components/admin/settings/AdminAccessKeysSettings.vue", () => ({
+  default: { template: "<div />" },
+}));
+
 vi.mock("@/api", () => ({
   adminAPI: {
     settings: {
