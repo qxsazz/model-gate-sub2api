@@ -8,12 +8,15 @@ usage() {
   echo "Usage: $0 deploy <staging|production> <ghcr-image@sha256:digest>" >&2
   echo "       $0 verify-staging <ghcr-image@sha256:digest>" >&2
   echo "       $0 status <staging|production>" >&2
+  echo "       $0 sync-image <staging|production> (persist the running image without restarting)" >&2
   exit 2
 }
 
 valid_digest() {
   case "$1" in
-    ghcr.io/qxsazz/model-gate-sub2api@sha256:????????????????????????????????????????????????????????????????) return 0 ;;
+    ghcr.io/qxsazz/model-gate-sub2api@sha256:????????????????????????????????????????????????????????????????)
+      digest="${1##*@sha256:}"
+      case "$digest" in *[!0-9a-f]*) return 1 ;; *) return 0 ;; esac ;;
     *) return 1 ;;
   esac
 }
@@ -54,6 +57,47 @@ configure_environment() {
 compose() {
   # shellcheck disable=SC2086
   docker compose --project-name "$project" --env-file "$env_file" $compose_args "$@"
+}
+
+# Replace only the image assignment, preserving credentials and file permissions.
+# A same-directory rename ensures readers never see a partially written .env.
+persist_image() (
+  pinned_image="$1"
+  valid_digest "$pinned_image" || exit 1
+  [ -f "$env_file" ] && [ ! -L "$env_file" ] || exit 1
+  umask 077
+  image_tmp="$(mktemp "$root/.env.image.XXXXXX")" || exit 1
+  trap 'rm -f "$image_tmp"' EXIT
+  trap 'exit 1' HUP INT TERM
+  cp -p "$env_file" "$image_tmp" || exit 1
+  awk -v image="$pinned_image" '
+    /^[[:space:]]*(export[[:space:]]+)?SUB2API_IMAGE[[:space:]]*=/ {
+      if (!written++) print "SUB2API_IMAGE=" image
+      next
+    }
+    { print }
+    END { if (!written) print "SUB2API_IMAGE=" image }
+  ' "$env_file" > "$image_tmp" || exit 1
+  mv "$image_tmp" "$env_file" || exit 1
+)
+
+verify_image_configuration() (
+  expected_image="$1"
+  [ "$(current_image)" = "$expected_image" ] || exit 1
+  # Shell variables override --env-file; explicitly exclude that false positive.
+  unset SUB2API_IMAGE
+  configured_images="$(compose config --images sub2api)" || exit 1
+  printf '%s\n' "$configured_images" | grep -Fx "$expected_image" >/dev/null
+)
+
+sync_image() {
+  configure_environment "$1"
+  running_image="$(current_image)"
+  valid_digest "$running_image" || { echo "running image is not a pinned deployment digest" >&2; return 1; }
+  healthcheck || return 1
+  persist_image "$running_image" || return 1
+  verify_image_configuration "$running_image" || return 1
+  printf 'image_config=ok\n'
 }
 
 current_image() {
@@ -99,6 +143,7 @@ verify_staging() {
   [ -f "$env_file" ] || { echo "staging .env is missing" >&2; exit 1; }
   actual="$(current_image)"
   [ "$actual" = "$target" ] || { echo "staging image mismatch: $actual" >&2; exit 1; }
+  verify_image_configuration "$target" || { echo "staging persistent image configuration mismatch" >&2; exit 1; }
   healthcheck
 }
 
@@ -143,16 +188,25 @@ EOF
   rollback() {
     if [ -n "$previous" ]; then
       export SUB2API_IMAGE="$previous"
-      compose up -d --no-deps --force-recreate sub2api >/dev/null 2>&1 || true
+      compose up -d --no-deps --force-recreate sub2api >/dev/null 2>&1 || return 1
+      healthcheck || return 1
+      persist_image "$previous" || return 1
+      verify_image_configuration "$previous" || return 1
     fi
   }
 
   if ! compose up -d --no-deps --force-recreate sub2api; then
-    rollback
+    rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
     exit 1
   fi
   if ! healthcheck; then
-    rollback
+    rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
+    exit 1
+  fi
+
+  if ! persist_image "$target" || ! verify_image_configuration "$target"; then
+    echo "deployment image persistence failed" >&2
+    rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
     exit 1
   fi
 
@@ -165,5 +219,6 @@ case "$1" in
   deploy) [ "$#" -eq 3 ] || usage; deploy "$2" "$3" ;;
   verify-staging) [ "$#" -eq 2 ] || usage; verify_staging "$2" ;;
   status) [ "$#" -eq 2 ] || usage; status "$2" ;;
+  sync-image) [ "$#" -eq 2 ] || usage; sync_image "$2" ;;
   *) usage ;;
 esac

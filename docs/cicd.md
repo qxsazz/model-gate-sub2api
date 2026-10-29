@@ -94,11 +94,32 @@ images. Before deployment it validates the merged Compose configuration, saves
 a PostgreSQL dump when the database container exists, pulls the target image,
 updates only the application container, and checks both `/health` and `/`.
 If the application does not become healthy, it recreates the application with
-the previous image reference.
+the previous image reference. Successful releases atomically persist only
+`SUB2API_IMAGE` in the existing `.env`, preserving other settings and file
+permissions. Rollback restores the running and persistent image together.
+Persistence or verification failure fails the deployment rather than recording
+a successful release. Verification unsets the temporary shell override before
+resolving Compose, so a stale `.env` cannot pass through that override.
 
 Production uses `deploy/docker-compose.production.override.yml` so the current
 production Compose file is not overwritten by CI. The override injects the
-target image digest only for the deployment command.
+target image digest during deployment; the successful digest is also saved in
+`.env` for later manual recreation. Existing production base Compose files
+should use `image: ${SUB2API_IMAGE:?SUB2API_IMAGE is required}` rather than a
+fixed legacy tag. This is a one-time host configuration migration, not a reason
+to replace production-specific settings with a generic Compose template.
+
+To align an existing environment with its currently running, healthy pinned
+image without pulling an image or recreating any container:
+
+```sh
+/opt/sub2api-staging/sub2api-deploy.sh sync-image staging
+/opt/sub2api/sub2api-deploy.sh sync-image production
+```
+
+Back up the configuration securely before this migration. `verify-staging`
+also checks that the persistent image agrees with the running image before
+production promotion. These commands do not remove historical images.
 
 ## Upstream updates
 
@@ -119,6 +140,7 @@ write so it can push the upgrade branch and open the pull request.
 ```bash
 sh -n deploy/scripts/sub2api-deploy.sh
 sh -n deploy/scripts/sub2api-staging-init.sh
+python -m unittest discover -s deploy/tests -p 'test_deploy_image.py'
 docker compose --env-file deploy/staging.env.example \
   -f deploy/docker-compose.local.yml \
   -f deploy/docker-compose.staging.yml config --quiet
