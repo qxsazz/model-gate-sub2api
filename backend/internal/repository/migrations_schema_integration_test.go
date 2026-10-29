@@ -59,6 +59,15 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "groups", "allow_live", "boolean", 0, false)
 	requireColumn(t, tx, "groups", "force_openai_fast", "boolean", 0, false)
 	requireColumn(t, tx, "groups", "free_openai_fast", "boolean", 0, false)
+	requireColumn(t, tx, "groups", "image_count_billing", "boolean", 0, false)
+	requireColumnDefaultContains(t, tx, "groups", "image_count_billing", "false")
+	requireColumn(t, tx, "scoped_admin_api_keys", "key_hash", "character varying", 64, false)
+	requireColumn(t, tx, "scoped_admin_api_keys", "revoked_at", "timestamp with time zone", 0, true)
+	var upgradeMigrations int
+	require.NoError(t, tx.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM schema_migrations WHERE filename IN (
+		'246_vip_bonus_and_discount_cap.sql', '246_enable_gemini_image_generation_groups.sql',
+		'247_scoped_admin_api_keys.sql', '248_group_image_count_billing.sql')`).Scan(&upgradeMigrations))
+	require.Equal(t, 4, upgradeMigrations, "MG VIP 和官方迁移必须全部保留且只执行一次")
 
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)
