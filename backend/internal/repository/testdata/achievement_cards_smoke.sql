@@ -4,6 +4,8 @@ BEGIN
  INSERT INTO users(email,password_hash,role,balance,created_at) VALUES('card-admin-'||gen_random_uuid()::text||'@example.com','fixture','admin',0,now()-interval '40 days') RETURNING id INTO actor;
  INSERT INTO users(email,password_hash,balance,created_at) VALUES('card-qa-'||gen_random_uuid()::text||'@example.com','fixture',0,now()-interval '40 days') RETURNING id INTO uid;
  INSERT INTO users(email,password_hash,balance,created_at) VALUES('card-empty-'||gen_random_uuid()::text||'@example.com','fixture',0,now()-interval '40 days') RETURNING id INTO missing_uid;
+ INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_snapshot,out_trade_no,paid_at,completed_at)
+ SELECT id,10,10,now(),'COMPLETED','alipay','{"currency":"CNY","recharge_principal":10}'::jsonb,gen_random_uuid()::text,now(),now() FROM unnest(ARRAY[uid,missing_uid]) AS t(id);
  UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true');
  INSERT INTO achievement_vip_history(effective_at,rules) VALUES(now()-interval '41 days','{"enabled":true,"tiers":[{"level":1,"threshold":100},{"level":2,"threshold":300}]}');
  INSERT INTO achievement_daily_history(effective_at,rewards) VALUES(now()-interval '41 days','[0.01,0.05,0.10,0.25,0.50,1.00]');

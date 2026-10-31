@@ -9,6 +9,7 @@
       </p>
       <p v-if="!state && !error" class="loading">正在读取你的成就记录…</p>
       <template v-if="state">
+        <AchievementRechargeNotice :access="rechargeAccess" :refreshing="accessRefreshing" @refresh="load" />
         <section class="hero account-summary">
           <div class="wear-panel equipped">
             <button
@@ -59,7 +60,7 @@
                   state.card_balance ?? 0
                 }}</strong
                 ><span>可用补签卡</span
-                ><button @click="goBackfill">去补签</button>
+                ><button :disabled="rechargeAccess.blocked" @click="goBackfill">去补签</button>
               </div>
             </div>
           </div>
@@ -186,7 +187,7 @@
               </div>
               <p class="policy-status" data-testid="current-cash-status">
                 {{
-                  state.today && state.cash_reason === 'eligible'
+                  rechargeAccess.blocked ? rechargeAccess.message : state.today && state.cash_reason === 'eligible'
                     ? '当前签到金额奖励已开放。'
                     : cashReason(state.cash_reason)
                 }}
@@ -194,7 +195,7 @@
               <button
                 data-testid="checkin"
                 class="gold-button primary"
-                :disabled="busy || !!state.today"
+                :disabled="busy || !!state.today || rechargeAccess.blocked"
                 @click="act('checkin')"
               >
                 {{
@@ -202,7 +203,7 @@
                     ? '正在处理…'
                     : state.today
                       ? '今日已签到 · 明天再见'
-                      : '立即签到'
+                      : rechargeAccess.blocked ? '暂不可签到，请核对资格' : '立即签到'
                 }}
               </button>
               <template v-if="state.today"
@@ -463,15 +464,19 @@
           左右滑动，查看本系列的 3 枚勋章
         </p>
         <ActivityExplorer
-          v-if="tab === 'activity'"
+          v-if="tab === 'activity' && !rechargeAccess.blocked"
           id="activity-tasks"
           :group="activityGroup"
           :goal="nextActivityMedal"
           :series-reward="visibleSeries[0]?.reward"
           :passes="state.passes"
           @updated="load"
+          @access-required="refreshRestrictedAccess"
           @show-series="documentScrollSeries"
         />
+        <p v-else-if="tab === 'activity'" class="fine-print" role="status">
+          当前暂不可访问题目或答题，已通过的活动记录和徽章进度仍保留。请在页面上方核对充值资格。
+        </p>
         <p v-if="tab === 'token'" class="fine-print">
           成长进度从本功能启用后开始累计，以成功提交的付费文本计费为准，缓存
           Token
@@ -601,7 +606,7 @@
               </div>
               <button
                 class="gold-button primary"
-                :disabled="busy || !cardPreview?.available || !cardCommand"
+                :disabled="busy || rechargeAccess.blocked || !cardPreview?.available || !cardCommand"
                 @click="spendCard"
               >
                 {{
@@ -619,7 +624,7 @@
             class="day-makeup-action"
           >
             <span>今日签到权益 ${{ money(state.daily_amount) }}</span
-            ><button class="primary" :disabled="busy" @click="checkinFromDate">
+            ><button class="primary" :disabled="busy || rechargeAccess.blocked" @click="checkinFromDate">
               {{ busy ? '正在处理…' : '立即签到' }}
             </button>
           </div>
@@ -768,6 +773,8 @@ import '@/components/achievements/achievement-ui.css'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MedalArt from '@/components/achievements/MedalArt.vue'
 import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
+import AchievementRechargeNotice from '@/components/achievements/AchievementRechargeNotice.vue'
+import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
 import {
   dayIndex,
@@ -797,6 +804,9 @@ const auth = useAuthStore(),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
 const requestKey = ref(crypto.randomUUID())
+const accessRefreshing = ref(false)
+const requireAccessConfirmation = ref(false)
+const rechargeAccess = computed(() => achievementRechargeAccess(state.value, requireAccessConfirmation.value))
 const cardDialog = ref<HTMLDialogElement>()
 const cardDay = ref(''),
   cardError = ref('')
@@ -946,6 +956,7 @@ const dayString = (n: number) =>
   viewMonth.value + '-' + String(n).padStart(2, '0')
 function canBackfillDate(day: string) {
   return (
+    !rechargeAccess.value.blocked &&
     !!state.value?.card_min_date &&
     !!state.value.card_max_date &&
     day >= state.value.card_min_date &&
@@ -1005,6 +1016,7 @@ const recordedCashReason = (reason: string) =>
     card_backfill: '已使用补签卡，奖励按漏签日历史权益即时补发。',
   })[reason] ?? reason
 function milestoneUnavailableReason() {
+  if (rechargeAccess.value.blocked) return rechargeAccess.value.message
   const reason = state.value?.milestone_cash_reason ?? state.value?.cash_reason
   return (
     (
@@ -1020,6 +1032,7 @@ function milestoneUnavailableReason() {
   )
 }
 function canClaim(m: Medal) {
+  if (rechargeAccess.value.blocked) return false
   if (m.card_reward) return m.unlocked && !m.preview && !m.card_claim
   return (
     m.unlocked &&
@@ -1031,6 +1044,7 @@ function canClaim(m: Medal) {
 }
 function canClaimSeries(s: AchievementSeries) {
   return (
+    !rechargeAccess.value.blocked &&
     s.unlocked &&
     !s.claim &&
     state.value?.milestone_cash_enabled &&
@@ -1069,7 +1083,7 @@ function focusBackfillCalendar() {
     ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 async function prepareCard() {
-  if (busy.value || !cardDay.value) return
+  if (busy.value || !cardDay.value || rechargeAccess.value.blocked) return
   busy.value = true
   clearCardPreview()
   try {
@@ -1084,12 +1098,13 @@ async function prepareCard() {
       }
   } catch (e) {
     cardError.value = errorMessage(e)
+    if (isAchievementAccessRestricted(e)) await refreshRestrictedAccess()
   } finally {
     busy.value = false
   }
 }
 async function spendCard() {
-  if (busy.value || !cardCommand.value || !cardPreview.value?.available) return
+  if (busy.value || rechargeAccess.value.blocked || !cardCommand.value || !cardPreview.value?.available) return
   busy.value = true
   cardError.value = ''
   try {
@@ -1103,6 +1118,7 @@ async function spendCard() {
     await load()
   } catch (e) {
     cardError.value = errorMessage(e)
+    if (isAchievementAccessRestricted(e)) await refreshRestrictedAccess()
     const failure = e as {
       code?: string
       response?: { data?: { code?: string } }
@@ -1125,9 +1141,14 @@ const errorMessage = (e: unknown) => {
   }
   return v.response?.data?.message ?? v.message ?? '暂时无法连接，请稍后重试'
 }
+let snapshotRequest = 0
 async function load() {
+  const request = ++snapshotRequest
+  accessRefreshing.value = true
   try {
-    state.value = await getAchievements()
+    const snapshot = await getAchievements()
+    if (request !== snapshotRequest) return
+    state.value = snapshot
     if (selected.value)
       selected.value =
         state.value.medals.find((m) => m.key === selected.value?.key) ?? null
@@ -1139,14 +1160,36 @@ async function load() {
       calendarMonth.value = ''
     error.value = ''
   } catch (e) {
-    error.value = errorMessage(e)
+    if (request === snapshotRequest) {
+      error.value = errorMessage(e)
+      if (state.value && rechargeAccess.value.supported) {
+        requireAccessConfirmation.value = true
+        state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+      }
+    }
+  } finally {
+    if (request === snapshotRequest) accessRefreshing.value = false
   }
+}
+async function refreshRestrictedAccess() {
+  requireAccessConfirmation.value = true
+  // Do not retain an old positive result if the authoritative write has been refused.
+  if (state.value) state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+  clearCardPreview()
+  await load()
+}
+function refreshAccessOnFocus() {
+  if (rechargeAccess.value.supported && !busy.value && !accessRefreshing.value) void load()
 }
 async function act(
   action: 'checkin' | 'claim' | 'claim_series' | 'equip',
   key?: string,
 ) {
   if (busy.value || !state.value) return
+  if (action !== 'equip' && rechargeAccess.value.blocked) {
+    actionError.value = rechargeAccess.value.message
+    return
+  }
   busy.value = true
   error.value = ''
   message.value = ''
@@ -1177,6 +1220,7 @@ async function act(
   } catch (e) {
     error.value = errorMessage(e)
     actionError.value = error.value
+    if (isAchievementAccessRestricted(e)) await refreshRestrictedAccess()
   } finally {
     busy.value = false
   }
@@ -1186,7 +1230,10 @@ function openDetail(m: Medal) {
   selected.value = m
   detailDialog.value?.showModal()
 }
-onMounted(load)
+onMounted(() => {
+  void load()
+  window.addEventListener('focus', refreshAccessOnFocus)
+})
 
 const activityName = computed(
   () => activityGroups.find((g) => g.key === activityGroup.value)?.name || '',
@@ -1346,7 +1393,10 @@ watch(message, (value) => {
       message.value = ''
     }, 6500)
 })
-onUnmounted(() => clearTimeout(toastTimer))
+onUnmounted(() => {
+  clearTimeout(toastTimer)
+  window.removeEventListener('focus', refreshAccessOnFocus)
+})
 
 function documentScrollSeries() {
   document

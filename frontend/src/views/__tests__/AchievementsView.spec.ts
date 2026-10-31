@@ -1,5 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils'
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import AchievementsView from '@/views/user/AchievementsView.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -51,6 +51,50 @@ function render() {
     },
   })
 }
+describe('achievement recharge access', () => {
+  let wrapper: ReturnType<typeof render> | undefined
+  const access = { access_unlocked: false, access_reason: 'recharge_required', minimum_recharge_cny: 10, qualified_recharge_cny: 9.99, remaining_recharge_cny: .01 }
+  beforeEach(() => vi.clearAllMocks())
+  afterEach(() => wrapper?.unmount())
+
+  it('disables checkin and topic access while retaining an equipped badge', async () => {
+    mocks.get.mockResolvedValue({ ...state, ...access, equipment: 'T01', medals: [{ key: 'T01', category: 'token', name: '星火', description: '', target: 1000000, progress: 1000000, unlocked: true, reward: .1, claim: null }] })
+    wrapper = render()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="checkin"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.wear-panel').text()).toContain('星火')
+    await wrapper.get('[data-testid="checkin"]').trigger('click')
+    expect(mocks.change).not.toHaveBeenCalled()
+    await wrapper.findAll('.achievement-tabs button')[3].trigger('click')
+    expect(wrapper.find('#activity-tasks').exists()).toBe(false)
+    expect(wrapper.text()).toContain('已通过的活动记录和徽章进度仍保留')
+  })
+
+  it('refreshes the backend result after payment instead of unlocking locally', async () => {
+    mocks.get.mockResolvedValueOnce({ ...state, ...access }).mockResolvedValueOnce({ ...state, ...access, access_unlocked: true, access_reason: 'eligible', qualified_recharge_cny: 10, remaining_recharge_cny: 0 })
+    wrapper = render()
+    await flushPromises()
+    await wrapper.get('.recharge-actions button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('有效充值门槛已满足')
+    expect(wrapper.get('[data-testid="checkin"]').attributes('disabled')).toBeUndefined()
+    expect(mocks.change).not.toHaveBeenCalled()
+  })
+
+  it('blocks a stale page after a recharge-required response even if rechecking fails', async () => {
+    mocks.get.mockResolvedValueOnce(state).mockRejectedValueOnce(new Error('核验服务暂不可用'))
+    mocks.change.mockRejectedValueOnce({ reason: 'ACHIEVEMENT_RECHARGE_REQUIRED', message: '有效充值未达标' })
+    wrapper = render()
+    await flushPromises()
+    await wrapper.get('[data-testid="checkin"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="checkin"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('无需重复充值')
+    expect(wrapper.find('.recharge-actions a').exists()).toBe(false)
+    expect(mocks.change).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('achievement checkin', () => {
   it('shows a lost claim response inside the detail dialog and retries the same command', async () => {
     HTMLDialogElement.prototype.showModal = vi.fn()

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func TestAchievementCheckinPaysActiveAccountWithoutRecentActivity(t *testing.T) {
+func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	_ = testEntClient(t)
 	ctx := context.Background()
 	tx, err := integrationDB.BeginTx(ctx, nil)
@@ -22,6 +22,7 @@ func TestAchievementCheckinPaysActiveAccountWithoutRecentActivity(t *testing.T) 
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	_, err = tx.ExecContext(ctx, `UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false}'::jsonb`)
 	require.NoError(t, err)
 	r := &userRepository{sql: tx}
@@ -49,6 +50,7 @@ func TestAchievementCheckinAccountingAndLifetimeClaim(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role,status,balance) VALUES($1,'fixture','user','active',0) RETURNING id`, fmt.Sprintf("achievement-%d@example.com", time.Now().UnixNano())).Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	_, e = tx.ExecContext(ctx, `UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true');`)
 	require.NoError(t, e)
 	_, e = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,1000)`, id, fmt.Sprint(id))
@@ -109,6 +111,7 @@ func TestAchievementActivityDistinctPassesAndImmutableReplay(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash) VALUES($1,'fixture') RETURNING id`, fmt.Sprintf("activity-%d@example.com", time.Now().UnixNano())).Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	r := &userRepository{sql: tx}
 	answers := json.RawMessage(`[0,1,2,0,1,2,0,1,2,0]`)
 	for i, topic := range []string{"intro", "endpoint", "request", "cost"} {
@@ -154,6 +157,7 @@ func TestAchievementConcurrentBudgetAndClaim(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		var id int64
 		require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role,status,balance) VALUES($1,'fixture','user','active',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+		seedAchievementRecharge(t, integrationDB, id, 10)
 		ids = append(ids, id)
 		_, e = integrationDB.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,1)`, id, uuid.NewString())
 		require.NoError(t, e)
@@ -278,6 +282,7 @@ func TestAchievementDailyPolicyTiersAndStreak(t *testing.T) {
 	for _, principal := range principals {
 		var id int64
 		require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash) VALUES($1,'fixture') RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+		seedAchievementRecharge(t, tx, id, 10)
 		ids = append(ids, id)
 		_, e = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,$3)`, id, uuid.NewString(), principal)
 		require.NoError(t, e)
