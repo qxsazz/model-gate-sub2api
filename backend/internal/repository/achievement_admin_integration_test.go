@@ -76,6 +76,7 @@ func TestAchievementAdminGrantCancelRestoreNeverDuplicatesCash(t *testing.T) {
 	var actor, id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role) VALUES($1,'fixture','admin') RETURNING id`, uuid.NewString()+"@example.com").Scan(&actor))
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	r := &userRepository{sql: tx}
 	c := service.AchievementAdminCommand{Key: "T01", Reason: "管理员核验授予", RequestKey: uuid.NewString(), GrantReward: true}
 	_, e = r.AdminAchievementMutation(ctx, actor, id, "grant", c)
@@ -140,6 +141,7 @@ func TestAchievementManualRechargeBadgeSurvivesAutomaticRefundUnequip(t *testing
 	var actor, id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role) VALUES($1,'fixture','admin') RETURNING id`, uuid.NewString()+"@example.com").Scan(&actor))
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash) VALUES($1,'fixture') RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	r := &userRepository{sql: tx}
 	_, e = r.AdminAchievementMutation(ctx, actor, id, "grant", service.AchievementAdminCommand{Key: "R01", Reason: "特别荣誉授予", RequestKey: uuid.NewString()})
 	require.NoError(t, e)

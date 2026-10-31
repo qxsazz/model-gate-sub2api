@@ -12,6 +12,7 @@ import (
 )
 
 var _ service.AchievementRepository = (*userRepository)(nil)
+var _ service.AchievementAccessRepository = (*userRepository)(nil)
 
 func (r *userRepository) SaveAchievementZodiac(ctx context.Context, id int64, zodiac string) error {
 	result, err := r.sql.ExecContext(ctx, `INSERT INTO achievement_preferences(user_id,zodiac)
@@ -34,6 +35,28 @@ func achievementError(err error) error {
 	var pg *pq.Error
 	if errors.As(err, &pg) {
 		switch pg.Message {
+		case "ACHIEVEMENT_RECHARGE_REQUIRED":
+			var access struct {
+				Minimum   float64 `json:"minimum_recharge_cny"`
+				Qualified float64 `json:"qualified_recharge_cny"`
+				Remaining float64 `json:"remaining_recharge_cny"`
+				Reason    string  `json:"access_reason"`
+			}
+			if e := json.Unmarshal([]byte(pg.Detail), &access); e != nil {
+				return infraerrors.New(503, "ACHIEVEMENT_ACCESS_UNAVAILABLE", "暂时无法核验充值资格，请稍后重试，无需重复充值")
+			}
+			message := fmt.Sprintf("累计有效充值满 ¥%.2f 后，可使用签到、答题活动和成就奖励。当前有效充值 ¥%.2f，还差 ¥%.2f。", access.Minimum, access.Qualified, access.Remaining)
+			if access.Reason == "payment_pending" {
+				message = "充值到账资格正在确认，请稍后刷新重试，无需重复支付。"
+			}
+			return infraerrors.Forbidden(pg.Message, message).WithMetadata(map[string]string{
+				"access_reason":        access.Reason,
+				"minimum_recharge_cny": fmt.Sprintf("%.2f", access.Minimum), "qualified_recharge_cny": fmt.Sprintf("%.2f", access.Qualified), "remaining_recharge_cny": fmt.Sprintf("%.2f", access.Remaining),
+			})
+		case "ACHIEVEMENT_ACCESS_UNAVAILABLE":
+			return infraerrors.New(503, pg.Message, "暂时无法核验充值资格，请稍后重试，无需重复充值")
+		case "ACHIEVEMENT_CONFIG_INVALID":
+			return infraerrors.BadRequest(pg.Message, "有效充值门槛须为正数，精确到人民币分，且不超过 100 万元")
 		case "ACHIEVEMENT_CARD_DATE_INVALID":
 			return infraerrors.BadRequest(pg.Message, "只能补签注册后、最近 30 天内的漏签日期，不含今天")
 		case "ACHIEVEMENT_CARD_INSUFFICIENT":
@@ -94,7 +117,7 @@ func (r *userRepository) achievementJSON(ctx context.Context, query string, args
 }
 func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (json.RawMessage, error) {
 	return r.achievementJSON(ctx, `WITH d AS (SELECT (clock_timestamp() AT TIME ZONE 'Asia/Shanghai')::date AS today),c AS (SELECT * FROM achievement_config WHERE id=true)
- SELECT jsonb_build_object(
+ SELECT achievement_access_snapshot($1)||jsonb_build_object(
  'date',d.today,'timezone','Asia/Shanghai','tier',achievement_tier($1),
  'joined_date',(u.created_at AT TIME ZONE 'Asia/Shanghai')::date,
  'companionship_days',GREATEST(d.today-(u.created_at AT TIME ZONE 'Asia/Shanghai')::date+1,1),
@@ -117,6 +140,11 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),
  'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key),'card_claim',(SELECT to_jsonb(cc) FROM achievement_card_claims cc WHERE cc.user_id=$1 AND cc.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
  ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
+}
+
+func (r *userRepository) EnsureAchievementAccess(ctx context.Context, id int64) error {
+	_, err := r.sql.ExecContext(ctx, `SELECT achievement_require_access($1,false)`, id)
+	return achievementError(err)
 }
 
 func (r *userRepository) AdminAchievementSnapshot(ctx context.Context, id int64) (json.RawMessage, error) {
@@ -164,7 +192,7 @@ func (r *userRepository) UseAchievementCard(ctx context.Context, id int64, c ser
 	return r.achievementJSON(ctx, `SELECT achievement_use_card($1,$2::jsonb)`, id, string(raw))
 }
 func (r *userRepository) AchievementConfig(ctx context.Context) (*service.AchievementConfig, error) {
-	raw, e := r.achievementJSON(ctx, `SELECT payload||jsonb_build_object('daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy)) FROM achievement_config WHERE id=true`)
+	raw, e := r.achievementJSON(ctx, `SELECT jsonb_build_object('minimum_recharge_cny',10)||payload||jsonb_build_object('daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy)) FROM achievement_config WHERE id=true`)
 	if e != nil {
 		return nil, e
 	}

@@ -12,6 +12,13 @@ vi.mock('@/api/achievements', () => ({
   submitActivityQuiz: mocks.submit,
 }))
 describe('activity receipt retry', () => {
+  it('asks the parent to recheck qualification when an old activity page loses access', async () => {
+    mocks.topics.mockRejectedValueOnce({ reason: 'ACHIEVEMENT_RECHARGE_REQUIRED', message: '有效充值不足' })
+    const wrapper = mount(ActivityExplorer, { props: { passes: [] } })
+    await flushPromises()
+    expect(wrapper.emitted('accessRequired')).toHaveLength(1)
+    wrapper.unmount()
+  })
   it('collapses passed tasks and resets the filter when the category changes', async () => {
     mocks.topics.mockResolvedValue([
       { kind: 'knowledge', key: 'intro', name: '初识平台', description: '' },

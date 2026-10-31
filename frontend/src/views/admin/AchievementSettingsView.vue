@@ -58,6 +58,11 @@
           <section class="ach-admin-section">
             <h2>用户即时领取</h2>
             <div class="ach-admin-fields">
+              <div v-if="config.minimum_recharge_cny !== undefined" class="ach-admin-field">
+                <label for="minimum-recharge">累计有效实付充值门槛（人民币）</label>
+                <input id="minimum-recharge" v-model.number="config.minimum_recharge_cny" type="number" min="0.01" max="1000000" step="0.01" class="input" :disabled="busy || config.minimum_recharge_cny === undefined" />
+                <p class="ach-admin-note">人民币元，允许多笔累计；手续费和赠送不计入，正常消费不降资格。门槛必须大于 0。</p>
+              </div>
               <div class="ach-admin-field">
                 <label for="daily-cash">每日签到金额奖励</label
                 ><Select
@@ -104,11 +109,12 @@
             <p class="ach-admin-note">
               用户签到或点击领取后立即入账，没有等待后台统一发放的奖励池。重复请求不重复入账，佩戴与领奖分别保存。
             </p>
-            <p class="ach-admin-note">
-              签到金额奖励面向开放范围内的正常账户，无需近期充值或消费。成就金额奖励仍需近
+            <p v-if="config.minimum_recharge_cny !== undefined" class="ach-admin-note">
+              签到、答题、领奖和补签卡须先达到服务端配置的人民币有效实付门槛，允许多笔累计并扣除已确认退款；赠送不计，正常消费不影响资格。门槛达标后，成就金额奖励仍需近
               30
               日有效充值或余额计费使用；管理员补签及授予属于单独的人工更正操作。
             </p>
+            <p v-else class="ach-admin-note">签到金额奖励面向开放范围内的正常账户；成就金额奖励仍需近期有效充值或余额计费使用。当前服务端未提供独立人民币充值门槛配置。</p>
           </section>
           <section class="ach-admin-section">
             <h2>实时发奖限制</h2>

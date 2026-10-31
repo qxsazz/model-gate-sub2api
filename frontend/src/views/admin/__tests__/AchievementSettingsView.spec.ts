@@ -82,6 +82,12 @@ function render() {
   })
 }
 describe('achievement administration', () => {
+  it('does not announce a recharge gate on an older backend', async () => {
+    const wrapper = render()
+    await flushPromises()
+    expect(wrapper.find('#minimum-recharge').exists()).toBe(false)
+    expect(wrapper.text()).toContain('当前服务端未提供独立人民币充值门槛配置')
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     m.config.mockResolvedValue({

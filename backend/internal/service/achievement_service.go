@@ -12,6 +12,7 @@ import (
 )
 
 type AchievementConfig struct {
+	MinimumRechargeCNY   *float64  `json:"minimum_recharge_cny,omitempty"`
 	DailyRewards         []float64 `json:"daily_rewards,omitempty"`
 	CashScope            string    `json:"cash_scope"`
 	BudgetEnabled        bool      `json:"budget_enabled"`
@@ -23,6 +24,12 @@ type AchievementConfig struct {
 }
 
 func (c AchievementConfig) Validate() error {
+	if c.MinimumRechargeCNY != nil {
+		amount := *c.MinimumRechargeCNY
+		if !finiteVIP(amount) || amount <= 0 || amount > 1000000 || math.Abs(amount*100-math.Round(amount*100)) > 0.000001 {
+			return infraerrors.BadRequest("ACHIEVEMENT_CONFIG_INVALID", "有效充值门槛须为正数，精确到人民币分，且不超过 100 万元")
+		}
+	}
 	if len(c.DailyRewards) > 0 {
 		if len(c.DailyRewards) != 6 {
 			return infraerrors.BadRequest("VIP_DAILY_POLICY_INVALID", "请填写普通会员及五个VIP等级的签到金额")
@@ -57,6 +64,18 @@ type AchievementRepository interface {
 	AchievementMutation(context.Context, int64, string, string, string, string) (json.RawMessage, error)
 	AchievementConfig(context.Context) (*AchievementConfig, error)
 	SaveAchievementConfig(context.Context, int64, AchievementConfig) error
+}
+
+type AchievementAccessRepository interface {
+	EnsureAchievementAccess(context.Context, int64) error
+}
+
+func (s *UserService) EnsureAchievementAccess(ctx context.Context, id int64) error {
+	repo, ok := s.userRepo.(AchievementAccessRepository)
+	if !ok {
+		return infraerrors.New(503, "ACHIEVEMENT_ACCESS_UNAVAILABLE", "暂时无法核验充值资格，请稍后重试，无需重复充值")
+	}
+	return repo.EnsureAchievementAccess(ctx, id)
 }
 
 func (s *UserService) achievementRepo() (AchievementRepository, error) {

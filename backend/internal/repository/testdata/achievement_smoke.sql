@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 INSERT INTO users(email,password_hash,role,status,balance) VALUES('achievement-smoke@example.com','fixture','user','active',0) RETURNING id AS uid \gset
+INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_snapshot,out_trade_no,paid_at,completed_at) VALUES(:uid,10,10,now(),'COMPLETED','alipay','{"currency":"CNY","recharge_principal":10}'::jsonb,gen_random_uuid()::text,now(),now());
 INSERT INTO vip_rules(id,payload) VALUES(true,'{"enabled":true,"tiers":[{"level":1,"threshold":100},{"level":2,"threshold":300},{"level":3,"threshold":600},{"level":4,"threshold":1500},{"level":5,"threshold":3000}]}') ON CONFLICT(id) DO UPDATE SET payload=excluded.payload;
 INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES(:uid,'admin_balance','achievement-smoke',300);
 SELECT achievement_checkin(:uid, (clock_timestamp() AT TIME ZONE 'Asia/Shanghai')::date::text, 'smoke-disabled') AS receipt \gset
