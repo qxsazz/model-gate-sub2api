@@ -72,7 +72,23 @@ func (h *UserHandler) GetAchievementAudit(c *gin.Context) {
 }
 
 func (h *UserHandler) GetAchievementTopics(c *gin.Context) {
+	if !h.ensureAchievementAccess(c) {
+		return
+	}
 	response.Success(c, service.AchievementTopics())
+}
+
+func (h *UserHandler) ensureAchievementAccess(c *gin.Context) bool {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return false
+	}
+	if err := h.userService.EnsureAchievementAccess(c.Request.Context(), subject.UserID); err != nil {
+		response.ErrorFrom(c, err)
+		return false
+	}
+	return true
 }
 
 func (h *UserHandler) SaveAchievementPreferences(c *gin.Context) {
@@ -95,6 +111,9 @@ func (h *UserHandler) SaveAchievementPreferences(c *gin.Context) {
 	response.Success(c, gin.H{"zodiac": *body.Zodiac})
 }
 func (h *UserHandler) GetAchievementQuiz(c *gin.Context) {
+	if !h.ensureAchievementAccess(c) {
+		return
+	}
 	v, e := service.AchievementQuiz(c.Param("kind"), c.Param("topic"))
 	if e != nil {
 		response.ErrorFrom(c, e)
@@ -103,6 +122,9 @@ func (h *UserHandler) GetAchievementQuiz(c *gin.Context) {
 	response.Success(c, v)
 }
 func (h *UserHandler) SubmitAchievementQuiz(c *gin.Context) {
+	if !h.ensureAchievementAccess(c) {
+		return
+	}
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -138,6 +160,9 @@ func (h *UserHandler) GetAchievements(c *gin.Context) {
 	response.Success(c, v)
 }
 func (h *UserHandler) PreviewAchievementCard(c *gin.Context) {
+	if !h.ensureAchievementAccess(c) {
+		return
+	}
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -151,6 +176,9 @@ func (h *UserHandler) PreviewAchievementCard(c *gin.Context) {
 	response.Success(c, v)
 }
 func (h *UserHandler) UseAchievementCard(c *gin.Context) {
+	if !h.ensureAchievementAccess(c) {
+		return
+	}
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -169,6 +197,9 @@ func (h *UserHandler) UseAchievementCard(c *gin.Context) {
 	response.Success(c, v)
 }
 func (h *UserHandler) ChangeAchievement(c *gin.Context) {
+	if c.Param("action") != "equip" && !h.ensureAchievementAccess(c) {
+		return
+	}
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")

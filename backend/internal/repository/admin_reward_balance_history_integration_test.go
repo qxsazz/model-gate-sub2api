@@ -88,6 +88,8 @@ func TestRewardBalanceHistoryPreservesOldRecordsAndNeverRecredits(t *testing.T) 
 	}
 	// New live payouts and retries appear automatically, once, without any
 	// history backfill job or extra writes triggered by the history endpoint.
+	exec(`INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_snapshot,out_trade_no,paid_at,completed_at)
+ VALUES($1,10,10,now(),'COMPLETED','alipay','{"currency":"CNY","recharge_principal":10}'::jsonb,$2,now(),now())`, uid, uuid.NewString())
 	exec(`UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","milestone_cash_enabled":true,"budget_enabled":false}'::jsonb`)
 	exec(`INSERT INTO achievement_growth(user_id,tokens,last_balance_paid_at) VALUES($1,1000000,now())`, uid)
 	exec(`INSERT INTO vip_reward_debt(user_id,amount) VALUES($1,.005)`, uid)

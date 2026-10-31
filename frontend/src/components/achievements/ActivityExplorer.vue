@@ -270,6 +270,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { isAchievementAccessRestricted } from './rechargeAccess'
 import MedalArt from './MedalArt.vue'
 import AchievementIcon from './AchievementIcon.vue'
 import './achievement-ui.css'
@@ -291,7 +292,7 @@ const props = withDefaults(
     }>(),
     { group: 'knowledge' },
   ),
-  emit = defineEmits<{ updated: []; showSeries: [] }>()
+  emit = defineEmits<{ updated: []; showSeries: []; accessRequired: [] }>()
 const hideCompleted = ref(false)
 const questionIndex = ref(0)
 const topics = ref<ActivityTopic[]>([]),
@@ -341,6 +342,7 @@ async function load() {
     error.value = ''
   } catch (e) {
     error.value = err(e)
+    if (isAchievementAccessRestricted(e)) emit('accessRequired')
   }
 }
 async function start(t: ActivityTopic) {
@@ -356,6 +358,7 @@ async function start(t: ActivityTopic) {
     dialog.value?.showModal()
   } catch (e) {
     error.value = err(e)
+    if (isAchievementAccessRestricted(e)) emit('accessRequired')
   } finally {
     busy.value = false
   }
@@ -374,6 +377,7 @@ async function submit() {
     emit('updated')
   } catch (e) {
     quizError.value = err(e)
+    if (isAchievementAccessRestricted(e)) emit('accessRequired')
   } finally {
     busy.value = false
   }

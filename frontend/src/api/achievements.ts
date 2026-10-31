@@ -52,7 +52,14 @@ export interface CardHistory {
   kind: 'claim' | 'use' | 'reclaim'
   day: string | null
 }
-export interface AchievementState {
+export interface AchievementAccessSnapshot {
+  access_unlocked?: boolean
+  minimum_recharge_cny?: number | string | null
+  qualified_recharge_cny?: number | string | null
+  remaining_recharge_cny?: number | string | null
+  access_reason?: string | null
+}
+export interface AchievementState extends AchievementAccessSnapshot {
   joined_date?: string
   companionship_days?: number
   zodiac?: string
@@ -86,6 +93,7 @@ export const saveAchievementZodiac = async (zodiac: string) =>
     })
   ).data
 export interface AchievementConfig {
+  minimum_recharge_cny?: number
   cash_scope: 'all' | 'allowlist'
   budget_enabled: boolean
   daily_rewards: number[]

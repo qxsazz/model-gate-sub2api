@@ -32,6 +32,7 @@ func TestAchievementOneCardConcurrentBackfill(t *testing.T) {
 	require.NoError(t, err)
 	var id int64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance,created_at) VALUES($1,'fixture',0,now()-interval '10 days') RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, integrationDB, id, 10)
 	today := service.CheckinDate(time.Now())
 	var spent float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COALESCE((SELECT spent FROM achievement_budget WHERE day=$1),0)`, today).Scan(&spent))
@@ -98,6 +99,7 @@ func TestAchievementCardsSeriesAndHistoricalBackfill(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance,created_at) VALUES($1,'fixture',0,now()-interval '10 days') RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	_, err = tx.ExecContext(ctx, `UPDATE vip_rules SET payload=jsonb_set(payload,'{enabled}','true'); UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false,"milestone_cash_enabled":false}'::jsonb;
  INSERT INTO achievement_vip_history(effective_at,rules) VALUES(now()-interval '40 days','{"enabled":true,"tiers":[{"level":1,"threshold":100},{"level":2,"threshold":300}]}');
  INSERT INTO achievement_daily_history(effective_at,rewards) VALUES(now()-interval '40 days','[0.01,0.05,0.10,0.25,0.50,1.00]')`)
@@ -172,6 +174,7 @@ func TestAchievementCardFailuresDoNotConsumeCards(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance,created_at) VALUES($1,'fixture',0,now()-interval '10 days') RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	seedAchievementRecharge(t, tx, id, 10)
 	_, err = tx.ExecContext(ctx, `INSERT INTO achievement_card_claims(user_id,key,amount) VALUES($1,'A-K01',1)`, id)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false}'::jsonb;
