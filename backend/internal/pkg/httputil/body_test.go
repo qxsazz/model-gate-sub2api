@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -15,7 +16,10 @@ import (
 
 func TestReadDecompressedBodyRejectsOverflowInsteadOfTruncating(t *testing.T) {
 	for _, size := range []int{31, 32, 33} {
-		got, err := readDecompressedBody(strings.NewReader(strings.Repeat("x", size)), 32)
+		budget := NewBodyMemoryBudget(2048)
+		ctx, release := WithRequestBodyMemoryBudget(context.Background(), budget)
+		decoded, err := readDecompressedBodyWithBudget(ctx, strings.NewReader(strings.Repeat("x", size)), 32)
+		got := decoded.data
 		if size <= 32 {
 			if err != nil || len(got) != size {
 				t.Fatalf("size %d: got %d bytes, err %v", size, len(got), err)
@@ -25,6 +29,13 @@ func TestReadDecompressedBodyRejectsOverflowInsteadOfTruncating(t *testing.T) {
 			if !errors.As(err, &tooLarge) || tooLarge.Limit != 32 || got != nil {
 				t.Fatalf("overflow must fail without returning a partial body: %v", err)
 			}
+		}
+		if err != nil && budget.used != 0 {
+			t.Fatalf("failed decompression leaked %d budget bytes", budget.used)
+		}
+		release()
+		if budget.used != 0 {
+			t.Fatalf("completed request leaked %d budget bytes", budget.used)
 		}
 	}
 }
@@ -56,9 +67,15 @@ func TestCompressedRequestOverflowKeepsOriginalRequestMetadata(t *testing.T) {
 }
 
 func TestReadDecompressedBodyPreservesReaderErrors(t *testing.T) {
-	_, err := readDecompressedBody(io.MultiReader(strings.NewReader("x"), failingBodyReader{}), 32)
+	budget := NewBodyMemoryBudget(2048)
+	ctx, release := WithRequestBodyMemoryBudget(context.Background(), budget)
+	defer release()
+	_, err := readDecompressedBodyWithBudget(ctx, io.MultiReader(strings.NewReader("x"), failingBodyReader{}), 32)
 	if !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("reader error lost: %v", err)
+	}
+	if budget.used != 0 {
+		t.Fatalf("failed read leaked %d budget bytes", budget.used)
 	}
 }
 

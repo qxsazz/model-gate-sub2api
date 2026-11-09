@@ -19,6 +19,7 @@ const {
   authStoreState,
   createTurnstileResetMock,
   verifyActionMock,
+  localeState,
 } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   showSuccessMock: vi.fn(),
@@ -34,6 +35,7 @@ const {
   apiClientPostMock: vi.fn(),
   createTurnstileResetMock: vi.fn(),
   verifyActionMock: vi.fn(),
+  localeState: { value: 'en' as 'en' | 'zh' },
   authStoreState: {
     pendingAuthSession: null as null | {
       token: string
@@ -53,25 +55,34 @@ vi.mock('vue-router', () => ({
   }),
 }))
 
-vi.mock('vue-i18n', () => ({
-  createI18n: () => ({
-    global: {
-      t: (key: string) => key,
-    },
-  }),
-  useI18n: () => ({
-    t: (key: string, params?: Record<string, string | number>) => {
-      if (key === 'auth.accountCreatedSuccess') {
-        return `Account created for ${params?.siteName ?? 'Sub2API'}`
-      }
-      if (key === 'auth.emailDomainRegistrationLimit') {
-        return '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
-      }
-      return key
-    },
-    locale: { value: 'en' },
-  }),
-}))
+vi.mock('vue-i18n', async () => {
+  const [{ default: en }, { default: zh }] = await Promise.all([
+    import('@/i18n/locales/en/common'),
+    import('@/i18n/locales/zh/common')
+  ])
+  const messages = { en, zh }
+  return {
+    createI18n: () => ({
+      global: {
+        t: (key: string) => key,
+      },
+    }),
+    useI18n: () => ({
+      t: (key: string, params?: Record<string, string | number>) => {
+        const auth = messages[localeState.value].auth
+        if (key === 'auth.errors.EMAIL_BLOCKED') return auth.errors.EMAIL_BLOCKED
+        if (key === 'auth.accountCreatedSuccess') {
+          return auth.accountCreatedSuccess.replace('{siteName}', String(params?.siteName ?? ''))
+        }
+        if (key === 'auth.emailDomainRegistrationLimit') {
+          return '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
+        }
+        return key
+      },
+      locale: localeState,
+    }),
+  }
+})
 
 vi.mock('@/stores', () => ({
   useAuthStore: () => ({
@@ -120,6 +131,7 @@ describe('EmailVerifyView', () => {
     apiClientPostMock.mockReset()
     createTurnstileResetMock.mockReset()
     verifyActionMock.mockReset()
+    localeState.value = 'en'
     authStoreState.pendingAuthSession = null
     sessionStorage.clear()
     localStorage.clear()
@@ -423,6 +435,65 @@ describe('EmailVerifyView', () => {
     expect(showErrorMock).toHaveBeenLastCalledWith(
       '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
     )
+  })
+
+  it.each([
+    ['en', 'send', 'This email address is not allowed. Please use a different one.', 'Account created successfully! Welcome to MODEL-GATE.'],
+    ['zh', 'send', '该邮箱不允许注册，请更换其他邮箱。', '账户创建成功！欢迎使用 MODEL-GATE。'],
+    ['en', 'register', 'This email address is not allowed. Please use a different one.', 'Account created successfully! Welcome to MODEL-GATE.'],
+    ['zh', 'register', '该邮箱不允许注册，请更换其他邮箱。', '账户创建成功！欢迎使用 MODEL-GATE。'],
+  ] as const)('localizes blocked %s verification at the %s step and preserves the MG welcome after recovery', async (locale, step, blockedMessage, welcome) => {
+    localeState.value = locale
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: false,
+      site_name: '',
+      registration_email_suffix_whitelist: [],
+    })
+    sessionStorage.setItem('register_data', JSON.stringify({ email: 'blocked@example.com', password: 'secret-123' }))
+    registerMock.mockResolvedValue({})
+    const blockedError = { code: 403, reason: 'EMAIL_BLOCKED', message: 'raw backend message' }
+    if (step === 'send') sendVerifyCodeMock.mockRejectedValueOnce(blockedError)
+    else registerMock.mockRejectedValueOnce(blockedError)
+
+    const wrapper = mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    if (step === 'register') {
+      await wrapper.get('#code').setValue('123456')
+      await wrapper.get('form').trigger('submit.prevent')
+      await flushPromises()
+    }
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(blockedMessage)
+    expect(showSuccessMock).not.toHaveBeenCalled()
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('register_data')).not.toBeNull()
+
+    if (step === 'send') {
+      expect(registerMock).not.toHaveBeenCalled()
+      const resend = wrapper.get('form button[type="button"]')
+      expect(resend.text()).toBe('auth.resendCode')
+      expect(resend.attributes('disabled')).toBeUndefined()
+      await resend.trigger('click')
+      await flushPromises()
+      expect(sendVerifyCodeMock).toHaveBeenCalledTimes(2)
+    }
+    await wrapper.get('#code').setValue('123456')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(showSuccessMock).toHaveBeenCalledWith(welcome)
+    expect(pushMock).toHaveBeenCalledWith('/dashboard')
+    expect(sessionStorage.getItem('register_data')).toBeNull()
+    wrapper.unmount()
   })
 
   // 域名限量注册开关默认关闭：恢复 PR5423 之前的客户端白名单预检，非白名单域名不发送验证码。

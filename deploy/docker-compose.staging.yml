@@ -7,6 +7,10 @@ services:
     container_name: sub2api-staging
     cpus: "1.0"
     mem_limit: 768m
+    environment:
+      # Shared allocation budget, including temporary body copies; this is not a per-request size limit.
+      # Leave headroom for SSE frames, application caches, connections and GC.
+      - GATEWAY_REQUEST_BODY_MEMORY_BUDGET_BYTES=${STAGING_GATEWAY_REQUEST_BODY_MEMORY_BUDGET_BYTES:-268435456}
     volumes:
       - ./data:/app/data
 

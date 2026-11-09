@@ -5,6 +5,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -31,6 +32,10 @@ func (r *scopedRouteKeys) InsertScopedAdminKey(_ context.Context, item *service.
 }
 func (r *scopedRouteKeys) GetScopedAdminKey(context.Context, string) (*service.ScopedAdminKey, error) {
 	return r.item, nil
+}
+func (r *scopedRouteKeys) UpdateScopedAdminKey(_ context.Context, item *service.ScopedAdminKey) error {
+	r.item = item
+	return nil
 }
 func (r *scopedRouteKeys) TouchScopedAdminKey(context.Context, string, string, time.Time, string, time.Time) error {
 	return nil
@@ -76,7 +81,7 @@ func (*scopedRouteAccounts) GetAccount(_ context.Context, id int64) (*service.Ac
 	}
 	return a, nil
 }
-func (s *scopedRouteAccounts) ScopedAdminList(context.Context, pagination.PaginationParams, string, string, string, string) ([]service.Account, int64, error) {
+func (s *scopedRouteAccounts) ScopedAdminList(context.Context, pagination.PaginationParams, string, string, string, string, int64) ([]service.Account, int64, error) {
 	s.t.Fatal("本测试中列表必须在权限准入阶段被拒绝")
 	return nil, 0, nil
 }
@@ -152,6 +157,71 @@ func TestScopedAdminRegisteredRoutesEnforceDefaultDenyAndAccountScope(t *testing
 			}
 		})
 	}
+}
+
+type scopedVIPRouteUsers struct {
+	scopedRouteUsers
+	service.VIPRepository
+	reads int
+}
+
+func (*scopedVIPRouteUsers) VIPSnapshot(context.Context, int64) (*service.VIPSnapshot, error) {
+	return &service.VIPSnapshot{}, nil
+}
+
+func (r *scopedVIPRouteUsers) VIPRules(context.Context) (service.VIPRules, error) {
+	r.reads++
+	return service.DefaultVIPRules(), nil
+}
+
+func TestMGAdminRouteRequiresExplicitFullAccessAndRevokesItOnDowngrade(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := context.Background()
+	keys := &scopedRouteKeys{}
+	settings := service.NewSettingService(nil, nil)
+	settings.SetScopedAdminKeyRepository(keys)
+	input := service.ScopedAdminKeyInput{Name: "MG权限边界", Enabled: true}
+	key, item, err := settings.CreateScopedAdminKey(ctx, input, 9)
+	require.NoError(t, err)
+	userRepo := &scopedVIPRouteUsers{}
+	users := service.NewUserService(userRepo, nil, nil, nil)
+	auth := middleware.NewAdminAuthMiddleware(nil, users, settings, nil)
+	router := gin.New()
+	RegisterAdminRoutes(router.Group("/api/v1"), &handler.Handlers{
+		User: handler.NewUserHandler(users, nil, nil, nil, nil, nil),
+		Admin: &handler.AdminHandlers{
+			Account: adminhandler.NewAccountHandler(&scopedRouteAccounts{t: t}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil),
+			Setting: adminhandler.NewSettingHandler(settings, nil, nil, nil, nil, nil, nil),
+		},
+	}, auth, middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }), middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil, nil)
+	readVIP := func(want int) {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/vip/rules", nil)
+		request.Header.Set("x-api-key", key)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		require.Equal(t, want, response.Code, response.Body.String())
+	}
+
+	readVIP(http.StatusForbidden)
+	require.Zero(t, userRepo.reads)
+	input.Policy.FullAccess = true
+	_, err = settings.UpdateScopedAdminKey(ctx, item.ID, input)
+	require.Error(t, err, "普通密钥不能隐式获得MG管理权限")
+	readVIP(http.StatusForbidden)
+
+	input.ConfirmFullAccess = true
+	_, err = settings.UpdateScopedAdminKey(ctx, item.ID, input)
+	require.NoError(t, err)
+	readVIP(http.StatusOK)
+	require.Equal(t, 1, userRepo.reads, "显式全权密钥应沿用真实MG处理器")
+
+	input.Policy.FullAccess = false
+	input.ConfirmFullAccess = false
+	_, err = settings.UpdateScopedAdminKey(ctx, item.ID, input)
+	require.NoError(t, err)
+	readVIP(http.StatusForbidden)
+	require.Equal(t, 1, userRepo.reads, "撤销全权后不能复用此前访问权限")
 }
 
 func TestScopedAdminRegisteredModelDefaultsRequireExplicitPermission(t *testing.T) {
