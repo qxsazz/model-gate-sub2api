@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -77,17 +75,7 @@ func signedThinkingHistoryBody() []byte {
 }
 
 func TestFilterThinkingBlocksSignedHistorySkipsDecode(t *testing.T) {
-	// AllocsPerRun counts allocations across the process, including background
-	// work left by unrelated service tests. Measure in a process running only
-	// this test so that the allocation limit still applies to the precheck.
-	const subprocessEnv = "SUB2API_THINKING_FILTER_ALLOC_SUBPROCESS"
-	if os.Getenv(subprocessEnv) != "1" {
-		executable, err := os.Executable()
-		require.NoError(t, err)
-		cmd := exec.CommandContext(t.Context(), executable, "-test.run=^"+t.Name()+"$", "-test.count=1")
-		cmd.Env = append(os.Environ(), subprocessEnv+"=1")
-		output, err := cmd.CombinedOutput()
-		require.NoError(t, err, "allocation subprocess failed: %s", output)
+	if runAllocationTestInSubprocess(t) {
 		return
 	}
 	body := signedThinkingHistoryBody()
