@@ -125,7 +125,8 @@ func TestGeminiReasoningCumulativeStreamsKeepIndependentTextAndSignatureState(t 
 				}
 				for key, dest := range map[string]*strings.Builder{"thinking": &thinking, "reasoning_content": &thinking, "text": &text, "content": &text, "signature": &signature} {
 					if value, ok := delta[key].(string); ok {
-						dest.WriteString(value)
+						_, err := dest.WriteString(value)
+						require.NoError(t, err)
 					}
 				}
 			}
