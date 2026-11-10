@@ -8,13 +8,15 @@ const {
   showErrorMock,
   pushMock,
   verifyActionMock,
-  appStoreMock
+  appStoreMock,
+  localeState
 } = vi.hoisted(() => ({
   getPublicSettingsMock: vi.fn(),
   registerMock: vi.fn(),
   showErrorMock: vi.fn(),
   pushMock: vi.fn(),
   verifyActionMock: vi.fn(),
+  localeState: { value: 'en' as 'en' | 'zh' },
   appStoreMock: {
     cachedPublicSettings: null as { promo_code_enabled?: boolean } | null,
     showError: (...args: unknown[]) => showErrorMock(...args),
@@ -45,20 +47,33 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {} })
 }))
 
-vi.mock('vue-i18n', () => ({
-  createI18n: () => ({
-    global: {
-      t: (key: string) => key
-    }
-  }),
-  useI18n: () => ({
-    t: (key: string) =>
-      key === 'auth.emailDomainRegistrationLimit'
-        ? '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
-        : key,
-    locale: { value: 'en' }
-  })
-}))
+vi.mock('vue-i18n', async () => {
+  const [{ default: en }, { default: zh }] = await Promise.all([
+    import('@/i18n/locales/en/common'),
+    import('@/i18n/locales/zh/common')
+  ])
+  const messages = { en, zh }
+  return {
+    createI18n: () => ({
+      global: {
+        t: (key: string) => key
+      }
+    }),
+    useI18n: () => ({
+      t: (key: string, params?: Record<string, string | number>) => {
+        const auth = messages[localeState.value].auth
+        if (key === 'auth.errors.EMAIL_BLOCKED') return auth.errors.EMAIL_BLOCKED
+        if (key === 'auth.accountCreatedSuccess') {
+          return auth.accountCreatedSuccess.replace('{siteName}', String(params?.siteName ?? ''))
+        }
+        return key === 'auth.emailDomainRegistrationLimit'
+          ? '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
+          : key
+      },
+      locale: localeState
+    })
+  }
+})
 
 vi.mock('@/stores', () => ({
   useAuthStore: () => ({ register: (...args: unknown[]) => registerMock(...args) }),
@@ -102,6 +117,8 @@ describe('RegisterView', () => {
     showErrorMock.mockReset()
     pushMock.mockReset()
     verifyActionMock.mockReset()
+    appStoreMock.showSuccess.mockClear()
+    localeState.value = 'en'
     appStoreMock.cachedPublicSettings = null
     sessionStorage.removeItem('register_data')
     verifyActionMock.mockResolvedValue({ token: 'ticket', randstr: 'randstr' })
@@ -281,6 +298,37 @@ describe('RegisterView', () => {
     expect(showErrorMock).toHaveBeenCalledWith(
       '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
     )
+  })
+
+  it.each([
+    ['en', 'This email address is not allowed. Please use a different one.', 'Account created successfully! Welcome to MODEL-GATE.'],
+    ['zh', '该邮箱不允许注册，请更换其他邮箱。', '账户创建成功！欢迎使用 MODEL-GATE。']
+  ] as const)('localizes blocked direct registration in %s and preserves the MG welcome on retry', async (locale, blockedMessage, welcome) => {
+    localeState.value = locale
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings,
+      turnstile_enabled: false,
+      site_name: ''
+    })
+    registerMock.mockRejectedValueOnce({ code: 403, reason: 'EMAIL_BLOCKED', message: 'raw backend message' })
+    const wrapper = mountRegister()
+    await flushPromises()
+    await wrapper.get('#email').setValue('blocked@example.com')
+    await wrapper.get('#password').setValue('secret-123')
+    await wrapper.get('#confirmPassword').setValue('secret-123')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(blockedMessage)
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(appStoreMock.showSuccess).not.toHaveBeenCalled()
+
+    await wrapper.get('#email').setValue('allowed@example.com')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(appStoreMock.showSuccess).toHaveBeenCalledWith(welcome)
+    expect(pushMock).toHaveBeenCalledWith('/dashboard')
+    wrapper.unmount()
   })
 
   // 域名限量注册开关默认关闭：恢复 PR5423 之前的客户端白名单预检，非白名单域名不发起注册请求。

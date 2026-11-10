@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -80,13 +81,71 @@ func TestGeminiReasoningStreamingProtocolMappings(t *testing.T) {
 	})
 }
 
+func TestGeminiReasoningCumulativeStreamsKeepIndependentTextAndSignatureState(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	stream := `data: {"candidates":[{"content":{"parts":[{"text":"reason","thought":true,"thoughtSignature":"sig-1"}]}}]}` + "\n\n" +
+		`data: {"candidates":[{"content":{"parts":[{"text":"reasoning","thought":true,"thoughtSignature":"sig-1"}]}}]}` + "\n\n" +
+		`data: {"candidates":[{"content":{"parts":[{"text":"reason"}]}}]}` + "\n\n" +
+		`data: {"candidates":[{"content":{"parts":[{"text":"reason answer"}]},"finishReason":"STOP"}]}` + "\n\n" +
+		"data: [DONE]\n\n"
+	svc := &GeminiMessagesCompatService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: 512}}}
+	readers := map[string]func(*gin.Context, *http.Response) (*geminiStreamResult, error){
+		"messages": func(c *gin.Context, resp *http.Response) (*geminiStreamResult, error) {
+			return svc.handleStreamingResponse(c, resp, time.Now(), "gemini-3.8-flash")
+		},
+		"chat_completions": func(c *gin.Context, resp *http.Response) (*geminiStreamResult, error) {
+			return svc.handleChatCompletionsStreamingResponseFromGemini(c, resp, time.Now(), "gemini-3.8-flash", false, false)
+		},
+	}
+	for name, read := range readers {
+		t.Run(name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/"+name, nil)
+			resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(stream))}
+			_, err := read(c, resp)
+			require.NoError(t, err)
+			var thinking, text, signature strings.Builder
+			for _, line := range strings.Split(recorder.Body.String(), "\n") {
+				if !strings.HasPrefix(line, "data:") {
+					continue
+				}
+				var event struct {
+					Delta   map[string]any `json:"delta"`
+					Choices []struct {
+						Delta map[string]any `json:"delta"`
+					} `json:"choices"`
+				}
+				if json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "data:"))), &event) != nil {
+					continue
+				}
+				delta := event.Delta
+				if len(event.Choices) > 0 {
+					delta = event.Choices[0].Delta
+				}
+				for key, dest := range map[string]*strings.Builder{"thinking": &thinking, "reasoning_content": &thinking, "text": &text, "content": &text, "signature": &signature} {
+					if value, ok := delta[key].(string); ok {
+						_, err := dest.WriteString(value)
+						require.NoError(t, err)
+					}
+				}
+			}
+			require.Equal(t, "reasoning", thinking.String())
+			require.Equal(t, "reason answer", text.String())
+			if name == "messages" {
+				require.Equal(t, "sig-1", signature.String())
+			}
+		})
+	}
+}
+
 func TestCollectGeminiSSEKeepsThoughtSeparateFromAnswer(t *testing.T) {
 	upstreamBody := `data: {"candidates":[{"content":{"parts":[{"text":"reasoning ","thought":true,"thoughtSignature":"sig-1"}]}}]}` + "\n\n" +
 		`data: {"candidates":[{"content":{"parts":[{"text":"summary","thought":true,"thoughtSignature":"sig-1"}]}}]}` + "\n\n" +
 		`data: {"candidates":[{"content":{"parts":[{"text":"final answer"}]},"finishReason":"STOP"}]}` + "\n\n" +
 		"data: [DONE]\n\n"
 
-	got, _, err := collectGeminiSSE(strings.NewReader(upstreamBody), false)
+	got, _, err := collectGeminiSSE(nil, strings.NewReader(upstreamBody), false)
 	require.NoError(t, err)
 	parts := extractGeminiParts(got)
 	require.Len(t, parts, 2)
@@ -99,7 +158,7 @@ func TestCollectGeminiSSEKeepsThoughtSeparateFromAnswer(t *testing.T) {
 
 func TestClaudeThinkingReplayRequiresGeminiSignature(t *testing.T) {
 	body := []byte(`{"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"signed","signature":"sig-1"},{"type":"thinking","thinking":"unsigned"},{"type":"text","text":"answer"}]}]}`)
-	converted, err := convertClaudeMessagesToGeminiGenerateContent(body)
+	converted, err := convertClaudeMessagesToGeminiGenerateContent(body, "gemini-3.8-flash")
 	require.NoError(t, err)
 
 	var request map[string]any
@@ -119,7 +178,7 @@ func TestClaudeThinkingReplayRequiresGeminiSignature(t *testing.T) {
 
 func TestGeminiThinkingRequestConfigurationAcrossModelGenerations(t *testing.T) {
 	body := []byte(`{"model":"gemini-test","messages":[{"role":"user","content":"hello"}],"thinking":{"type":"enabled","budget_tokens":8000}}`)
-	converted, err := convertClaudeMessagesToGeminiGenerateContent(body)
+	converted, err := convertClaudeMessagesToGeminiGenerateContent(body, "gemini-3.8-flash")
 	require.NoError(t, err)
 
 	gemini3, err := configureGeminiThinking(converted, "gemini-3.8-flash")

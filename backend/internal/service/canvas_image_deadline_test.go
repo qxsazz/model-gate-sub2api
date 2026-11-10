@@ -56,7 +56,7 @@ func TestManagedCanvasImageDeadlineClosesActualUpstreamConnection(t *testing.T) 
 
 func TestManagedCanvasContextRetainsServerDeadlineAcrossDetachHelpers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), ctxkey.ManagedImageTask, true))
-	upstream, release := detachUpstreamContext(ctx)
+	upstream, release := detachUpstreamContext(ctx, time.Hour)
 	defer release()
 	stream, releaseStream := detachStreamUpstreamContext(ctx, true)
 	defer releaseStream()

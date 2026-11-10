@@ -66,8 +66,12 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	var upgradeMigrations int
 	require.NoError(t, tx.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM schema_migrations WHERE filename IN (
 		'246_vip_bonus_and_discount_cap.sql', '246_enable_gemini_image_generation_groups.sql',
-		'247_scoped_admin_api_keys.sql', '248_group_image_count_billing.sql')`).Scan(&upgradeMigrations))
-	require.Equal(t, 4, upgradeMigrations, "MG VIP 和官方迁移必须全部保留且只执行一次")
+		'247_scoped_admin_api_keys.sql', '248_group_image_count_billing.sql',
+		'249_achievement_administration.sql', '249_mcp_oauth.sql')`).Scan(&upgradeMigrations))
+	require.Equal(t, 6, upgradeMigrations, "MG VIP/成就和官方迁移必须按完整文件名保留且只执行一次")
+	requireColumn(t, tx, "mcp_oauth_grants", "user_id", "bigint", 0, false)
+	requireColumn(t, tx, "mcp_oauth_grants", "read_only", "boolean", 0, false)
+	requireColumnDefaultContains(t, tx, "mcp_oauth_grants", "read_only", "true")
 
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)

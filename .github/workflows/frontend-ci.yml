@@ -4,14 +4,6 @@ on:
   pull_request:
     branches: [staging, main]
   push:
-    branches: [staging, main]
-    paths:
-      - 'frontend/**'
-      - 'docs/legal/**'
-      - 'Dockerfile'
-      - 'frontend/package.json'
-      - 'frontend/pnpm-lock.yaml'
-      - '.github/workflows/**'
 
 permissions:
   contents: read

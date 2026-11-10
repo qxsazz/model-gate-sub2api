@@ -1,6 +1,8 @@
 name: Deploy Staging
 
 on:
+  push:
+    branches: [staging]
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
     branches: [staging]
@@ -15,13 +17,13 @@ permissions:
 
 jobs:
   audit-key-policy:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: model-gate-staging
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Read staging group access and model policy
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
@@ -40,21 +42,21 @@ jobs:
             < deploy/sql/audit-key-policy.sql
 
   build:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/build-image.yml
     with:
-      image_tag: staging-${{ github.event.pull_request.head.sha }}
-      source_sha: ${{ github.event.pull_request.head.sha }}
+      image_tag: staging-${{ github.event.pull_request.head.sha || github.sha }}
+      source_sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
   deploy:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     needs: build
     runs-on: ubuntu-latest
     environment: model-gate-staging
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Prepare SSH credentials
         env:

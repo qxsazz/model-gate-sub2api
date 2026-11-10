@@ -15,6 +15,7 @@ func TestAPIKeyAuthSnapshotImageCountBillingPreservesMGPolicy(t *testing.T) {
 	key.Group.ImageCountBilling = true
 	key.Group.ForceOpenAIFast = true
 	key.Group.FreeOpenAIFast = true
+	key.Group.RequirePrivacySet = true
 	payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: svc.snapshotFromAPIKey(context.Background(), key)})
 	require.NoError(t, err)
 	var cached APIKeyAuthCacheEntry
@@ -28,13 +29,19 @@ func TestAPIKeyAuthSnapshotImageCountBillingPreservesMGPolicy(t *testing.T) {
 	require.Equal(t, key.Group.RateMultiplier, materialized.Group.RateMultiplier)
 	require.True(t, materialized.Group.ForceOpenAIFast)
 	require.True(t, materialized.Group.FreeOpenAIFast)
+	require.True(t, materialized.Group.RequirePrivacySet)
 
 	// MG 0.2.18 used v25 for a different policy change. Reusing it would
 	// silently disable image billing until an old Redis entry expired.
-	cached.Snapshot.Version = 25
-	cached.Snapshot.Group.ImageCountBilling = false
-	materialized, used, err = svc.applyAuthCacheEntry(key.Key, &cached)
-	require.NoError(t, err)
-	require.False(t, used)
-	require.Nil(t, materialized)
+	// MG 0.2.19 used v26 without the scheduling privacy gate. Both old
+	// shapes must be rebuilt instead of silently materializing zero values.
+	for _, version := range []int{25, 26} {
+		cached.Snapshot.Version = version
+		cached.Snapshot.Group.ImageCountBilling = false
+		cached.Snapshot.Group.RequirePrivacySet = false
+		materialized, used, err = svc.applyAuthCacheEntry(key.Key, &cached)
+		require.NoError(t, err)
+		require.False(t, used, "old snapshot version %d must be rebuilt", version)
+		require.Nil(t, materialized)
+	}
 }
