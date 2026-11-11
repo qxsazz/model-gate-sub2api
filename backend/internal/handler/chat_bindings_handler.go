@@ -109,7 +109,8 @@ func (h *UserHandler) AuthorizeChatBindingChallenge(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Confirm bool `json:"confirm"`
+		Confirm             bool   `json:"confirm"`
+		AccountConfirmation string `json:"account_confirmation"`
 	}
 	if !decodeBotJSON(c, &input) {
 		return
@@ -118,7 +119,7 @@ func (h *UserHandler) AuthorizeChatBindingChallenge(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.BadRequest("BOT_BINDING_CONFIRMATION_REQUIRED", "请确认当前登录账号和群聊来源"))
 		return
 	}
-	result, err := h.userService.AuthorizeChatBindingChallenge(c.Request.Context(), subject.UserID, c.Param("challenge_id"))
+	result, err := h.userService.AuthorizeChatBindingChallenge(c.Request.Context(), subject.UserID, c.Param("challenge_id"), input.AccountConfirmation)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

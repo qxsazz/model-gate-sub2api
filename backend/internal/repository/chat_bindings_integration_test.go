@@ -27,12 +27,20 @@ func botTestIdentity(platform string) service.ChatIdentity {
 func botTestEvent(identity service.ChatIdentity) service.BotIdentityEvent {
 	return service.BotIdentityEvent{Identity: identity, EventID: uuid.NewString()}
 }
+func botTestAuthorize(ctx context.Context, s *service.UserService, uid int64, id string) (*service.ChatBindingAuthorization, error) {
+	preview, err := s.GetChatBindingChallenge(ctx, uid, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.AuthorizeChatBindingChallenge(ctx, uid, id, preview.AccountConfirmation)
+}
+
 func botTestBind(t *testing.T, s *service.UserService, uid int64, identity service.ChatIdentity) int64 {
 	t.Helper()
 	ctx := context.Background()
 	ch, err := s.CreateChatBindingChallenge(ctx, botTestEvent(identity))
 	require.NoError(t, err)
-	auth, err := s.AuthorizeChatBindingChallenge(ctx, uid, ch.ChallengeID)
+	auth, err := botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 	require.NoError(t, err)
 	receipt, err := s.ConfirmChatBinding(ctx, service.BotConfirmInput{BotIdentityEvent: botTestEvent(identity), Code: auth.Code})
 	require.NoError(t, err)
@@ -79,9 +87,13 @@ func TestChatBindingOwnershipIdentityAndSingleUse(t *testing.T) {
 	preview, err := s.GetChatBindingChallenge(ctx, uid, ch.ChallengeID)
 	require.NoError(t, err)
 	require.Equal(t, identity, preview.Identity)
-	auth, err := s.AuthorizeChatBindingChallenge(ctx, uid, ch.ChallengeID)
+	require.Equal(t, uid, preview.AccountID)
+	// A JWT replaced by another tab cannot authorize the account shown earlier.
+	_, err = s.AuthorizeChatBindingChallenge(ctx, other, ch.ChallengeID, preview.AccountConfirmation)
+	require.Equal(t, "BOT_BINDING_ACCOUNT_CHANGED", infraerrors.Reason(err))
+	auth, err := botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 	require.NoError(t, err)
-	_, err = s.AuthorizeChatBindingChallenge(ctx, other, ch.ChallengeID)
+	_, err = botTestAuthorize(ctx, s, other, ch.ChallengeID)
 	require.Equal(t, "BOT_BINDING_CHALLENGE_CLAIMED", infraerrors.Reason(err))
 	_, err = s.GetChatBindingChallenge(ctx, other, ch.ChallengeID)
 	require.Equal(t, "BOT_BINDING_CHALLENGE_CLAIMED", infraerrors.Reason(err))
@@ -112,7 +124,7 @@ func TestChatBindingOwnershipIdentityAndSingleUse(t *testing.T) {
 	receipt, err = s.ConfirmChatBinding(ctx, input)
 	require.NoError(t, err)
 	require.True(t, receipt.Replayed)
-	_, err = s.AuthorizeChatBindingChallenge(ctx, uid, ch.ChallengeID)
+	_, err = botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 	require.Equal(t, "BOT_BINDING_CHALLENGE_USED", infraerrors.Reason(err))
 	bindings, err := s.ListChatBindings(ctx, uid)
 	require.NoError(t, err)
@@ -137,7 +149,7 @@ func TestChatBindingExpiryAttemptsAndSupersession(t *testing.T) {
 			identity := botTestIdentity("wechat_native")
 			ch, err := s.CreateChatBindingChallenge(ctx, botTestEvent(identity))
 			require.NoError(t, err)
-			auth, err := s.AuthorizeChatBindingChallenge(ctx, uid, ch.ChallengeID)
+			auth, err := botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 			require.NoError(t, err)
 			switch mode {
 			case "attempts":
@@ -158,7 +170,7 @@ func TestChatBindingExpiryAttemptsAndSupersession(t *testing.T) {
 				_, err = s.CreateChatBindingChallenge(ctx, botTestEvent(identity))
 				require.NoError(t, err)
 			}
-			_, err = s.AuthorizeChatBindingChallenge(ctx, uid, ch.ChallengeID)
+			_, err = botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 			require.Equal(t, "BOT_BINDING_CHALLENGE_EXPIRED", infraerrors.Reason(err))
 			_, err = s.ConfirmChatBinding(ctx, service.BotConfirmInput{BotIdentityEvent: botTestEvent(identity), Code: auth.Code})
 			require.Error(t, err)
@@ -244,7 +256,7 @@ func TestChatBotReplayAfterUnbindAndRebind(t *testing.T) {
 	botCheck(t, s, unbound, "not_bound")
 	challenge, err := s.CreateChatBindingChallenge(ctx, botTestEvent(identity))
 	require.NoError(t, err)
-	auth, err := s.AuthorizeChatBindingChallenge(ctx, other, challenge.ChallengeID)
+	auth, err := botTestAuthorize(ctx, s, other, challenge.ChallengeID)
 	require.NoError(t, err)
 	require.NoError(t, s.RevokeChatBinding(ctx, uid, oldID)) // old unlink retry cannot revoke the new challenge
 	_, err = s.ConfirmChatBinding(ctx, service.BotConfirmInput{BotIdentityEvent: botTestEvent(identity), Code: auth.Code})

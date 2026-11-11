@@ -16,13 +16,15 @@ export interface ChatBindingChallenge {
   identity: ChatIdentity
   expires_at: string
   state: 'pending' | 'authorized' | 'completed' | 'expired'
+  account_confirmation: string
+  account_id: number
 }
 export interface ChatBindingAuthorization { code: string; expires_at: string }
 export const listChatBindings = async () =>
   (await apiClient.get<ChatBinding[]>('/user/chat-bindings')).data
 export const getChatBindingChallenge = async (id: string) =>
   (await apiClient.get<ChatBindingChallenge>(`/user/chat-bindings/challenges/${encodeURIComponent(id)}`)).data
-export const authorizeChatBinding = async (id: string) =>
-  (await apiClient.post<ChatBindingAuthorization>(`/user/chat-bindings/challenges/${encodeURIComponent(id)}/authorize`, { confirm: true })).data
+export const authorizeChatBinding = async (id: string, accountConfirmation: string) =>
+  (await apiClient.post<ChatBindingAuthorization>(`/user/chat-bindings/challenges/${encodeURIComponent(id)}/authorize`, { confirm: true, account_confirmation: accountConfirmation })).data
 export const revokeChatBinding = async (id: number) =>
   (await apiClient.delete(`/user/chat-bindings/${id}`)).data

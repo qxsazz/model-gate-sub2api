@@ -53,7 +53,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 |---|---|---|
 | `POST /integrations/bot/binding-challenges` | Bot | 从群事件生成 10 分钟绑定挑战 |
 | `GET /user/chat-bindings/challenges/:id` | 网站 JWT | 展示当前账号与群身份，额外提供的只读预览接口 |
-| `POST /user/chat-bindings/challenges/:id/authorize` | 网站 JWT | `{"confirm":true}`，显式确认后生成一次性码 |
+| `POST /user/chat-bindings/challenges/:id/authorize` | 网站 JWT | `{"confirm":true,"account_confirmation":"<预览返回值>"}`，显式确认后生成一次性码 |
 | `POST /integrations/bot/bindings/confirm` | Bot | 从同一身份的 `/绑定 CODE` 消费确认码 |
 | `GET /user/chat-bindings` | 网站 JWT | 当前用户有效绑定列表 |
 | `DELETE /user/chat-bindings/:id` | 网站 JWT | 只能解绑自己拥有的记录 |
@@ -67,7 +67,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 响应 `data` 包含 `challenge_id`、`binding_url`、`expires_at`、`replayed`。重复事件返回原挑战，过期后必须使用新的群消息。Bot 只需发送返回的 HTTPS 链接。
 
-2. 用户打开 `/chat-bindings/authorize/:id`，登录后会回到该路径。页面显示当前账号、平台、Bot、群和成员身份；用户勾选确认并点击后调用 authorize，返回 `{"code":"ABCD-EFGH-IJKL-MNOP","expires_at":"..."}`。码有 80 位随机熵，数据库仅存 SHA-256；刷新页面不会恢复明文。重新授权会替换旧码，不能延长原挑战期限或重置失败次数。
+2. 用户打开 `/chat-bindings/authorize/:id`，登录后会回到该路径。预览还返回当前 JWT 的 `account_id`（仅用于页面核对）和 `account_confirmation`；它绑定当前显示账号与挑战，authorize 必须原样带回，防止另一个标签页切换登录账号后误绑。页面显示当前账号、平台、Bot、群和成员身份；用户勾选确认并点击后调用 authorize，返回 `{"code":"ABCD-EFGH-IJKL-MNOP","expires_at":"..."}`。码有 80 位随机熵，数据库仅存 SHA-256；刷新页面不会恢复明文。重新授权会替换旧码，不能延长原挑战期限或重置失败次数。
 
 3. Bot 收到原群、原成员发出的 `/绑定 CODE` 后提交：
 
@@ -103,11 +103,11 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 首次事件复用 SQL `achievement_checkin`：实时核验有效线上充值本金净额（默认最低 10 CNY），退款扣除，赠送、管理员加余额、余额消费不替代本金。拒绝时不修改签到、连续天数或奖励。现金开关关闭、非现金白名单、预算不足允许沿用网站的零奖励成功签到。网站、QQ、微信共用配置/用户锁、每日唯一约束与奖励债务抵扣；签到和 Bot 回执在同一个事务提交，再执行现有余额及鉴权缓存失效。
 
-常见非业务错误：401 `BOT_UNAUTHORIZED`、403 `BOT_SCOPE_FORBIDDEN`、400 `BOT_REQUEST_INVALID` / `BOT_IDENTITY_INVALID` / `BOT_BINDING_CODE_INVALID`、409 `BOT_IDENTITY_ALREADY_BOUND` / `BOT_BINDING_CHALLENGE_CLAIMED` / `BOT_BINDING_CHALLENGE_USED` / `BOT_EVENT_CONFLICT`、410 `BOT_BINDING_CHALLENGE_EXPIRED`。超限为 429 并带 `Retry-After`，客户端每分钟 240 次、身份每分钟 30 次；Redis 不可用时 503，禁止绕过限流。网络错误或 HTTP 5xx 可有限退避重试原请求；收到业务回执后停止自动重试。确认失败的重放标记在错误 `metadata` 内。
+常见非业务错误：401 `BOT_UNAUTHORIZED`、403 `BOT_SCOPE_FORBIDDEN`、400 `BOT_REQUEST_INVALID` / `BOT_IDENTITY_INVALID` / `BOT_BINDING_CODE_INVALID`、409 `BOT_IDENTITY_ALREADY_BOUND` / `BOT_BINDING_CHALLENGE_CLAIMED` / `BOT_BINDING_CHALLENGE_USED` / `BOT_BINDING_ACCOUNT_CHANGED` / `BOT_EVENT_CONFLICT`、410 `BOT_BINDING_CHALLENGE_EXPIRED`。超限为 429 并带 `Retry-After`，客户端每分钟 240 次、身份每分钟 30 次；Redis 不可用时 503，禁止绕过限流。网络错误或 HTTP 5xx 可有限退避重试原请求；收到业务回执后停止自动重试。确认失败的重放标记在错误 `metadata` 内。
 
 ## 迁移与验收
 
-新迁移只有：官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql` 和本次 `260_chat_bot_bindings.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别；不要重命名、改内容或只按数字判断执行情况。完整文件名、原始 SHA-256 和运行器去首尾空白后的 SHA-256 记录在 `bot-upgrade-migrations.json`。
+新迁移只有：官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql` 和本次 `260_chat_bot_bindings.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别；不要重命名、改内容或只按数字判断执行情况。完整文件名、原始 SHA-256 和运行器去首尾空白后的 SHA-256 记录在 `bot-upgrade-migrations.json`。其中已存在于迁移运行器的历史 checksum 兼容白名单一并列出，不增加新的例外。测试服务器按此清单逐项核验，并将实际完整记录保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`，不会重写历史迁移记录。
 
 260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件回执不能直接按时间删除；将来清理必须保留足以阻止历史事件重放到新用户的墓碑。解绑只撤销有效绑定。
 

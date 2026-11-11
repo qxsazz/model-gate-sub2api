@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -75,11 +77,13 @@ type BotCheckinInput struct {
 }
 
 type ChatBindingChallenge struct {
-	ChallengeID string       `json:"challenge_id"`
-	Identity    ChatIdentity `json:"identity,omitempty"`
-	ExpiresAt   time.Time    `json:"expires_at"`
-	State       string       `json:"state,omitempty"`
-	Replayed    bool         `json:"replayed"`
+	ChallengeID         string       `json:"challenge_id"`
+	Identity            ChatIdentity `json:"identity,omitempty"`
+	ExpiresAt           time.Time    `json:"expires_at"`
+	State               string       `json:"state,omitempty"`
+	Replayed            bool         `json:"replayed"`
+	AccountConfirmation string       `json:"account_confirmation,omitempty"`
+	AccountID           int64        `json:"account_id,omitempty"`
 }
 
 type ChatBindingAuthorization struct {
@@ -154,7 +158,16 @@ func (s *UserService) GetChatBindingChallenge(ctx context.Context, userID int64,
 	if err != nil {
 		return nil, err
 	}
-	return r.GetChatBindingChallenge(ctx, userID, id)
+	challenge, err := r.GetChatBindingChallenge(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	// This is a consistency guard, not an authentication credential. It binds
+	// explicit consent to the account displayed by the preview, even if another
+	// tab replaces localStorage's JWT between preview and authorization.
+	challenge.AccountConfirmation = chatDigest("account-confirmation", id, strconv.FormatInt(userID, 10))
+	challenge.AccountID = userID
+	return challenge, nil
 }
 
 func chatCodeHash(code string) (string, error) {
@@ -166,9 +179,13 @@ func chatCodeHash(code string) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID int64, id string) (*ChatBindingAuthorization, error) {
+func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID int64, id, accountConfirmation string) (*ChatBindingAuthorization, error) {
 	if err := validateChatChallengeID(id); err != nil {
 		return nil, err
+	}
+	expected := chatDigest("account-confirmation", id, strconv.FormatInt(userID, 10))
+	if subtle.ConstantTimeCompare([]byte(accountConfirmation), []byte(expected)) != 1 {
+		return nil, infraerrors.Conflict("BOT_BINDING_ACCOUNT_CHANGED", "登录账号或绑定页面已变化，请刷新并重新确认")
 	}
 	r, err := s.chatBindingRepo()
 	if err != nil {

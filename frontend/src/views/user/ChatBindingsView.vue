@@ -78,9 +78,15 @@ async function load() {
   const request = ++sequence
   loading.value = true
   error.value = ''
+  consent.value = false
+  authorization.value = null
+  copied.value = false
   try {
+    await auth.refreshUser().catch(() => { throw new Error('无法确认当前登录账号，请重新登录。') })
+    if (request !== sequence) return
     const [items, preview] = await Promise.all([listChatBindings(), challengeID.value ? getChatBindingChallenge(challengeID.value) : Promise.resolve(null)])
     if (request !== sequence) return
+    if (preview && preview.account_id !== auth.user?.id) throw new Error('登录账号已变化，请刷新并重新确认。')
     bindings.value = items
     challenge.value = preview
     now.value = Date.now()
@@ -89,11 +95,11 @@ async function load() {
   finally { if (request === sequence) loading.value = false }
 }
 async function authorize() {
-  if (!consent.value || busy.value || expired.value || !auth.user) return
+  if (!consent.value || busy.value || expired.value || !auth.user || !challenge.value?.account_confirmation) return
   const request = sequence
   busy.value = true
   error.value = ''
-  try { const result = await authorizeChatBinding(challengeID.value); if (request === sequence) authorization.value = result }
+  try { const result = await authorizeChatBinding(challengeID.value, challenge.value.account_confirmation); if (request === sequence) authorization.value = result }
   catch (e) { if (request === sequence) error.value = message(e, '生成确认码失败，请重试。') }
   finally { busy.value = false }
 }
@@ -111,10 +117,9 @@ async function revoke() {
   finally { busy.value = false }
 }
 watch([challengeID, () => auth.user?.id], () => { authorization.value = null; consent.value = false; copied.value = false; bindings.value = []; revoking.value = null; void load() })
-onMounted(async () => {
+onMounted(() => {
   timer = setInterval(() => { now.value = Date.now(); if (expired.value) authorization.value = null }, 1000)
-  try { await auth.refreshUser(); await load() }
-  catch { loading.value = false; error.value = '无法确认当前登录账号，请重新登录。' }
+  void load()
 })
 onUnmounted(() => { sequence++; clearInterval(timer); authorization.value = null })
 </script>

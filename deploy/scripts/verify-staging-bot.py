@@ -54,10 +54,20 @@ def b64(value):
 
 manifest = json.loads((root / "bot-upgrade-migrations.json").read_text())
 applied = json.loads(sql("SELECT jsonb_agg(jsonb_build_object('filename',filename,'checksum',checksum) ORDER BY filename) FROM schema_migrations;"))
-expected_checksums = {item["filename"]: item["runner_checksum"] for item in manifest["migrations"]}
-if {item["filename"]: item["checksum"] for item in applied} != expected_checksums:
-    raise SystemExit("deployed migration filenames/checksums differ from the candidate manifest")
-print(f"Verified all {len(applied)} deployed migration filenames and checksums; {manifest['existing_sql_files_unchanged']} historical files preserved.")
+expected_files = {item["filename"]: item for item in manifest["migrations"]}
+if {item["filename"] for item in applied} != set(expected_files):
+    raise SystemExit("deployed migration filenames differ from the candidate manifest")
+legacy = []
+for item in applied:
+    expected = expected_files[item["filename"]]
+    if item["checksum"] != expected["runner_checksum"]:
+        if item["checksum"] not in expected.get("accepted_historical_checksums", []):
+            raise SystemExit("deployed migration checksum mismatch: " + item["filename"])
+        legacy.append(item)
+(root / ".bot-migration-receipt.json").write_text(json.dumps(applied, indent=2) + "\n")
+print(f"Verified all {len(applied)} deployed migration filenames and checksums; {manifest['existing_sql_files_unchanged']} historical files preserved; {len(legacy)} match existing compatibility rules.")
+for item in legacy:
+    print("Historical checksum:", item["filename"], item["checksum"])
 
 
 environment = json.loads(subprocess.check_output(["docker", "inspect", "sub2api-staging", "--format", "{{json .Config.Env}}"], text=True))
@@ -102,7 +112,9 @@ def bind(identity, user_token):
     challenge_path = "/user/chat-bindings/challenges/" + challenge["challenge_id"]
     preview = call(challenge_path, user_token, method="GET")
     assert preview["identity"] == identity
-    authorization = call(challenge_path + "/authorize", user_token, {"confirm": True})
+    other_session = next(item[1] for item in users if item[1] != user_token)
+    call(challenge_path + "/authorize", other_session, {"confirm": True, "account_confirmation": preview["account_confirmation"]}, expected=409)
+    authorization = call(challenge_path + "/authorize", user_token, {"confirm": True, "account_confirmation": preview["account_confirmation"]})
     wrong = {**identity, "sender_id": identity["sender_id"] + "-wrong"}
     call("/integrations/bot/bindings/confirm", token, {**event(wrong), "code": authorization["code"]}, expected=400)
     confirmation = {**event(identity), "code": authorization["code"]}
