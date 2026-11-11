@@ -91,6 +91,7 @@ jobs:
             deploy/scripts/configure-staging-bot.py \
             deploy/scripts/bootstrap-staging-bot.py \
             deploy/scripts/verify-staging-bot.py \
+            docs/bot-upgrade-migrations.json \
             "$target:$STAGING_DEPLOY_PATH/"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
             "chmod 700 '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' '$STAGING_DEPLOY_PATH/sub2api-deploy.sh'"

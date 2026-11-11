@@ -52,6 +52,14 @@ def b64(value):
     return base64.urlsafe_b64encode(value).rstrip(b"=")
 
 
+manifest = json.loads((root / "bot-upgrade-migrations.json").read_text())
+applied = json.loads(sql("SELECT jsonb_agg(jsonb_build_object('filename',filename,'checksum',checksum) ORDER BY filename) FROM schema_migrations;"))
+expected_checksums = {item["filename"]: item["runner_checksum"] for item in manifest["migrations"]}
+if {item["filename"]: item["checksum"] for item in applied} != expected_checksums:
+    raise SystemExit("deployed migration filenames/checksums differ from the candidate manifest")
+print(f"Verified all {len(applied)} deployed migration filenames and checksums; {manifest['existing_sql_files_unchanged']} historical files preserved.")
+
+
 environment = json.loads(subprocess.check_output(["docker", "inspect", "sub2api-staging", "--format", "{{json .Config.Env}}"], text=True))
 secret = next((item.split("=", 1)[1] for item in environment if item.startswith("JWT_SECRET=")), "")
 if not secret:
