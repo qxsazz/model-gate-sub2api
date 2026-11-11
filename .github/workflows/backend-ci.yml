@@ -74,4 +74,5 @@ jobs:
       - run: python -m unittest discover -s .github/release-tools -p 'test_release_matrix.py'
       - run: python -m unittest discover -s tools -p 'test_upstream_release_report.py'
       - run: python -m unittest discover -s deploy/tests -p 'test_deploy_image.py'
+      - run: python -m unittest discover -s deploy/tests -p 'test_staging_bot_config.py'
       - run: bash -n .github/release-tools/release-images.sh

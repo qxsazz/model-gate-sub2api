@@ -345,6 +345,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/chat-bindings',
+    name: 'ChatBindings',
+    component: () => import('@/views/user/ChatBindingsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, title: '群聊绑定' }
+  },
+  {
+    path: '/chat-bindings/authorize/:challengeId',
+    name: 'ChatBindingAuthorize',
+    component: () => import('@/views/user/ChatBindingsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, title: '确认群聊绑定' }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),

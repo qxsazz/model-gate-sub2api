@@ -32,6 +32,12 @@
         </div>
       </div>
 
+      <section class="card space-y-3 p-6">
+        <h2 class="text-lg font-semibold">群聊绑定</h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">管理 QQ、微信群身份，在群里签到并同步网站记录。</p>
+        <router-link to="/chat-bindings" class="btn btn-secondary">管理群聊绑定</router-link>
+      </section>
+
       <ProfilePasswordForm />
 
       <ProfileBalanceNotifyCard

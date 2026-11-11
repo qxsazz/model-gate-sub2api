@@ -73,6 +73,7 @@ type Config struct {
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
 	MCP                     MCPConfig                     `mapstructure:"mcp"`
+	BotIntegration          BotIntegrationConfig          `mapstructure:"bot_integration"`
 	Security                SecurityConfig                `mapstructure:"security"`
 	Billing                 BillingConfig                 `mapstructure:"billing"`
 	Turnstile               TurnstileConfig               `mapstructure:"turnstile"`
@@ -2189,6 +2190,9 @@ func setDefaults() {
 	viper.SetDefault("cors.allowed_origins", []string{})
 	viper.SetDefault("cors.allow_credentials", true)
 	viper.SetDefault("mcp.public_url", "")
+	viper.SetDefault("bot_integration.enabled", false)
+	viper.SetDefault("bot_integration.public_url", "")
+	viper.SetDefault("bot_integration.clients_json", "")
 
 	// WebAuthn / Passkeys are opt-in because every deployment must explicitly
 	// declare its relying-party domain and trusted browser origins.
@@ -2982,6 +2986,9 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.MCP.Validate(); err != nil {
+		return err
+	}
+	if err := c.BotIntegration.Validate(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(c.Server.FrontendURL) != "" {
