@@ -18,7 +18,7 @@ func TestBotRequestRejectsAccountInjectionAndAmbiguousBody(t *testing.T) {
 			if !decodeBotJSON(c, &input) {
 				return
 			}
-			if err := input.BotIdentityEvent.Validate(); err != nil {
+			if err := input.Validate(); err != nil {
 				c.Status(400)
 				return
 			}

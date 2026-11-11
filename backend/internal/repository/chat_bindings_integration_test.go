@@ -267,6 +267,27 @@ func TestChatBotReplayAfterUnbindAndRebind(t *testing.T) {
 	botCheck(t, s, input, "checked_in")
 }
 
+func TestChatBotUnavailableAdmissionIsImmutableAndDoesNotWriteCheckin(t *testing.T) {
+	tx, s := botTestTx(t)
+	ctx := context.Background()
+	uid := achievementAccessUser(t, tx)
+	order := seedAchievementRecharge(t, tx, uid, 10)
+	identity := botTestIdentity("qq_official")
+	botTestBind(t, s, uid, identity)
+	_, err := tx.ExecContext(ctx, `UPDATE payment_orders SET provider_snapshot='{"currency":"CNY","recharge_principal":"invalid"}' WHERE id=$1`, order)
+	require.NoError(t, err)
+	input := service.BotCheckinInput{BotIdentityEvent: botTestEvent(identity), EventAt: time.Now()}
+	botCheck(t, s, input, "checkin_unavailable")
+	var count int
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*) FROM achievement_checkins WHERE user_id=$1`, uid).Scan(&count))
+	require.Zero(t, count)
+	_, err = tx.ExecContext(ctx, `UPDATE payment_orders SET provider_snapshot='{"currency":"CNY","recharge_principal":10}' WHERE id=$1`, order)
+	require.NoError(t, err)
+	require.True(t, botCheck(t, s, input, "checkin_unavailable").Replayed)
+	input.EventID = uuid.NewString()
+	botCheck(t, s, input, "checked_in")
+}
+
 func TestChatBotShanghaiDayAndZeroCash(t *testing.T) {
 	tx, s := botTestTx(t)
 	ctx := context.Background()

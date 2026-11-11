@@ -159,7 +159,7 @@ func (s *UserService) GetChatBindingChallenge(ctx context.Context, userID int64,
 
 func chatCodeHash(code string) (string, error) {
 	code = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(code), "-", ""))
-	if len(code) != 16 || strings.ContainsFunc(code, func(r rune) bool { return !(r >= 'A' && r <= 'Z' || r >= '2' && r <= '7') }) {
+	if len(code) != 16 || strings.ContainsFunc(code, func(r rune) bool { return (r < 'A' || r > 'Z') && (r < '2' || r > '7') }) {
 		return "", infraerrors.BadRequest("BOT_BINDING_CODE_INVALID", "确认码无效，请从网站重新获取")
 	}
 	digest := sha256.Sum256([]byte(code))
@@ -192,7 +192,7 @@ func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID 
 }
 
 func (s *UserService) ConfirmChatBinding(ctx context.Context, input BotConfirmInput) (*BotReceipt, error) {
-	if err := input.BotIdentityEvent.Validate(); err != nil {
+	if err := input.Validate(); err != nil {
 		return nil, err
 	}
 	digest, err := chatCodeHash(input.Code)
@@ -223,7 +223,7 @@ func (s *UserService) RevokeChatBinding(ctx context.Context, userID, bindingID i
 }
 
 func (s *UserService) ChatBotCheckin(ctx context.Context, input BotCheckinInput) (*BotReceipt, error) {
-	if err := input.BotIdentityEvent.Validate(); err != nil {
+	if err := input.Validate(); err != nil {
 		return nil, err
 	}
 	if input.EventAt.IsZero() {

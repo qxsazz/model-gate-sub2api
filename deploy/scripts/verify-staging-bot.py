@@ -28,7 +28,7 @@ compose = ["docker", "compose", "--project-name", "sub2api-staging", "--env-file
 
 
 def sql(query):
-    result = subprocess.run(compose + ["exec", "-T", "postgres", "sh", "-c", 'exec psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], input=query, capture_output=True, text=True)
+    result = subprocess.run(compose + ["exec", "-T", "postgres", "sh", "-c", 'exec psql -XAtq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], input=query, capture_output=True, text=True, timeout=45)
     if result.returncode:
         raise RuntimeError("synthetic SQL verification failed (details omitted)")
     return result.stdout.strip()
@@ -150,7 +150,7 @@ finally:
     if users:
         ids = ",".join(str(item[0]) for item in users)
         # The shared checkin path updates daily spent even when budget limits are off.
-        sql(f"BEGIN; SELECT 1 FROM achievement_config WHERE id=true FOR UPDATE; UPDATE achievement_budget b SET spent=GREATEST(0,b.spent-c.gross) FROM (SELECT day,sum(gross) gross FROM achievement_checkins WHERE user_id IN ({ids}) GROUP BY day) c WHERE b.day=c.day; DELETE FROM chat_bot_events WHERE user_id IN ({ids}) OR event_id IN (SELECT event_id FROM chat_bot_events WHERE identity_key IN (SELECT identity_key FROM chat_binding_challenges WHERE user_id IN ({ids}))); DELETE FROM payment_orders WHERE user_id IN ({ids}); DELETE FROM users WHERE id IN ({ids}); COMMIT;")
+        sql(f"BEGIN; SELECT 1 FROM achievement_config WHERE id=true FOR UPDATE; UPDATE achievement_budget b SET spent=GREATEST(0,b.spent-c.gross) FROM (SELECT day,sum(gross) gross FROM achievement_checkins WHERE user_id IN ({ids}) GROUP BY day) c WHERE b.day=c.day; DELETE FROM chat_bot_events WHERE user_id IN ({ids}) OR identity_key IN (SELECT identity_key FROM chat_binding_challenges WHERE user_id IN ({ids})); DELETE FROM payment_orders WHERE user_id IN ({ids}); DELETE FROM users WHERE id IN ({ids}); COMMIT;")
         # Unbound/wrong-sender receipts have no user association; remove only this run's identities.
         for identity in identities:
             for sender in [identity["sender_id"], identity["sender_id"] + "-wrong"]:
