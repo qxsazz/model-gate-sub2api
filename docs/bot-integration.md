@@ -9,7 +9,7 @@
 - 正式合并提交：`b0c838a454ff7d983346ed5df4eb4d1efbf45138`，保留真实上游父提交。
 - 新版本：`0.2.21-mg.1`。Go 更新至 `1.27.4`，修复扫描发现的 `GO-2026-6859`。
 - MG 主题、画布、VIP、成就、充值退款、网关恢复与 Gemini thinking/signature 定制保留。新增页面复用现有 AppLayout、card、button 与主题色变量；个人资料增加群聊绑定入口。
-- 最终部署 SHA、镜像 digest、CI 与验收记录见本次发布交付记录。
+- 最终部署 SHA、镜像 digest、CI 与验收记录见 [发布交付记录](upstream-0.2.21-bot-delivery.md)。
 
 ## 身份和鉴权
 
@@ -47,7 +47,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 ## API 和绑定流程
 
-所有路径以 `/api/v1` 开头，使用项目统一 `{ "code": 0, "message": "success", "data": ... }` 响应包装。错误使用实际 HTTP 状态码及 `reason`，不要通过中文消息判断业务状态。请求必须为单个 JSON 对象，最大 8 KiB，拒绝未定义字段，尤其是外部 `user_id`、邮箱和余额。
+所有路径以 `/api/v1` 开头，使用项目统一 `{ "code": 0, "message": "success", "data": ... }` 响应包装。错误首先判断实际 HTTP 状态码。业务处理器返回数字 `code` 与字符串 `reason`；鉴权/限流沿用项目中间件格式，返回字符串 `code`（例如 `{"code":"BOT_UNAUTHORIZED","message":"需要 Bot 专用服务凭据"}`）。适配器统一取 `reason`，为空时取字符串 `code`，不要通过中文消息判断业务状态。请求必须为单个 JSON 对象，最大 8 KiB，拒绝未定义字段，尤其是外部 `user_id`、邮箱和余额。
 
 | 方法 / 路径 | 身份 | 用途 |
 |---|---|---|
