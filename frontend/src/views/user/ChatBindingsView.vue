@@ -2,14 +2,14 @@
   <AppLayout>
     <div class="chat-bindings mx-auto max-w-[950px] space-y-6">
       <header class="flex items-center justify-between gap-4">
-        <div><p class="text-xs tracking-widest text-primary-500">MODEL-GATE</p><h1 class="mt-2 text-2xl font-semibold">群聊绑定</h1></div>
+        <div><p class="brand-accent text-xs tracking-widest">MODEL-GATE</p><h1 class="mt-2 text-2xl font-semibold">群聊绑定</h1></div>
         <button class="btn btn-secondary" :disabled="busy || loading" @click="load">刷新</button>
       </header>
       <p v-if="error" class="card p-5 text-red-600 dark:text-red-400" role="alert">{{ error }}</p>
       <p v-if="loading" role="status">正在读取绑定信息…</p>
       <section v-else-if="challenge" class="card space-y-5 p-6">
         <h2 class="text-lg font-semibold">确认绑定当前账号</h2>
-        <p>当前登录：<strong data-account>{{ auth.user?.username || auth.user?.email }}</strong><span v-if="auth.user?.username" class="ml-2">{{ auth.user?.email }}</span></p>
+        <p class="break-words">当前登录：<strong data-account>{{ auth.user?.username || auth.user?.email }}</strong><span v-if="auth.user?.username" class="ml-2">{{ auth.user?.email }}</span></p>
         <dl class="identity-grid">
           <dt>来源</dt><dd>{{ platformName(challenge.identity.platform) }}</dd>
           <dt>Bot 实例</dt><dd>{{ challenge.identity.bot_id }}</dd>
@@ -24,7 +24,7 @@
             <label class="flex items-start gap-3"><input v-model="consent" type="checkbox" class="mt-1" data-consent />我已核对当前账号和群聊来源，确认绑定。</label>
             <button class="btn btn-primary" data-authorize :disabled="busy || !consent || !auth.user" @click="authorize">{{ busy ? '正在生成…' : '获取一次性确认码' }}</button>
           </template>
-          <div v-else class="space-y-3 rounded-xl border border-primary-200 bg-primary-50 p-5 dark:border-primary-800 dark:bg-primary-900/20">
+          <div v-else class="confirmation-code space-y-3 rounded-xl border p-5">
             <p>回到发起绑定的同一个群，使用同一身份发送：</p>
             <code class="block break-all text-lg" data-code>/绑定 {{ authorization.code }}</code>
             <button class="btn btn-secondary" @click="copyCode">{{ copied ? '已复制' : '复制绑定命令' }}</button>
@@ -36,11 +36,11 @@
         <h2 class="text-lg font-semibold">已绑定的群聊</h2>
         <p class="text-sm text-gray-600 dark:text-gray-400">QQ、微信和网站共享每日签到记录。签到资格以网站当前规则为准，现金奖励仍受活动范围和预算限制。</p>
         <p v-if="!loading && bindings.length === 0">尚未绑定。请在已接入的群里向 Bot 发送 /绑定，再打开返回的链接。</p>
-        <article v-for="binding in bindings" :key="binding.id" class="binding-row rounded-xl border border-gray-200 p-4 dark:border-dark-600">
+        <article v-for="binding in bindings" :key="binding.id" class="binding-row rounded-xl border p-4">
           <div class="min-w-0 space-y-2"><strong>{{ platformName(binding.identity.platform) }}</strong><p class="break-all text-sm">群：{{ binding.identity.group_id }}</p><p class="break-all text-sm">Bot：{{ binding.identity.bot_id }}</p><p class="break-all text-sm">身份：{{ binding.identity.sender_id }}</p></div>
           <button class="btn btn-secondary shrink-0" :disabled="busy" :data-revoke="binding.id" @click="revoking = binding">解除绑定</button>
         </article>
-        <router-link to="/profile" class="text-primary-600 dark:text-primary-400">返回个人资料</router-link>
+        <router-link to="/profile" class="brand-accent">返回个人资料</router-link>
       </section>
       <ConfirmDialog :show="!!revoking" title="解除群聊绑定" message="解除后，该群身份发送的新签到消息将失效；已有签到记录会保留。" confirm-text="解除绑定" danger @confirm="revoke" @cancel="revoking = null" />
     </div>
@@ -120,6 +120,10 @@ onUnmounted(() => { sequence++; clearInterval(timer); authorization.value = null
 </script>
 
 <style scoped>
+.brand-accent { color: var(--mg-gold-700, #9c8344); }
+.confirmation-code { border-color: var(--mg-line-warm, #e7e1d4); background: var(--mg-gold-50, #fcfaf4); }
+.binding-row { border-color: var(--mg-line-warm, #e7e1d4); }
+input[type="checkbox"] { accent-color: var(--mg-gold-700, #9c8344); }
 .identity-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .75rem 1rem; }
 .identity-grid dt { opacity: .65; }
 .identity-grid dd { overflow-wrap: anywhere; }
