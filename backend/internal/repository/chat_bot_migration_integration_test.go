@@ -28,7 +28,12 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 	db, err := openSQLWithRetry(ctx, dsn, 30*time.Second)
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
-	additions := map[string]bool{"249_add_usage_logs_api_key_cost_index_notx.sql": true, "250_openai_cache_write_ttl.sql": true, "260_chat_bot_bindings.sql": true}
+	additions := map[string]bool{
+		"249_add_usage_logs_api_key_cost_index_notx.sql": true,
+		"250_openai_cache_write_ttl.sql":                 true,
+		"260_chat_bot_bindings.sql":                      true,
+		"261_chat_bot_email_binding.sql":                 true,
+	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)
 	old := fstest.MapFS{}

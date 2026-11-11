@@ -16,10 +16,13 @@ export interface ChatBindingChallenge {
   identity: ChatIdentity
   expires_at: string
   state: 'pending' | 'authorized' | 'completed' | 'expired'
+  binding_mode?: 'email' | 'code'
   account_confirmation: string
   account_id: number
 }
-export interface ChatBindingAuthorization { code: string; expires_at: string }
+export type ChatBindingAuthorization =
+  | { status: 'bound'; expires_at: string; code?: never }
+  | { code: string; expires_at: string; status?: never }
 export const listChatBindings = async () =>
   (await apiClient.get<ChatBinding[]>('/user/chat-bindings')).data
 export const getChatBindingChallenge = async (id: string) =>

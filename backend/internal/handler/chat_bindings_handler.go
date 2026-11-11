@@ -39,11 +39,11 @@ func validateBotEvent(c *gin.Context, event service.BotIdentityEvent) (*middlewa
 }
 
 func (h *UserHandler) CreateBotBindingChallenge(c *gin.Context) {
-	var input service.BotIdentityEvent
+	var input service.BotBindingChallengeInput
 	if !decodeBotJSON(c, &input) {
 		return
 	}
-	principal, ok := validateBotEvent(c, input)
+	principal, ok := validateBotEvent(c, input.BotIdentityEvent)
 	if !ok {
 		return
 	}

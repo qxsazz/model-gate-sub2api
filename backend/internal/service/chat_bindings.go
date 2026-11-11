@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +72,11 @@ type BotConfirmInput struct {
 	Code string `json:"code"`
 }
 
+type BotBindingChallengeInput struct {
+	BotIdentityEvent
+	RequestedEmail *string `json:"requested_email,omitempty"`
+}
+
 type BotCheckinInput struct {
 	BotIdentityEvent
 	EventAt time.Time `json:"event_at"`
@@ -81,13 +87,15 @@ type ChatBindingChallenge struct {
 	Identity            ChatIdentity `json:"identity,omitempty"`
 	ExpiresAt           time.Time    `json:"expires_at"`
 	State               string       `json:"state,omitempty"`
+	BindingMode         string       `json:"binding_mode,omitempty"`
 	Replayed            bool         `json:"replayed"`
 	AccountConfirmation string       `json:"account_confirmation,omitempty"`
 	AccountID           int64        `json:"account_id,omitempty"`
 }
 
 type ChatBindingAuthorization struct {
-	Code      string    `json:"code"`
+	Code      string    `json:"code,omitempty"`
+	Status    string    `json:"status,omitempty"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -98,10 +106,12 @@ type ChatBinding struct {
 }
 
 type BotReceipt struct {
-	Status      string `json:"status"`
-	RequestKey  string `json:"request_key"`
-	Replayed    bool   `json:"replayed"`
-	CheckinDate string `json:"checkin_date,omitempty"`
+	Status             string   `json:"status"`
+	RequestKey         string   `json:"request_key"`
+	Replayed           bool     `json:"replayed"`
+	CheckinDate        string   `json:"checkin_date,omitempty"`
+	AccessReason       string   `json:"access_reason,omitempty"`
+	MinimumRechargeCNY *float64 `json:"minimum_recharge_cny,omitempty"`
 }
 
 type BotCheckinResult struct {
@@ -110,7 +120,7 @@ type BotCheckinResult struct {
 }
 
 type ChatBindingRepository interface {
-	CreateChatBindingChallenge(context.Context, string, BotIdentityEvent) (*ChatBindingChallenge, error)
+	CreateChatBindingChallenge(context.Context, string, BotBindingChallengeInput) (*ChatBindingChallenge, error)
 	GetChatBindingChallenge(context.Context, int64, string) (*ChatBindingChallenge, error)
 	AuthorizeChatBindingChallenge(context.Context, int64, string, string) (*ChatBindingAuthorization, error)
 	ConfirmChatBinding(context.Context, BotIdentityEvent, string) (*BotReceipt, error)
@@ -127,9 +137,17 @@ func (s *UserService) chatBindingRepo() (ChatBindingRepository, error) {
 	return r, nil
 }
 
-func (s *UserService) CreateChatBindingChallenge(ctx context.Context, event BotIdentityEvent) (*ChatBindingChallenge, error) {
-	if err := event.Validate(); err != nil {
+func (s *UserService) CreateChatBindingChallenge(ctx context.Context, input BotBindingChallengeInput) (*ChatBindingChallenge, error) {
+	if err := input.Validate(); err != nil {
 		return nil, err
+	}
+	if input.RequestedEmail != nil {
+		email := strings.ToLower(strings.TrimSpace(*input.RequestedEmail))
+		address, err := mail.ParseAddress(email)
+		if len(email) > 254 || err != nil || address.Address != email {
+			return nil, infraerrors.BadRequest("BOT_BINDING_EMAIL_INVALID", "请填写有效的注册邮箱")
+		}
+		input.RequestedEmail = &email
 	}
 	r, err := s.chatBindingRepo()
 	if err != nil {
@@ -139,7 +157,7 @@ func (s *UserService) CreateChatBindingChallenge(ctx context.Context, event BotI
 	if err != nil {
 		return nil, err
 	}
-	return r.CreateChatBindingChallenge(ctx, id.String(), event)
+	return r.CreateChatBindingChallenge(ctx, id.String(), input)
 }
 
 func validateChatChallengeID(id string) error {
@@ -204,7 +222,9 @@ func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID 
 	if err != nil {
 		return nil, err
 	}
-	result.Code = code[:4] + "-" + code[4:8] + "-" + code[8:12] + "-" + code[12:]
+	if result.Status != "bound" {
+		result.Code = code[:4] + "-" + code[4:8] + "-" + code[8:12] + "-" + code[12:]
+	}
 	return result, nil
 }
 

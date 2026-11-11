@@ -44,6 +44,26 @@ describe('群聊绑定双向确认', () => {
     expect(w.find('[data-authorize]').exists()).toBe(false)
     expect(mocks.authorize).not.toHaveBeenCalled(); w.unmount()
   })
+  it('completes an email binding on the website without displaying a code', async () => {
+    const preview = {
+      challenge_id: 'challenge-a', identity, state: 'pending', binding_mode: 'email',
+      expires_at: new Date(Date.now() + 600000).toISOString(),
+      account_id: 1, account_confirmation: 'account-a-preview',
+    }
+    mocks.get.mockResolvedValue(preview)
+    mocks.authorize.mockResolvedValue({ status: 'bound', expires_at: preview.expires_at })
+    mocks.list.mockResolvedValueOnce([]).mockResolvedValue([{ id: 19, identity }])
+    const w = render(); await flushPromises()
+    expect(w.get('[data-authorize]').text()).toBe('确认绑定')
+    expect(w.get('[data-authorize]').attributes('disabled')).toBeDefined()
+    await w.get('[data-consent]').setValue(true)
+    await w.get('[data-authorize]').trigger('click'); await flushPromises()
+    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview')
+    expect(w.text()).toContain('绑定已完成，可以回到原群发送 /签到')
+    expect(w.find('[data-code]').exists()).toBe(false)
+    expect(w.find('[data-revoke="19"]').exists()).toBe(true)
+    w.unmount()
+  })
   it('does not unlink until confirmation and uses the owned binding ID', async () => {
     route.params.challengeId = ''
     mocks.list.mockResolvedValue([{ id: 17, identity }])
