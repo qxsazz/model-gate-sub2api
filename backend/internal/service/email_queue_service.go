@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strings"
 	"sync"
 	"time"
 
@@ -103,10 +104,12 @@ func (s *EmailQueueService) processTask(workerID int, task EmailTask) {
 		if !time.Now().Before(task.ExpiresAt) {
 			return
 		}
-		body := fmt.Sprintf(
-			`<p>你收到了一笔「%s」的群聊绑定请求。</p><p>如果是你发起的，请登录 ModelGate 核对群名并选择是否绑定。</p><p><a href="%s">查看绑定请求</a></p><p>链接有效期为 10 分钟。</p>`,
-			html.EscapeString(task.GroupName), html.EscapeString(task.BindingURL),
-		)
+		body := strings.NewReplacer(
+			"{{site_name}}", html.EscapeString(s.emailService.notificationEmailService.siteName(ctx)),
+			"{{group_name}}", html.EscapeString(task.GroupName),
+			"{{binding_url}}", html.EscapeString(task.BindingURL),
+			"{{year}}", time.Now().Format("2006"),
+		).Replace(chatBindingEmailHTML)
 		if err := s.emailService.SendEmail(ctx, task.Email, "ModelGate 群聊绑定确认", body); err != nil {
 			logger.LegacyPrintf("service.email_queue", "[EmailQueue] Worker %d could not deliver a chat binding email", workerID)
 		}
