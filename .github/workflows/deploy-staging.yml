@@ -88,9 +88,32 @@ jobs:
             deploy/docker-compose.staging.yml \
             deploy/scripts/sub2api-staging-init.sh \
             deploy/scripts/sub2api-deploy.sh \
+            deploy/scripts/configure-staging-bot.py \
+            deploy/scripts/bootstrap-staging-bot.py \
+            deploy/scripts/verify-staging-bot.py \
+            docs/bot-upgrade-migrations.json \
             "$target:$STAGING_DEPLOY_PATH/"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \
             "chmod 700 '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' '$STAGING_DEPLOY_PATH/sub2api-deploy.sh'"
+
+      - name: Configure scoped staging Bot integration
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+          BOT_CLIENTS_JSON: ${{ secrets.BOT_INTEGRATION_CLIENTS_JSON }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "if [ ! -f '$STAGING_DEPLOY_PATH/.env' ]; then '$STAGING_DEPLOY_PATH/sub2api-staging-init.sh' 'ghcr.io/qxsazz/model-gate-sub2api@$IMAGE_DIGEST'; fi"
+          if [ -n "$BOT_CLIENTS_JSON" ]; then
+            printf '%s' "$BOT_CLIENTS_JSON" | ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+              "python3 '$STAGING_DEPLOY_PATH/configure-staging-bot.py' '$STAGING_DEPLOY_PATH/.env'"
+          else
+            ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+              "python3 '$STAGING_DEPLOY_PATH/bootstrap-staging-bot.py' '$STAGING_DEPLOY_PATH'"
+          fi
 
       - name: Initialize and deploy staging
         env:
@@ -137,3 +160,19 @@ jobs:
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
             "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'" \
             < deploy/sql/verify-achievement-recharge-access.sql
+
+      - name: Verify Bot integration over staging HTTPS with disposable QQ and WeChat events
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
+          BOT_SMOKE_TOKEN: ${{ secrets.BOT_SMOKE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BOT_SMOKE_TOKEN" ]; then
+            printf '%s' "$BOT_SMOKE_TOKEN" | ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+              "python3 '$STAGING_DEPLOY_PATH/verify-staging-bot.py' '$STAGING_DEPLOY_PATH'"
+          else
+            ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+              "python3 '$STAGING_DEPLOY_PATH/verify-staging-bot.py' '$STAGING_DEPLOY_PATH' < '$STAGING_DEPLOY_PATH/.bot-smoke-token'"
+          fi

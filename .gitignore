@@ -147,6 +147,9 @@ docs/*
 !docs/admin-api-keys.md
 !docs/upstream-0.2.19-merge.md
 !docs/upstream-0.2.20-merge.md
+!docs/bot-integration.md
+!docs/bot-upgrade-migrations.json
+!docs/upstream-0.2.21-bot-delivery.md
 !docs/agent-resource-safety.md
 !docs/moego-json-batching.md
 !docs/mcp.md
@@ -154,6 +157,7 @@ docs/*
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/ASYNC_IMAGE_TASKS.md
+!docs/OPENAI_IMAGES_CODEX.md
 !docs/BATCH_IMAGE_MVP.md
 !docs/COMPOSITE_GROUPS.md
 !docs/PLUGIN_DEVELOPMENT.md

@@ -1,0 +1,4 @@
+[
+  {"platform":"qq_official","bot_id":"mg-synthetic-qq","group_ids":["mg-synthetic-group"]},
+  {"platform":"wechat_native","bot_id":"mg-synthetic-wx","group_ids":["mg-synthetic-group"]}
+]

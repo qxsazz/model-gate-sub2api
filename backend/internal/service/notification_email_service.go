@@ -1630,6 +1630,61 @@ func notificationEmailOpsScheduledReportTemplate(locale string) string {
 </html>`
 }
 
+// chatBindingEmailHTML uses the branded account-security layout of the site's
+// verification and password-reset emails. Inline styles also work in mail clients.
+const chatBindingEmailHTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>群聊绑定确认 - {{site_name}}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f7f6f2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1a1a1e;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7f6f2; padding: 40px 15px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 580px; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.05); border: 1px solid #eae8e1;">
+          <tr>
+            <td style="background-color: #141416; background-image: linear-gradient(135deg, #141416 0%, #1e1e24 100%); padding: 32px 36px; border-bottom: 1px solid #2a2a30;">
+              <span style="font-family: 'Times New Roman', Times, serif; font-size: 20px; letter-spacing: 2px; font-weight: 700; color: #f3eedf; text-transform: uppercase;">{{site_name}}</span>
+              <div style="font-size: 11px; letter-spacing: 1.5px; color: #c5a059; margin-top: 4px; text-transform: uppercase;">AI API GATEWAY · 账户安全中心</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 36px 36px 28px;">
+              <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 600; color: #111113;">群聊绑定确认</h2>
+              <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.7; color: #555555;">你收到了一笔「<strong style="color: #111113;">{{group_name}}</strong>」的群聊绑定请求。请登录网站核对群名，并选择是否绑定。</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 28px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="{{binding_url}}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #141416; color: #f5eedc; font-size: 14px; font-weight: 600; text-decoration: none; padding: 13px 38px; border-radius: 8px; letter-spacing: 0.5px; border: 1px solid #333333; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);">查看绑定请求</a>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf8f2; border: 1px solid #eee5cb; border-radius: 8px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 14px 18px; font-size: 13px; color: #7a6843; line-height: 1.6;">绑定链接有效期为 <strong>10 分钟</strong>。如果这笔请求并非你发起，可以忽略此邮件。</td>
+                </tr>
+              </table>
+              <div style="border-top: 1px solid #f0eee6; padding-top: 18px; font-size: 12px; color: #888888; line-height: 1.6;">
+                如果按钮无法点击，请复制下方链接到浏览器中打开。<br>
+                <a href="{{binding_url}}" target="_blank" rel="noopener noreferrer" style="color: #9c7b39; word-break: break-all; text-decoration: underline; display: inline-block; margin-top: 4px;">{{binding_url}}</a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #faf9f6; padding: 18px 36px; border-top: 1px solid #f0eee6; text-align: center; font-size: 11px; color: #a5a298; line-height: 1.6;">
+              This email was sent by {{site_name}}. Please do not reply directly.<br>
+              © {{year}} {{site_name}} · All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+
 func notificationEmailCard(accent, title, content string) string {
 	return `<!DOCTYPE html>
 <html>
