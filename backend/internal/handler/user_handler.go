@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/handler/quotaview"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -22,6 +23,7 @@ type UserHandler struct {
 	emailCache            service.EmailCache
 	affiliateService      *service.AffiliateService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	botConfig             config.BotIntegrationConfig
 }
 
 // NewUserHandler creates a new UserHandler
@@ -32,8 +34,9 @@ func NewUserHandler(
 	emailCache service.EmailCache,
 	affiliateService *service.AffiliateService,
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	cfg *config.Config,
 ) *UserHandler {
-	return &UserHandler{
+	handler := &UserHandler{
 		userService:           userService,
 		authService:           authService,
 		emailService:          emailService,
@@ -41,6 +44,10 @@ func NewUserHandler(
 		affiliateService:      affiliateService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
+	if cfg != nil {
+		handler.botConfig = cfg.BotIntegration
+	}
+	return handler
 }
 
 // GetMyPlatformQuotas GET /user/platform-quotas

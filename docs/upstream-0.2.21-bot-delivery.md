@@ -1,5 +1,9 @@
 # v0.2.21 + 群聊 Bot 网站侧交付
 
+> 本文下方保留 2026-11-11 的首次交付记录，版本、SHA 和测试数反映当时状态。2026-11-12 的生产候选为 `6f4760af8139264e72756cd540a4248b217f7593`，已增加邮箱直接绑定、拒绝绑定、群名和品牌邮件。
+>
+> 最新测试镜像：`sha256:13353a36ae60caaf18668596cd82066243592bc9f6e5bb0a33c389d531b86ebb`。[测试部署](https://github.com/qxsazz/model-gate-sub2api/actions/runs/43180192676)、[后端 CI](https://github.com/qxsazz/model-gate-sub2api/actions/runs/43180192549)、[前端 CI](https://github.com/qxsazz/model-gate-sub2api/actions/runs/43180192537)、[安全扫描](https://github.com/qxsazz/model-gate-sub2api/actions/runs/43180192499) 均通过；前端 3266 项测试和邮件专项 20 项测试通过，324 个迁移 checksum 已核验。该镜像为本次生产晋级对象，分支维护规则见[开发规范](branch-development.md)。
+
 2026-11-11，测试环境已部署并完成 HTTPS 验收。按要求直接推送 staging，没有创建 PR，没有更新生产。本文件是部署完成后的交付记录，不改变已验收的运行代码。
 
 ## 环境和版本

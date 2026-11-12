@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -39,11 +40,11 @@ func validateBotEvent(c *gin.Context, event service.BotIdentityEvent) (*middlewa
 }
 
 func (h *UserHandler) CreateBotBindingChallenge(c *gin.Context) {
-	var input service.BotIdentityEvent
+	var input service.BotBindingChallengeInput
 	if !decodeBotJSON(c, &input) {
 		return
 	}
-	principal, ok := validateBotEvent(c, input)
+	principal, ok := validateBotEvent(c, input.BotIdentityEvent)
 	if !ok {
 		return
 	}
@@ -53,6 +54,44 @@ func (h *UserHandler) CreateBotBindingChallenge(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"challenge_id": result.ChallengeID, "binding_url": principal.PublicURL + "/chat-bindings/authorize/" + result.ChallengeID, "expires_at": result.ExpiresAt, "replayed": result.Replayed})
+}
+
+func (h *UserHandler) CreateBotBindingEmail(c *gin.Context) {
+	var input service.BotBindingChallengeInput
+	if !decodeBotJSON(c, &input) {
+		return
+	}
+	principal, ok := validateBotEvent(c, input.BotIdentityEvent)
+	if !ok {
+		return
+	}
+	if input.RequestedEmail == nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("BOT_BINDING_EMAIL_INVALID", "请填写有效的注册邮箱"))
+		return
+	}
+	if !principal.AllowBindingEmail(c, input.Identity, *input.RequestedEmail) {
+		return
+	}
+	ctx := c.Request.Context()
+	smtp, err := h.emailService.GetSMTPConfig(ctx)
+	if err != nil || (strings.TrimSpace(smtp.From) == "" && strings.TrimSpace(smtp.Username) == "") {
+		response.ErrorFrom(c, infraerrors.New(503, "BOT_BINDING_MAIL_UNAVAILABLE", "绑定邮件暂不可发送，请联系管理员"))
+		return
+	}
+	result, err := h.userService.CreateChatBindingChallenge(ctx, input)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !result.Replayed {
+		groupName := h.botConfig.GroupName(input.Identity.Platform, input.Identity.BotID, input.Identity.GroupID)
+		link := principal.PublicURL + "/chat-bindings/authorize/" + result.ChallengeID
+		if err := h.authService.QueueChatBindingEmail(ctx, *input.RequestedEmail, groupName, link, result.ExpiresAt); err != nil {
+			response.ErrorFrom(c, infraerrors.New(503, "BOT_BINDING_MAIL_UNAVAILABLE", "绑定邮件暂不可发送，请稍后重试"))
+			return
+		}
+	}
+	response.Success(c, gin.H{"status": "email_requested"})
 }
 
 func (h *UserHandler) ConfirmBotBinding(c *gin.Context) {
@@ -99,6 +138,7 @@ func (h *UserHandler) GetChatBindingChallenge(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	result.GroupName = h.botConfig.GroupName(result.Identity.Platform, result.Identity.BotID, result.Identity.GroupID)
 	response.Success(c, result)
 }
 
@@ -109,17 +149,17 @@ func (h *UserHandler) AuthorizeChatBindingChallenge(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Confirm             bool   `json:"confirm"`
+		Confirm             *bool  `json:"confirm"`
 		AccountConfirmation string `json:"account_confirmation"`
 	}
 	if !decodeBotJSON(c, &input) {
 		return
 	}
-	if !input.Confirm {
-		response.ErrorFrom(c, infraerrors.BadRequest("BOT_BINDING_CONFIRMATION_REQUIRED", "请确认当前登录账号和群聊来源"))
+	if input.Confirm == nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("BOT_BINDING_CONFIRMATION_REQUIRED", "请选择是否确认绑定"))
 		return
 	}
-	result, err := h.userService.AuthorizeChatBindingChallenge(c.Request.Context(), subject.UserID, c.Param("challenge_id"), input.AccountConfirmation)
+	result, err := h.userService.AuthorizeChatBindingChallenge(c.Request.Context(), subject.UserID, c.Param("challenge_id"), input.AccountConfirmation, *input.Confirm)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -138,6 +178,10 @@ func (h *UserHandler) ListChatBindings(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	for i := range result {
+		identity := result[i].Identity
+		result[i].GroupName = h.botConfig.GroupName(identity.Platform, identity.BotID, identity.GroupID)
 	}
 	response.Success(c, result)
 }

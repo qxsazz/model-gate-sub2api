@@ -16,6 +16,8 @@
 
 [English](README.md) | 中文 | [日本語](README_JA.md)
 
+ModelGate 维护：[分支开发与发布规范](docs/branch-development.md)
+
 </div>
 
 

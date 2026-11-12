@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"html"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,15 +15,19 @@ import (
 const (
 	TaskTypeVerifyCode    = "verify_code"
 	TaskTypePasswordReset = "password_reset"
+	TaskTypeChatBinding   = "chat_binding"
 )
 
 // EmailTask 邮件发送任务
 type EmailTask struct {
-	Email    string
-	SiteName string
-	TaskType string // "verify_code" or "password_reset"
-	ResetURL string // Only used for password_reset task type
-	Locale   string // Optional Accept-Language locale hint
+	Email      string
+	SiteName   string
+	TaskType   string
+	ResetURL   string // Only used for password_reset task type
+	Locale     string // Optional Accept-Language locale hint
+	GroupName  string
+	BindingURL string
+	ExpiresAt  time.Time
 }
 
 // EmailQueueService 异步邮件队列服务
@@ -94,8 +100,31 @@ func (s *EmailQueueService) processTask(workerID int, task EmailTask) {
 		} else {
 			logger.LegacyPrintf("service.email_queue", "[EmailQueue] Worker %d sent password reset to %s", workerID, task.Email)
 		}
+	case TaskTypeChatBinding:
+		if !time.Now().Before(task.ExpiresAt) {
+			return
+		}
+		body := strings.NewReplacer(
+			"{{site_name}}", html.EscapeString(s.emailService.notificationEmailService.siteName(ctx)),
+			"{{group_name}}", html.EscapeString(task.GroupName),
+			"{{binding_url}}", html.EscapeString(task.BindingURL),
+			"{{year}}", time.Now().Format("2006"),
+		).Replace(chatBindingEmailHTML)
+		if err := s.emailService.SendEmail(ctx, task.Email, "ModelGate 群聊绑定确认", body); err != nil {
+			logger.LegacyPrintf("service.email_queue", "[EmailQueue] Worker %d could not deliver a chat binding email", workerID)
+		}
 	default:
 		logger.LegacyPrintf("service.email_queue", "[EmailQueue] Worker %d unknown task type: %s", workerID, task.TaskType)
+	}
+}
+
+// EnqueueChatBindingEmail schedules delivery without exposing the address or URL in logs.
+func (s *EmailQueueService) EnqueueChatBindingEmail(email, groupName, bindingURL string, expiresAt time.Time) error {
+	select {
+	case s.taskChan <- EmailTask{Email: email, TaskType: TaskTypeChatBinding, GroupName: groupName, BindingURL: bindingURL, ExpiresAt: expiresAt}:
+		return nil
+	default:
+		return fmt.Errorf("email queue is full")
 	}
 }
 

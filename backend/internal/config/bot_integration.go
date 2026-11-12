@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type BotIntegrationConfig struct {
@@ -17,9 +19,10 @@ type BotIntegrationConfig struct {
 }
 
 type BotIntegrationScope struct {
-	Platform string   `json:"platform"`
-	BotID    string   `json:"bot_id"`
-	GroupIDs []string `json:"group_ids"`
+	Platform   string            `json:"platform"`
+	BotID      string            `json:"bot_id"`
+	GroupIDs   []string          `json:"group_ids"`
+	GroupNames map[string]string `json:"group_names,omitempty"`
 }
 
 type BotIntegrationClient struct {
@@ -59,12 +62,37 @@ func (c BotIntegrationConfig) Clients() ([]BotIntegrationClient, error) {
 					return nil, fmt.Errorf("bot_integration group IDs must be explicit")
 				}
 			}
+			for group, name := range scope.GroupNames {
+				if !slices.Contains(scope.GroupIDs, group) || strings.TrimSpace(name) != name || name == "" ||
+					!utf8.ValidString(name) || utf8.RuneCountInString(name) > 80 ||
+					strings.ContainsFunc(name, func(r rune) bool { return unicode.IsControl(r) || unicode.In(r, unicode.Cf) }) {
+					return nil, fmt.Errorf("bot_integration group names require an allowed group and 1 to 80 visible characters")
+				}
+			}
 			if scope.BotID == "*" {
 				return nil, fmt.Errorf("bot_integration bot IDs must be explicit")
 			}
 		}
 	}
 	return clients, nil
+}
+
+// GroupName returns the configured label for a group, including previously created bindings.
+func (c BotIntegrationConfig) GroupName(platform, botID, groupID string) string {
+	clients, _ := c.Clients()
+	for _, client := range clients {
+		for _, scope := range client.Scopes {
+			if scope.Platform == platform && scope.BotID == botID {
+				if name := scope.GroupNames[groupID]; name != "" {
+					return name
+				}
+			}
+		}
+	}
+	if platform == "qq_official" {
+		return "QQ群聊"
+	}
+	return "微信群聊"
 }
 
 func (c BotIntegrationConfig) Validate() error {

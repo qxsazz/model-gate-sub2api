@@ -188,7 +188,7 @@ func TestMGAdminRouteRequiresExplicitFullAccessAndRevokesItOnDowngrade(t *testin
 	auth := middleware.NewAdminAuthMiddleware(nil, users, settings, nil)
 	router := gin.New()
 	RegisterAdminRoutes(router.Group("/api/v1"), &handler.Handlers{
-		User: handler.NewUserHandler(users, nil, nil, nil, nil, nil),
+		User: handler.NewUserHandler(users, nil, nil, nil, nil, nil, nil),
 		Admin: &handler.AdminHandlers{
 			Account: adminhandler.NewAccountHandler(&scopedRouteAccounts{t: t}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil),
 			Setting: adminhandler.NewSettingHandler(settings, nil, nil, nil, nil, nil, nil),

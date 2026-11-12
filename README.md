@@ -16,6 +16,8 @@
 
 English | [中文](README_CN.md) | [日本語](README_JA.md)
 
+ModelGate maintainers: [Branch development and release workflow](docs/branch-development.md)
+
 </div>
 
 ## ⚠️ Important Notice

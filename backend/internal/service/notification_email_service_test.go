@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -548,6 +549,32 @@ func (r *notificationEmailMemorySettingRepo) Delete(_ context.Context, key strin
 	}
 	delete(r.values, key)
 	return nil
+}
+
+func TestChatBindingEmailShowsGroupNameAndWebsiteLink(t *testing.T) {
+	repo := newNotificationEmailMemorySettingRepo()
+	smtpServer := startNotificationEmailTestSMTPServer(t)
+	settings := smtpServer.settings()
+	settings[SettingKeySiteName] = "Model-Gate"
+	require.NoError(t, repo.SetMultiple(context.Background(), settings))
+	emailService := NewEmailService(repo, nil)
+	emailService.SetNotificationEmailService(NewNotificationEmailService(repo, emailService))
+	queue := NewEmailQueueService(emailService, 1)
+	t.Cleanup(queue.Stop)
+	link := "https://staging.model-gate.cc/chat-bindings/authorize/12345678-1234-1234-1234-123456789abc"
+	require.NoError(t, queue.EnqueueChatBindingEmail("recipient@example.invalid", "账单群 <测试>", link, time.Now().Add(time.Minute)))
+	require.Eventually(t, func() bool { return smtpServer.messageCount() == 1 }, 3*time.Second, 20*time.Millisecond)
+	message, err := mail.ReadMessage(strings.NewReader(smtpServer.lastMessage()))
+	require.NoError(t, err)
+	require.Contains(t, message.Header.Get("To"), "recipient@example.invalid")
+	body := smtpServer.lastMessageBody(t)
+	require.Contains(t, body, "background-color: #f7f6f2")
+	require.Contains(t, body, "linear-gradient(135deg, #141416 0%, #1e1e24 100%)")
+	require.Contains(t, body, "AI API GATEWAY · 账户安全中心")
+	require.Contains(t, body, `href="`+link+`" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #141416; color: #f5eedc;`)
+	require.Contains(t, body, "This email was sent by Model-Gate.")
+	require.Contains(t, body, "账单群 &lt;测试&gt;")
+	require.NotContains(t, body, "{{site_name}}")
 }
 
 func TestNotificationEmailMemorySettingRepoSatisfiesInterface(t *testing.T) {

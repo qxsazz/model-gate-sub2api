@@ -99,12 +99,19 @@ def checkin(identity):
 def assert_status(payload, expected):
     if payload.get("status") != expected:
         raise RuntimeError(f"expected receipt {expected}, got {payload.get('status')}")
-    if set(payload) - {"status", "request_key", "replayed", "checkin_date"}:
+    public_fields = {"status", "request_key", "replayed", "checkin_date"}
+    if expected == "ineligible":
+        public_fields.update({"access_reason", "minimum_recharge_cny"})
+    if expected == "checkin_unavailable":
+        public_fields.add("access_reason")
+    if set(payload) - public_fields:
         raise RuntimeError("group receipt includes private account fields")
 
 
-def bind(identity, user_token):
+def bind(identity, user_token, *, email=None):
     request = event(identity)
+    if email:
+        request["requested_email"] = email
     challenge = call("/integrations/bot/binding-challenges", token, request)
     duplicate = call("/integrations/bot/binding-challenges", token, request)
     assert duplicate["replayed"] and challenge["challenge_id"] == duplicate["challenge_id"]
@@ -113,8 +120,19 @@ def bind(identity, user_token):
     preview = call(challenge_path, user_token, method="GET")
     assert preview["identity"] == identity
     other_session = next(item[1] for item in users if item[1] != user_token)
-    call(challenge_path + "/authorize", other_session, {"confirm": True, "account_confirmation": preview["account_confirmation"]}, expected=409)
-    authorization = call(challenge_path + "/authorize", user_token, {"confirm": True, "account_confirmation": preview["account_confirmation"]})
+    confirmation = {"confirm": True, "account_confirmation": preview["account_confirmation"]}
+    if email:
+        assert preview["binding_mode"] == "email"
+        assert email not in challenge["binding_url"]
+        call(challenge_path, other_session, method="GET", expected=403)
+        call("/integrations/bot/binding-challenges", token, {**request, "requested_email": "different@example.invalid"}, expected=409)
+    call(challenge_path + "/authorize", other_session, confirmation, expected=409)
+    authorization = call(challenge_path + "/authorize", user_token, confirmation)
+    if email:
+        assert authorization["status"] == "bound" and "code" not in authorization
+        assert call(challenge_path, user_token, method="GET")["state"] == "completed"
+        call(challenge_path + "/authorize", user_token, confirmation, expected=409)
+        return
     wrong = {**identity, "sender_id": identity["sender_id"] + "-wrong"}
     call("/integrations/bot/bindings/confirm", token, {**event(wrong), "code": authorization["code"]}, expected=400)
     confirmation = {**event(identity), "code": authorization["code"]}
@@ -122,8 +140,8 @@ def bind(identity, user_token):
     assert call("/integrations/bot/bindings/confirm", token, confirmation)["replayed"]
 
 
-def recharge(uid):
-    sql(f"INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_key,provider_snapshot,out_trade_no,paid_at,completed_at) VALUES({uid},10,10,now(),'COMPLETED','alipay','easypay','{{\"currency\":\"CNY\",\"recharge_principal\":10}}','bot-smoke-{uuid.uuid4().hex}',now(),now());")
+def recharge(uid, principal):
+    sql(f"INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_key,provider_snapshot,out_trade_no,paid_at,completed_at) VALUES({uid},{principal},{principal},now(),'COMPLETED','alipay','easypay','{{\"currency\":\"CNY\",\"recharge_principal\":{principal}}}','bot-smoke-{uuid.uuid4().hex}',now(),now());")
 
 
 try:
@@ -131,8 +149,10 @@ try:
         email = f"bot-acceptance-{prefix}-{index}@example.invalid"
         password = "synthetic-unusable-" + uuid.uuid4().hex
         uid = int(sql(f"INSERT INTO users(email,password_hash,balance,created_at) VALUES('{email}','{password}',0,now()-interval '2 days') RETURNING id;"))
-        users.append((uid, jwt(uid, email, password)))
-    (uid, user_token), (other_uid, other_token) = users
+        users.append((uid, jwt(uid, email, password), email))
+    (uid, user_token, user_email), (other_uid, other_token, _) = users
+    minimum = json.loads(sql(f"SELECT achievement_access_snapshot({uid});"))["minimum_recharge_cny"]
+    assert type(minimum) in (int, float) and minimum > 0
     qq, wx = identities
     call("/integrations/bot/binding-challenges", "invalid", event(qq), expected=401)
     call("/integrations/bot/binding-challenges", user_token, event(qq), expected=401)
@@ -141,16 +161,20 @@ try:
     unbound = checkin(qq)
     assert_status(call("/integrations/bot/checkin", token, unbound), "not_bound")
     bind(qq, user_token)
+    bind(wx, user_token, email=user_email)
     call("/integrations/bot/checkin", token, {**checkin(qq), "user_id": other_uid}, expected=400)
-    unpaid = checkin(qq)
-    assert_status(call("/integrations/bot/checkin", token, unpaid), "ineligible")
-    recharge(uid)
-    assert_status(call("/integrations/bot/checkin", token, unpaid), "ineligible")
+    unpaid = checkin(wx)
+    rejected = call("/integrations/bot/checkin", token, unpaid)
+    assert_status(rejected, "ineligible")
+    assert rejected["access_reason"] == "recharge_required" and rejected["minimum_recharge_cny"] == minimum
+    assert sql(f"SELECT count(*) FROM achievement_checkins WHERE user_id={uid};") == "0"
+    assert sql(f"SELECT balance=0 FROM users WHERE id={uid};") == "t"
+    recharge(uid, minimum)
+    assert call("/integrations/bot/checkin", token, unpaid) == {**rejected, "replayed": True}
     paid = checkin(qq)
     first = call("/integrations/bot/checkin", token, paid)
     assert_status(first, "checked_in")
     assert call("/integrations/bot/checkin", token, paid)["replayed"]
-    bind(wx, user_token)
     assert_status(call("/integrations/bot/checkin", token, checkin(wx)), "already_checked_in")
     bindings = call("/user/chat-bindings", user_token, method="GET")
     qq_binding = next(item for item in bindings if item["identity"] == qq)
@@ -160,12 +184,12 @@ try:
     old = call("/integrations/bot/checkin", token, paid)
     assert old["replayed"] and old["request_key"] == first["request_key"]
     assert sql(f"SELECT count(*) FROM achievement_checkins WHERE user_id={other_uid};") == "0"
-    recharge(other_uid)
+    recharge(other_uid, minimum)
     assert_status(call("/integrations/bot/checkin", token, checkin(qq)), "checked_in")
     old_day = {**checkin(wx), "event_at": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).isoformat()}
     assert_status(call("/integrations/bot/checkin", token, old_day), "date_changed")
     assert sql(f"SELECT count(*) FROM achievement_checkins WHERE user_id IN ({uid},{other_uid});") == "2"
-    print("Bot HTTPS acceptance passed: scoped credentials, QQ/WeChat binding, eligibility, replay, ownership, unlink/rebind and Shanghai day.")
+    print(f"Bot HTTPS acceptance passed: email confirmation, wrong-account denial, legacy QQ binding, {minimum} CNY eligibility reason, replay, unlink/rebind and Shanghai day.")
 finally:
     if users:
         ids = ",".join(str(item[0]) for item in users)
