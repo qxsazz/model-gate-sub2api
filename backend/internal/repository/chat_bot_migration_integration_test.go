@@ -33,6 +33,7 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 		"250_openai_cache_write_ttl.sql":                 true,
 		"260_chat_bot_bindings.sql":                      true,
 		"261_chat_bot_email_binding.sql":                 true,
+		"262_chat_binding_decline.sql":                   true,
 	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)

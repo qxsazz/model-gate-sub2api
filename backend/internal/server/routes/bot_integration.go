@@ -12,6 +12,7 @@ func RegisterBotIntegrationRoutes(v1 *gin.RouterGroup, h *handler.Handlers, cfg 
 	bot := v1.Group("/integrations/bot")
 	bot.Use(middleware.BotIntegrationAuth(cfg, redisClient))
 	bot.POST("/binding-challenges", h.User.CreateBotBindingChallenge)
+	bot.POST("/binding-emails", h.User.CreateBotBindingEmail)
 	bot.POST("/bindings/confirm", h.User.ConfirmBotBinding)
 	bot.POST("/checkin", h.User.BotCheckin)
 }

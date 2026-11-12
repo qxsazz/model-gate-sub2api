@@ -32,7 +32,7 @@ func botTestAuthorize(ctx context.Context, s *service.UserService, uid int64, id
 	if err != nil {
 		return nil, err
 	}
-	return s.AuthorizeChatBindingChallenge(ctx, uid, id, preview.AccountConfirmation)
+	return s.AuthorizeChatBindingChallenge(ctx, uid, id, preview.AccountConfirmation, true)
 }
 
 func botTestBind(t *testing.T, s *service.UserService, uid int64, identity service.ChatIdentity) int64 {
@@ -89,7 +89,7 @@ func TestChatBindingOwnershipIdentityAndSingleUse(t *testing.T) {
 	require.Equal(t, identity, preview.Identity)
 	require.Equal(t, uid, preview.AccountID)
 	// A JWT replaced by another tab cannot authorize the account shown earlier.
-	_, err = s.AuthorizeChatBindingChallenge(ctx, other, ch.ChallengeID, preview.AccountConfirmation)
+	_, err = s.AuthorizeChatBindingChallenge(ctx, other, ch.ChallengeID, preview.AccountConfirmation, true)
 	require.Equal(t, "BOT_BINDING_ACCOUNT_CHANGED", infraerrors.Reason(err))
 	auth, err := botTestAuthorize(ctx, s, uid, ch.ChallengeID)
 	require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestChatEmailBindingRequiresTheInitiatingEmail(t *testing.T) {
 	preview, err := s.GetChatBindingChallenge(ctx, uid, challenge.ChallengeID)
 	require.NoError(t, err)
 	require.Equal(t, "email", preview.BindingMode)
-	authorized, err := s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation)
+	authorized, err := s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation, true)
 	require.NoError(t, err)
 	require.Equal(t, "bound", authorized.Status)
 	require.Empty(t, authorized.Code)
@@ -176,8 +176,38 @@ func TestChatEmailBindingRequiresTheInitiatingEmail(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bindings, 1)
 	require.Equal(t, identity, bindings[0].Identity)
-	_, err = s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation)
+	_, err = s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation, true)
 	require.Equal(t, "BOT_BINDING_CHALLENGE_USED", infraerrors.Reason(err))
+}
+
+func TestChatEmailDeclineCannotCreateOrBeChangedIntoABinding(t *testing.T) {
+	tx, s := botTestTx(t)
+	ctx := context.Background()
+	uid, other := achievementAccessUser(t, tx), achievementAccessUser(t, tx)
+	var email string
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT email FROM users WHERE id=$1`, uid).Scan(&email))
+	identity := botTestIdentity("wechat_native")
+	input := service.BotBindingChallengeInput{BotIdentityEvent: botTestEvent(identity), RequestedEmail: &email}
+	challenge, err := s.CreateChatBindingChallenge(ctx, input)
+	require.NoError(t, err)
+	preview, err := s.GetChatBindingChallenge(ctx, uid, challenge.ChallengeID)
+	require.NoError(t, err)
+	_, err = (&userRepository{sql: tx}).DeclineChatBindingChallenge(ctx, other, challenge.ChallengeID)
+	require.Equal(t, "BOT_BINDING_ACCOUNT_MISMATCH", infraerrors.Reason(err))
+
+	declined, err := s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation, false)
+	require.NoError(t, err)
+	require.Equal(t, "declined", declined.Status)
+	preview, err = s.GetChatBindingChallenge(ctx, uid, challenge.ChallengeID)
+	require.NoError(t, err)
+	require.Equal(t, "declined", preview.State)
+	_, err = s.AuthorizeChatBindingChallenge(ctx, uid, challenge.ChallengeID, preview.AccountConfirmation, true)
+	require.Equal(t, "BOT_BINDING_CHALLENGE_USED", infraerrors.Reason(err))
+	botCheck(t, s, service.BotCheckinInput{BotIdentityEvent: botTestEvent(identity), EventAt: time.Now()}, "not_bound")
+	input.EventID = uuid.NewString()
+	next, err := s.CreateChatBindingChallenge(ctx, input)
+	require.NoError(t, err)
+	require.NotEqual(t, challenge.ChallengeID, next.ChallengeID)
 }
 
 func TestChatBindingExpiryAttemptsAndSupersession(t *testing.T) {

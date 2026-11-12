@@ -19,18 +19,18 @@ describe('群聊绑定双向确认', () => {
     auth.user.id = 1
     mocks.refresh.mockResolvedValue(undefined)
     mocks.list.mockResolvedValue([])
-    mocks.get.mockResolvedValue({ challenge_id: 'challenge-a', identity, state: 'pending', expires_at: new Date(Date.now() + 600000).toISOString(), account_confirmation: 'account-a-preview', account_id: 1 })
+    mocks.get.mockResolvedValue({ challenge_id: 'challenge-a', identity, group_name: '账单群', state: 'pending', expires_at: new Date(Date.now() + 600000).toISOString(), account_confirmation: 'account-a-preview', account_id: 1 })
     mocks.authorize.mockResolvedValue({ code: 'ABCD-EFGH-IJKL-MNOP', expires_at: new Date(Date.now() + 600000).toISOString() })
   })
-  it('shows the current account and exact source, and requires explicit consent', async () => {
+  it('shows the group name and requires explicit consent', async () => {
     const w = render(); await flushPromises()
-    expect(w.text()).toContain('current@example.com')
-    for (const value of Object.values(identity).slice(1)) expect(w.text()).toContain(value)
+    expect(w.text()).toContain('账单群')
+    for (const value of Object.values(identity)) expect(w.text()).not.toContain(value)
     expect(mocks.authorize).not.toHaveBeenCalled()
     expect(w.get('[data-authorize]').attributes('disabled')).toBeDefined()
     await w.get('[data-consent]').setValue(true)
     await w.get('[data-authorize]').trigger('click'); await flushPromises()
-    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview')
+    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview', true)
     expect(w.get('[data-code]').text()).toBe('/绑定 ABCD-EFGH-IJKL-MNOP')
     auth.user.id = 2; await flushPromises()
     expect(w.find('[data-code]').exists()).toBe(false)
@@ -46,28 +46,44 @@ describe('群聊绑定双向确认', () => {
   })
   it('completes an email binding on the website without displaying a code', async () => {
     const preview = {
-      challenge_id: 'challenge-a', identity, state: 'pending', binding_mode: 'email',
+      challenge_id: 'challenge-a', identity, group_name: '账单群', state: 'pending', binding_mode: 'email',
       expires_at: new Date(Date.now() + 600000).toISOString(),
       account_id: 1, account_confirmation: 'account-a-preview',
     }
     mocks.get.mockResolvedValue(preview)
     mocks.authorize.mockResolvedValue({ status: 'bound', expires_at: preview.expires_at })
-    mocks.list.mockResolvedValueOnce([]).mockResolvedValue([{ id: 19, identity }])
+    mocks.list.mockResolvedValueOnce([]).mockResolvedValue([{ id: 19, identity, group_name: '账单群' }])
     const w = render(); await flushPromises()
     expect(w.get('[data-authorize]').text()).toBe('确认绑定')
     expect(w.get('[data-authorize]').attributes('disabled')).toBeDefined()
     await w.get('[data-consent]').setValue(true)
     await w.get('[data-authorize]').trigger('click'); await flushPromises()
-    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview')
+    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview', true)
     expect(w.text()).toContain('绑定已完成，可以回到原群发送 /签到')
     expect(w.find('[data-code]').exists()).toBe(false)
     expect(w.find('[data-revoke="19"]').exists()).toBe(true)
     w.unmount()
   })
+  it('records an explicit decline without creating a binding', async () => {
+    mocks.get.mockResolvedValue({
+      challenge_id: 'challenge-a', identity, group_name: '账单群', state: 'pending', binding_mode: 'email',
+      expires_at: new Date(Date.now() + 600000).toISOString(),
+      account_id: 1, account_confirmation: 'account-a-preview',
+    })
+    mocks.authorize.mockResolvedValue({ status: 'declined' })
+    const w = render(); await flushPromises()
+    await w.get('[data-decline]').trigger('click'); await flushPromises()
+    expect(mocks.authorize).toHaveBeenCalledWith('challenge-a', 'account-a-preview', false)
+    expect(w.text()).toContain('已取消这次绑定请求')
+    expect(w.find('[data-authorize]').exists()).toBe(false)
+    w.unmount()
+  })
   it('does not unlink until confirmation and uses the owned binding ID', async () => {
     route.params.challengeId = ''
-    mocks.list.mockResolvedValue([{ id: 17, identity }])
+    mocks.list.mockResolvedValue([{ id: 17, identity, group_name: '账单群' }])
     const w = render(); await flushPromises()
+    expect(w.text()).toContain('账单群')
+    for (const value of Object.values(identity)) expect(w.text()).not.toContain(value)
     await w.get('[data-revoke="17"]').trigger('click')
     expect(mocks.revoke).not.toHaveBeenCalled()
     w.getComponent({ name: 'ConfirmDialog' }).vm.$emit('confirm'); await flushPromises()

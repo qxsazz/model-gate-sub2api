@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -548,6 +549,23 @@ func (r *notificationEmailMemorySettingRepo) Delete(_ context.Context, key strin
 	}
 	delete(r.values, key)
 	return nil
+}
+
+func TestChatBindingEmailShowsGroupNameAndWebsiteLink(t *testing.T) {
+	repo := newNotificationEmailMemorySettingRepo()
+	smtpServer := startNotificationEmailTestSMTPServer(t)
+	require.NoError(t, repo.SetMultiple(context.Background(), smtpServer.settings()))
+	queue := NewEmailQueueService(NewEmailService(repo, nil), 1)
+	t.Cleanup(queue.Stop)
+	link := "https://staging.model-gate.cc/chat-bindings/authorize/12345678-1234-1234-1234-123456789abc"
+	require.NoError(t, queue.EnqueueChatBindingEmail("recipient@example.invalid", "账单群 <测试>", link, time.Now().Add(time.Minute)))
+	require.Eventually(t, func() bool { return smtpServer.messageCount() == 1 }, 3*time.Second, 20*time.Millisecond)
+	message, err := mail.ReadMessage(strings.NewReader(smtpServer.lastMessage()))
+	require.NoError(t, err)
+	require.Contains(t, message.Header.Get("To"), "recipient@example.invalid")
+	body := smtpServer.lastMessageBody(t)
+	require.Contains(t, body, "账单群 &lt;测试&gt;")
+	require.Contains(t, body, link)
 }
 
 func TestNotificationEmailMemorySettingRepoSatisfiesInterface(t *testing.T) {

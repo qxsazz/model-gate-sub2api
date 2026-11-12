@@ -8,25 +8,23 @@
       <p v-if="error" class="card p-5 text-red-600 dark:text-red-400" role="alert">{{ error }}</p>
       <p v-if="loading" role="status">正在读取绑定信息…</p>
       <section v-else-if="challenge" class="card space-y-5 p-6">
-        <h2 class="text-lg font-semibold">确认绑定当前账号</h2>
-        <p class="break-words">当前登录：<strong data-account>{{ auth.user?.username || auth.user?.email }}</strong><span v-if="auth.user?.username" class="ml-2">{{ auth.user?.email }}</span></p>
-        <dl class="identity-grid">
-          <dt>来源</dt><dd>{{ platformName(challenge.identity.platform) }}</dd>
-          <dt>Bot 实例</dt><dd>{{ challenge.identity.bot_id }}</dd>
-          <dt>群标识</dt><dd>{{ challenge.identity.group_id }}</dd>
-          <dt>你的群身份</dt><dd>{{ challenge.identity.sender_id }}</dd>
-        </dl>
+        <h2 class="text-lg font-semibold">确认群聊绑定</h2>
+        <p class="break-words text-xl font-semibold" data-group-name>{{ challenge.group_name || '群聊' }}</p>
         <p v-if="challenge.state === 'completed'" role="status">绑定已完成，可以回到原群发送 /签到。</p>
+        <p v-else-if="challenge.state === 'declined'" role="status">已取消这次绑定请求。</p>
         <p v-else-if="expired" role="status">此绑定请求已失效，请回到原群重新发送 /绑定。</p>
         <template v-else>
           <p class="text-sm text-gray-600 dark:text-gray-400">
-            仅在你本人刚刚向上面的 Bot 发起绑定时继续。
+            请在你本人发起绑定后继续。
             <template v-if="emailBinding">确认后即可回到原群发送 /签到。</template>
             <template v-else>确认码只用于当前群和当前身份，请勿转发给其他人。</template>
           </p>
           <template v-if="!authorization">
-            <label class="flex items-start gap-3"><input v-model="consent" type="checkbox" class="mt-1" data-consent />我已核对当前账号和群聊来源，确认绑定。</label>
-            <button class="btn btn-primary" data-authorize :disabled="busy || !consent || !auth.user" @click="authorize">{{ busy ? '正在处理…' : emailBinding ? '确认绑定' : '获取一次性确认码' }}</button>
+            <label class="flex items-start gap-3"><input v-model="consent" type="checkbox" class="mt-1" data-consent />我确认将当前网站账号绑定到此群。</label>
+            <div class="flex flex-wrap gap-3">
+              <button class="btn btn-primary" data-authorize :disabled="busy || !consent || !auth.user" @click="authorize(true)">{{ busy ? '正在处理…' : emailBinding ? '确认绑定' : '获取一次性确认码' }}</button>
+              <button v-if="emailBinding" class="btn btn-secondary" data-decline :disabled="busy || !auth.user" @click="authorize(false)">暂不绑定</button>
+            </div>
           </template>
           <div v-else class="confirmation-code space-y-3 rounded-xl border p-5">
             <p>回到发起绑定的同一个群，使用同一身份发送：</p>
@@ -38,10 +36,9 @@
       </section>
       <section class="card space-y-5 p-6">
         <h2 class="text-lg font-semibold">已绑定的群聊</h2>
-        <p class="text-sm text-gray-600 dark:text-gray-400">QQ、微信和网站共享每日签到记录。签到资格以网站当前规则为准，现金奖励仍受活动范围和预算限制。</p>
-        <p v-if="!loading && bindings.length === 0">尚未绑定。请在已接入的群里发送 /绑定，按 Bot 提示操作。</p>
+        <p v-if="!loading && bindings.length === 0">尚未绑定。在群里发送 <code>/绑定 &lt;注册邮箱&gt;</code>，然后查收绑定邮件。</p>
         <article v-for="binding in bindings" :key="binding.id" class="binding-row rounded-xl border p-4">
-          <div class="min-w-0 space-y-2"><strong>{{ platformName(binding.identity.platform) }}</strong><p class="break-all text-sm">群：{{ binding.identity.group_id }}</p><p class="break-all text-sm">Bot：{{ binding.identity.bot_id }}</p><p class="break-all text-sm">身份：{{ binding.identity.sender_id }}</p></div>
+          <strong class="min-w-0 break-words">{{ binding.group_name || '群聊' }}</strong>
           <button class="btn btn-secondary shrink-0" :disabled="busy" :data-revoke="binding.id" @click="revoking = binding">解除绑定</button>
         </article>
         <router-link to="/profile" class="brand-accent">返回个人资料</router-link>
@@ -77,7 +74,6 @@ let timer: ReturnType<typeof setInterval> | undefined
 const remaining = computed(() => Math.max(0, Math.ceil((Date.parse(challenge.value?.expires_at || '') - now.value) / 1000)) || 0)
 const expired = computed(() => challenge.value?.state === 'expired' || remaining.value === 0)
 const emailBinding = computed(() => challenge.value?.binding_mode === 'email')
-const platformName = (platform: string) => platform === 'qq_official' ? 'QQ 官方群机器人' : '微信群机器人'
 function message(e: unknown, fallback: string) { return e && typeof e === 'object' && 'message' in e && typeof e.message === 'string' ? e.message : fallback }
 async function load() {
   const request = ++sequence
@@ -99,13 +95,13 @@ async function load() {
   } catch (e) { if (request === sequence) { challenge.value = null; error.value = message(e, '读取绑定信息失败，请重试。') } }
   finally { if (request === sequence) loading.value = false }
 }
-async function authorize() {
-  if (!consent.value || busy.value || expired.value || !auth.user || !challenge.value?.account_confirmation) return
+async function authorize(confirm: boolean) {
+  if ((confirm && !consent.value) || busy.value || expired.value || !auth.user || !challenge.value?.account_confirmation) return
   const request = sequence
   busy.value = true
   error.value = ''
   try {
-    const result = await authorizeChatBinding(challengeID.value, challenge.value.account_confirmation)
+    const result = await authorizeChatBinding(challengeID.value, challenge.value.account_confirmation, confirm)
     if (request !== sequence || !challenge.value) return
     if (result.status === 'bound') {
       challenge.value.state = 'completed'
@@ -114,12 +110,14 @@ async function authorize() {
         if (items) bindings.value = items
         else error.value = '绑定已完成，请刷新绑定列表。'
       }
+    } else if (result.status === 'declined') {
+      challenge.value.state = 'declined'
     } else {
       authorization.value = result
     }
   }
   catch (e) {
-    if (request === sequence) error.value = message(e, emailBinding.value ? '绑定失败，请重试。' : '生成确认码失败，请重试。')
+    if (request === sequence) error.value = message(e, confirm ? '绑定请求处理失败，请重试。' : '取消请求失败，请重试。')
   }
   finally { busy.value = false }
 }
@@ -149,9 +147,6 @@ onUnmounted(() => { sequence++; clearInterval(timer); authorization.value = null
 .confirmation-code { border-color: var(--mg-line-warm, #e7e1d4); background: var(--mg-gold-50, #fcfaf4); }
 .binding-row { border-color: var(--mg-line-warm, #e7e1d4); }
 input[type="checkbox"] { accent-color: var(--mg-gold-700, #9c8344); }
-.identity-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .75rem 1rem; }
-.identity-grid dt { opacity: .65; }
-.identity-grid dd { overflow-wrap: anywhere; }
 .binding-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 @media (max-width: 520px) { .binding-row { align-items: flex-start; flex-direction: column; } }
 </style>

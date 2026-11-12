@@ -105,3 +105,10 @@ func AuthorizeBotIdentity(c *gin.Context, identity service.ChatIdentity) (*BotPr
 	}
 	return &principal, true
 }
+
+// AllowBindingEmail limits requests independently for the member and recipient.
+func (p *BotPrincipal) AllowBindingEmail(c *gin.Context, identity service.ChatIdentity, email string) bool {
+	recipient := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))))
+	return botRequestLimit(c, p.limiter, "chat-bot:mail:member:"+identity.Key(), 3) &&
+		botRequestLimit(c, p.limiter, "chat-bot:mail:recipient:"+hex.EncodeToString(recipient[:]), 1)
+}

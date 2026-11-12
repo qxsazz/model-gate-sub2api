@@ -52,6 +52,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 | 方法 / 路径 | 身份 | 用途 |
 |---|---|---|
 | `POST /integrations/bot/binding-challenges` | Bot | 从群事件生成 10 分钟绑定挑战 |
+| `POST /integrations/bot/binding-emails` | Bot | 受理发送到注册邮箱的绑定请求 |
 | `GET /user/chat-bindings/challenges/:id` | 网站 JWT | 展示当前账号与群身份，额外提供的只读预览接口 |
 | `POST /user/chat-bindings/challenges/:id/authorize` | 网站 JWT | `{"confirm":true,"account_confirmation":"<预览返回值>"}`，确认邮箱绑定或生成旧版一次性码 |
 | `POST /integrations/bot/bindings/confirm` | Bot | 从同一身份的 `/绑定 CODE` 消费确认码 |
@@ -61,13 +62,17 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 ### 注册邮箱绑定
 
-群成员发送 `/绑定 <注册邮箱>`。Bot 以真实消息身份和原始事件 ID 创建绑定挑战。
+群成员发送 `/绑定 <注册邮箱>`。Bot 以真实消息身份和原始事件 ID 请求发送绑定邮件。
 
 ```json
 {"identity":{"platform":"wechat_native","bot_id":"mg-synthetic-wx","group_id":"mg-synthetic-group","sender_id":"synthetic-local-member"},"event_id":"platform-message-email-bind-001","requested_email":"test@example.invalid"}
 ```
 
-响应包含同样的 `challenge_id`、`binding_url`、`expires_at` 和 `replayed`。绑定挑战按规范化邮箱摘要匹配，创建时统一返回链接。用户用该邮箱登录后，预览返回 `binding_mode: "email"`。另一个登录账号读取该链接返回 HTTP 403 `BOT_BINDING_ACCOUNT_MISMATCH`。确认接口核对 `account_confirmation` 和当前登录邮箱，在一次事务中写入绑定并消费挑战，返回 `{"status":"bound","expires_at":"..."}`。网页显示完成后即可在原群发送 `/签到`。
+向 `/integrations/bot/binding-emails` 提交上面的请求。服务器按发起成员和规范化收件邮箱限频，给活跃账号的注册邮箱排队发送有效期为 10 分钟的确认链接。Bot 收到通用回执 `{"status":"email_requested"}`，在群里提示查收。重复平台事件只排队一次，邮件投递与网页确认分别处理。
+
+邮件链接使用网站登录流程。对应邮箱登录后，预览返回 `binding_mode: "email"` 和 `group_name`。其他登录账号读取链接返回 HTTP 403 `BOT_BINDING_ACCOUNT_MISMATCH`。确认接口核对 `account_confirmation` 和当前登录邮箱，在事务中写入绑定并消费挑战，返回 `{"status":"bound","expires_at":"..."}`。用户选择「暂不绑定」时发送 `confirm: false`，服务器记录 `declined` 并结束这笔请求。网页显示完成后即可在原群发送 `/签到`。
+
+配置的 Bot scope 可为 `group_ids` 中的群提供 `group_names`，例如 `{"group_ids":["test-group"],"group_names":{"test-group":"账单群"}}`。确认页、已绑定列表及邮件使用该名称。
 
 ### 一次性码绑定
 
@@ -119,7 +124,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 ## 迁移与验收
 
-相对于生产基线，新增官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql`、`260_chat_bot_bindings.sql` 和 `261_chat_bot_email_binding.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别。完整文件名、原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
+相对于生产基线，新增官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql`、`260_chat_bot_bindings.sql`、`261_chat_bot_email_binding.sql` 和 `262_chat_binding_decline.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别。完整文件名、原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
 
 260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件回执不能直接按时间删除；将来清理必须保留足以阻止历史事件重放到新用户的墓碑。解绑只撤销有效绑定。
 

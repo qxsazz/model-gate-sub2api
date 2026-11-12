@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -85,6 +86,7 @@ type BotCheckinInput struct {
 type ChatBindingChallenge struct {
 	ChallengeID         string       `json:"challenge_id"`
 	Identity            ChatIdentity `json:"identity,omitempty"`
+	GroupName           string       `json:"group_name,omitempty"`
 	ExpiresAt           time.Time    `json:"expires_at"`
 	State               string       `json:"state,omitempty"`
 	BindingMode         string       `json:"binding_mode,omitempty"`
@@ -102,6 +104,7 @@ type ChatBindingAuthorization struct {
 type ChatBinding struct {
 	ID        int64        `json:"id"`
 	Identity  ChatIdentity `json:"identity"`
+	GroupName string       `json:"group_name,omitempty"`
 	CreatedAt time.Time    `json:"created_at"`
 }
 
@@ -123,6 +126,7 @@ type ChatBindingRepository interface {
 	CreateChatBindingChallenge(context.Context, string, BotBindingChallengeInput) (*ChatBindingChallenge, error)
 	GetChatBindingChallenge(context.Context, int64, string) (*ChatBindingChallenge, error)
 	AuthorizeChatBindingChallenge(context.Context, int64, string, string) (*ChatBindingAuthorization, error)
+	DeclineChatBindingChallenge(context.Context, int64, string) (*ChatBindingAuthorization, error)
 	ConfirmChatBinding(context.Context, BotIdentityEvent, string) (*BotReceipt, error)
 	ListChatBindings(context.Context, int64) ([]ChatBinding, error)
 	RevokeChatBinding(context.Context, int64, int64) error
@@ -158,6 +162,21 @@ func (s *UserService) CreateChatBindingChallenge(ctx context.Context, input BotB
 		return nil, err
 	}
 	return r.CreateChatBindingChallenge(ctx, id.String(), input)
+}
+
+// QueueChatBindingEmail sends the link only to the active account's registered address.
+func (s *AuthService) QueueChatBindingEmail(ctx context.Context, email, groupName, bindingURL string, expiresAt time.Time) error {
+	user, err := s.userRepo.GetByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	if errors.Is(err, ErrUserNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !user.IsActive() {
+		return nil
+	}
+	return s.emailQueueService.EnqueueChatBindingEmail(user.Email, groupName, bindingURL, expiresAt)
 }
 
 func validateChatChallengeID(id string) error {
@@ -197,7 +216,7 @@ func chatCodeHash(code string) (string, error) {
 	return hex.EncodeToString(digest[:]), nil
 }
 
-func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID int64, id, accountConfirmation string) (*ChatBindingAuthorization, error) {
+func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID int64, id, accountConfirmation string, confirm bool) (*ChatBindingAuthorization, error) {
 	if err := validateChatChallengeID(id); err != nil {
 		return nil, err
 	}
@@ -208,6 +227,9 @@ func (s *UserService) AuthorizeChatBindingChallenge(ctx context.Context, userID 
 	r, err := s.chatBindingRepo()
 	if err != nil {
 		return nil, err
+	}
+	if !confirm {
+		return r.DeclineChatBindingChallenge(ctx, userID, id)
 	}
 	var entropy [10]byte
 	if _, err = rand.Read(entropy[:]); err != nil {

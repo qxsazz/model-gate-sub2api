@@ -44,6 +44,8 @@ func (r *userRepository) chatBindingJSON(ctx context.Context, target any, query 
 				code, message = 403, "当前网站账号不可用"
 			case "BOT_BINDING_ACCOUNT_MISMATCH":
 				code, message = 403, "请用发起绑定时填写的注册邮箱登录，然后重新打开绑定链接"
+			case "BOT_BINDING_DECLINE_UNAVAILABLE":
+				code, message = 400, "这类请求可等待链接自动过期"
 			}
 			return infraerrors.New(code, failure.Error, message).WithMetadata(map[string]string{"request_key": failure.RequestKey, "replayed": strconv.FormatBool(failure.Replayed)})
 		}
@@ -71,7 +73,8 @@ func (r *userRepository) GetChatBindingChallenge(ctx context.Context, userID int
         WHEN user_id IS NOT NULL AND user_id<>$2 THEN jsonb_build_object('error','BOT_BINDING_CHALLENGE_CLAIMED')
         ELSE jsonb_build_object('challenge_id',id,'identity',identity,'expires_at',expires_at,
         'binding_mode',CASE WHEN requested_email_hash IS NOT NULL THEN 'email' ELSE 'code' END,'state',
-        CASE WHEN consumed_at IS NOT NULL THEN 'completed' WHEN superseded_at IS NOT NULL OR expires_at<=clock_timestamp() OR failed_attempts>=5 THEN 'expired'
+        CASE WHEN declined_at IS NOT NULL THEN 'declined' WHEN consumed_at IS NOT NULL THEN 'completed'
+        WHEN superseded_at IS NOT NULL OR expires_at<=clock_timestamp() OR failed_attempts>=5 THEN 'expired'
         WHEN authorized_at IS NOT NULL THEN 'authorized' ELSE 'pending' END) END
         FROM chat_binding_challenges WHERE id=$1::uuid),jsonb_build_object('error','BOT_BINDING_CHALLENGE_NOT_FOUND'))`, id, userID)
 	return &result, err
@@ -80,6 +83,12 @@ func (r *userRepository) GetChatBindingChallenge(ctx context.Context, userID int
 func (r *userRepository) AuthorizeChatBindingChallenge(ctx context.Context, userID int64, id, digest string) (*service.ChatBindingAuthorization, error) {
 	var result service.ChatBindingAuthorization
 	err := r.chatBindingJSON(ctx, &result, `SELECT chat_binding_authorize($1::uuid,$2,$3)`, id, userID, digest)
+	return &result, err
+}
+
+func (r *userRepository) DeclineChatBindingChallenge(ctx context.Context, userID int64, id string) (*service.ChatBindingAuthorization, error) {
+	var result service.ChatBindingAuthorization
+	err := r.chatBindingJSON(ctx, &result, `SELECT chat_binding_decline($1::uuid,$2)`, id, userID)
 	return &result, err
 }
 
