@@ -59,6 +59,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 | `GET /user/chat-bindings` | 网站 JWT | 当前用户有效绑定列表 |
 | `DELETE /user/chat-bindings/:id` | 网站 JWT | 只能解绑自己拥有的记录 |
 | `POST /integrations/bot/checkin` | Bot | 从群 `/签到` 事件触发共同签到逻辑 |
+| `POST /integrations/bot/claim-trial-credit` | Bot | 处理新用户的 `/领取额度` |
 
 ### 注册邮箱绑定
 
@@ -102,7 +103,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 `event_at` 必须是平台原始事件时间，包含时区，重试保留原值；不能换成重试发生时的时间。服务器按上海时间判断日期，不能由客户端提交签到日期。只有首次请求会校验当前日期；跨日重放已经完成的事件仍返回原回执。
 
-`request_key = "bot:" + SHA256(JSON数组[operation,platform,bot_id,group_id,sender_id,event_id])`，固定 68 字符，由网站生成。`operation` 为 `challenge`、`confirm`、`checkin`。不用客户端自己计算或传入 request_key。
+`request_key = "bot:" + SHA256(JSON数组[operation,platform,bot_id,group_id,sender_id,event_id])`，固定 68 字符，由网站生成。`operation` 为 `challenge`、`confirm`、`checkin` 或 `trial_credit`。客户端重试使用原消息的 `event_id`。
 
 签到 `data` 包含 `status`、`request_key`、`replayed` 和 `checkin_date`。新的充值资格拒绝回执还包含 `access_reason` 和当时适用的公开门槛 `minimum_recharge_cny`。Bot 可按 `recharge_required`、`payment_pending`、`recharge_refunded` 分别提示充值不足、待到账或退款后不足。核验暂不可用时，`checkin_unavailable` 可携带 `access_reason: "verification_unavailable"`。站内用户 ID、邮箱、个人充值金额、余额、VIP 和奖励明细留在网站。
 
@@ -122,11 +123,21 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 常见非业务错误：401 `BOT_UNAUTHORIZED`、403 `BOT_SCOPE_FORBIDDEN`、400 `BOT_REQUEST_INVALID` / `BOT_IDENTITY_INVALID` / `BOT_BINDING_CODE_INVALID`、409 `BOT_IDENTITY_ALREADY_BOUND` / `BOT_BINDING_CHALLENGE_CLAIMED` / `BOT_BINDING_CHALLENGE_USED` / `BOT_BINDING_ACCOUNT_CHANGED` / `BOT_EVENT_CONFLICT`、410 `BOT_BINDING_CHALLENGE_EXPIRED`。超限为 429 并带 `Retry-After`，客户端每分钟 240 次、身份每分钟 30 次；Redis 不可用时 503，禁止绕过限流。网络错误或 HTTP 5xx 可有限退避重试原请求；收到业务回执后停止自动重试。确认失败的重放标记在错误 `metadata` 内。
 
+## 新用户体验额度
+
+群成员在已开通的 QQ 或微信测试群使用 `/领取额度`。请求提交 `identity` 与原消息的 `event_id`。服务端从有效绑定确定网站账号，以 `users.created_at` 核对首次开启时固定的时间线。
+
+服务端按网站账号限制终身领取一次。余额、领取记录、兑换记录和事件回执在同一事务提交。QQ、微信并发请求、解绑重绑和活动金额调整都沿用同一领取记录。申请按余额入账规则处理，并在站内兑换记录标为「新用户体验额度」。它属于站内赠金，充值本金和 VIP 成长使用各自的充值记录。
+
+返回 `status`、`request_key` 和 `replayed`。业务状态包括 `claimed`、`already_claimed`、`not_bound`、`not_new`、`account_unavailable` 和 `disabled`。群回复只展示处理结果。用户可在网站查询余额和入账明细。
+
+迁移创建的活动默认关闭。测试环境通过 `SELECT chat_configure_trial_credit(true, 3)` 启用，每个符合资格的账号获得 3 个站内余额单位。修改第二个参数可调整后续发放金额，传 `false` 可暂停领取。首次开启时间保留在 `chat_trial_credit_policy.eligible_after`。
+
 ## 迁移与验收
 
 相对于生产基线，新增官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql`、`260_chat_bot_bindings.sql`、`261_chat_bot_email_binding.sql` 和 `262_chat_binding_decline.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别。完整文件名、原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
 
-260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件回执不能直接按时间删除；将来清理必须保留足以阻止历史事件重放到新用户的墓碑。解绑只撤销有效绑定。
+260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件清理须保留足以阻止旧消息作用于新账号的回执。解绑只撤销有效绑定。263 增加体验额度活动、账号级领取记录及事务函数。
 
 ```sh
 cd backend

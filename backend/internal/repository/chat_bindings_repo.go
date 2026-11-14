@@ -112,8 +112,15 @@ func (r *userRepository) RevokeChatBinding(ctx context.Context, userID, bindingI
 	return r.chatBindingJSON(ctx, &result, `SELECT chat_binding_revoke($1,$2)`, bindingID, userID)
 }
 
-func (r *userRepository) ChatBotCheckin(ctx context.Context, input service.BotCheckinInput, day, fingerprint string) (*service.BotCheckinResult, error) {
-	var result service.BotCheckinResult
+func (r *userRepository) ChatBotCheckin(ctx context.Context, input service.BotCheckinInput, day, fingerprint string) (*service.BotReceiptResult, error) {
+	var result service.BotReceiptResult
 	err := r.chatBindingJSON(ctx, &result, `SELECT chat_bot_checkin($1,$2,$3,$4,$5::date)`, input.Identity.Key(), input.Identity.RequestKey("checkin", input.EventID), input.EventID, fingerprint, day)
+	return &result, err
+}
+
+func (r *userRepository) ChatBotClaimTrialCredit(ctx context.Context, event service.BotIdentityEvent) (*service.BotReceiptResult, error) {
+	var result service.BotReceiptResult
+	err := r.chatBindingJSON(ctx, &result, `SELECT chat_bot_claim_trial_credit($1,$2,$3)`,
+		event.Identity.Key(), event.Identity.RequestKey("trial_credit", event.EventID), event.EventID)
 	return &result, err
 }

@@ -792,6 +792,7 @@ export default {
     balanceAddedRedeem: '余额充值（兑换）',
     balanceAddedAffiliate: '余额充值（返利转入）',
     balanceAddedCheckin: '签到奖励',
+    trialCredit: '新用户体验额度',
     balanceAddedAchievement: '成就奖励',
     balanceAddedAchievementSeries: '系列成就奖励',
     balanceAddedAdmin: '余额充值（管理员）',
