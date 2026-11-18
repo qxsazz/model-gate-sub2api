@@ -1470,8 +1470,8 @@ func TestAntigravityCompatGeminiThinkingConfig(t *testing.T) {
 		require.True(t, cfg.Get("includeThoughts").Bool(), "thinkingConfig=%s", cfg.Raw)
 	})
 
-	t.Run("non-streaming responses do not force includeThoughts", func(t *testing.T) {
-		upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
+	t.Run("buffered responses preserve ModelGate summaries and explicit opt-out", func(t *testing.T) {
+		upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse(), antigravityCompatSuccessResponse()}}
 		svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, upstream)
 		account := newAntigravityCompatAccount(AccountTypeOAuth)
 		mapping, ok := account.Credentials["model_mapping"].(map[string]any)
@@ -1484,7 +1484,19 @@ func TestAntigravityCompatGeminiThinkingConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Len(t, upstream.requestBodies, 1)
-		require.False(t, gjson.GetBytes(upstream.requestBodies[0], "request.generationConfig.thinkingConfig.includeThoughts").Bool())
+		cfg := gjson.GetBytes(upstream.requestBodies[0], "request.generationConfig.thinkingConfig")
+		require.True(t, cfg.Get("includeThoughts").Bool())
+		require.False(t, cfg.Get("thinkingLevel").Exists())
+
+		disabled := []byte(`{"model":"gemini-4-argon-high","stream":false,"reasoning":{"effort":"none"},"input":"inspect"}`)
+		c, rec = newAntigravityCompatContext(http.MethodPost, "/v1/responses", disabled)
+		_, err = svc.ForwardAsResponses(context.Background(), c, account, disabled, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Len(t, upstream.requestBodies, 2)
+		cfg = gjson.GetBytes(upstream.requestBodies[1], "request.generationConfig.thinkingConfig")
+		require.False(t, cfg.Get("includeThoughts").Bool())
+		require.False(t, cfg.Get("thinkingLevel").Exists())
 	})
 }
 

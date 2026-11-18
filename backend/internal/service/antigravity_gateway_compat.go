@@ -322,7 +322,8 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 			return nil, err
 		}
 		body = ensureGeminiFunctionCallThoughtSignatures(body)
-		body = applyModelGateGeminiThinkingConfig(body, claudeBody, mappedModel)
+		// Antigravity selects named variants by model ID. Keep MG summaries and bare-model budgets.
+		body = applyModelGateGeminiThinkingIntent(body, claudeBody, mappedModel)
 		body, err = injectIdentityPatchToGeminiRequest(body)
 		if err != nil {
 			return nil, err
