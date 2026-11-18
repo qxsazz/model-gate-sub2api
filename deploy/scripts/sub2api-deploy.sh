@@ -12,11 +12,17 @@ usage() {
   exit 2
 }
 
+valid_sha256() {
+  case "$1" in
+    sha256:????????????????????????????????????????????????????????????????)
+      case "${1#sha256:}" in *[!0-9a-f]*) return 1 ;; *) return 0 ;; esac ;;
+    *) return 1 ;;
+  esac
+}
+
 valid_digest() {
   case "$1" in
-    ghcr.io/qxsazz/model-gate-sub2api@sha256:????????????????????????????????????????????????????????????????)
-      digest="${1##*@sha256:}"
-      case "$digest" in *[!0-9a-f]*) return 1 ;; *) return 0 ;; esac ;;
+    ghcr.io/qxsazz/model-gate-sub2api@*) valid_sha256 "${1#*@}" ;;
     *) return 1 ;;
   esac
 }
@@ -104,9 +110,32 @@ current_image() {
   docker inspect "$container" --format '{{.Config.Image}}' 2>/dev/null || true
 }
 
-current_digest() {
-  docker inspect "$container" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | head -n 1 || true
-}
+current_digest() (
+  image_id=$(docker inspect "$container" --format '{{.Image}}' 2>/dev/null) || return 0
+  docker image inspect "$image_id" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | head -n 1
+)
+
+# Save the image actually backing the container, even when its original tag moved.
+archive_production_image() (
+  umask 077
+  image_id=$(docker inspect "$container" --format '{{.Image}}') || exit 1
+  valid_sha256 "$image_id" || { echo 'cannot identify the running production image' >&2; exit 1; }
+  rollback_tag="model-gate/production-rollback:${image_id#sha256:}"
+  archive_dir=$(mktemp -d "$backup_dir/production-image-${timestamp}-XXXXXXXX") || exit 1
+  trap 'rm -f "$archive_dir/image.tar" "$archive_dir/SHA256SUMS" "$archive_dir/image.env"; rmdir "$archive_dir"' EXIT
+  trap 'exit 1' HUP INT TERM
+  cd "$archive_dir" || exit 1
+  docker image tag "$image_id" "$rollback_tag" || exit 1
+  docker image save --output image.tar "$rollback_tag" || exit 1
+  sha256sum image.tar > SHA256SUMS || exit 1
+  sha256sum -c SHA256SUMS >/dev/null || exit 1
+  docker image load --input image.tar >/dev/null || exit 1
+  restored_id=$(docker image inspect "$rollback_tag" --format '{{.Id}}') || exit 1
+  [ "$restored_id" = "$image_id" ] || { echo 'restored production image ID differs' >&2; exit 1; }
+  printf 'previous_image=%s\nimage_id=%s\nlocal_tag=%s\n' "$1" "$image_id" "$rollback_tag" > image.env || exit 1
+  trap - EXIT HUP INT TERM
+  printf '%s\n' "$archive_dir/image.tar"
+)
 
 healthcheck() {
   attempt=1
@@ -172,6 +201,16 @@ deploy() {
 
   export SUB2API_IMAGE="$target"
   compose config --quiet
+  previous_image_archive=""
+  if [ "$environment" = production ] && [ "$previous" != "$target" ]; then
+    if [ -n "$previous" ]; then
+      previous_image_archive="$(archive_production_image "$previous")" || return 1
+      printf 'production_rollback_image=%s\nproduction_rollback_archive=%s verified=true\n' "$previous" "$previous_image_archive"
+    else
+      existing=$(docker container ls -a --filter "name=^/$container$" --format '{{.Names}}') || return 1
+      [ -z "$existing" ] || { echo 'cannot archive the existing production container image' >&2; return 1; }
+    fi
+  fi
   backup_postgres "$database_container"
   docker pull "$target"
 
@@ -179,6 +218,7 @@ deploy() {
 environment=$environment
 previous_image=$previous
 previous_digest=$previous_digest
+previous_image_archive=$previous_image_archive
 target_image=$target
 backup_file=$backup_file
 started_at=$timestamp

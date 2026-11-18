@@ -15,4 +15,5 @@ func RegisterBotIntegrationRoutes(v1 *gin.RouterGroup, h *handler.Handlers, cfg 
 	bot.POST("/binding-emails", h.User.CreateBotBindingEmail)
 	bot.POST("/bindings/confirm", h.User.ConfirmBotBinding)
 	bot.POST("/checkin", h.User.BotCheckin)
+	bot.POST("/claim-trial-credit", h.User.ClaimBotTrialCredit)
 }

@@ -252,7 +252,7 @@ const isAdminType = (type: string) => type === 'admin_balance' || type === 'admi
 const isRewardType = (type: string) => ['checkin_balance', 'achievement_balance', 'achievement_series_balance'].includes(type)
 
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance' || isRewardType(type)
+const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance' || type === 'trial_credit' || isRewardType(type)
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
@@ -310,6 +310,8 @@ const getItemTitle = (item: BalanceHistoryItem) => {
       return t('redeem.balanceAddedRedeem')
     case 'checkin_balance':
       return t('redeem.balanceAddedCheckin')
+    case 'trial_credit':
+      return t('redeem.trialCredit')
     case 'achievement_balance':
       return t('redeem.balanceAddedAchievement')
     case 'achievement_series_balance':

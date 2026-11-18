@@ -117,7 +117,7 @@ type BotReceipt struct {
 	MinimumRechargeCNY *float64 `json:"minimum_recharge_cny,omitempty"`
 }
 
-type BotCheckinResult struct {
+type BotReceiptResult struct {
 	Receipt     BotReceipt `json:"receipt"`
 	CacheUserID *int64     `json:"cache_user_id"`
 }
@@ -130,7 +130,8 @@ type ChatBindingRepository interface {
 	ConfirmChatBinding(context.Context, BotIdentityEvent, string) (*BotReceipt, error)
 	ListChatBindings(context.Context, int64) ([]ChatBinding, error)
 	RevokeChatBinding(context.Context, int64, int64) error
-	ChatBotCheckin(context.Context, BotCheckinInput, string, string) (*BotCheckinResult, error)
+	ChatBotCheckin(context.Context, BotCheckinInput, string, string) (*BotReceiptResult, error)
+	ChatBotClaimTrialCredit(context.Context, BotIdentityEvent) (*BotReceiptResult, error)
 }
 
 func (s *UserService) chatBindingRepo() (ChatBindingRepository, error) {
@@ -305,6 +306,24 @@ func (s *UserService) ChatBotCheckin(ctx context.Context, input BotCheckinInput)
 	// The SQL function invokes the same achievement_checkin write path as the
 	// website. Only invalidate after the receipt and debit transaction committed.
 	if result.CacheUserID != nil && (result.Receipt.Status == "checked_in" || result.Receipt.Status == "already_checked_in") {
+		s.invalidateAchievementBalanceCaches(ctx, *result.CacheUserID)
+	}
+	return &result.Receipt, nil
+}
+
+func (s *UserService) ChatBotClaimTrialCredit(ctx context.Context, event BotIdentityEvent) (*BotReceipt, error) {
+	if err := event.Validate(); err != nil {
+		return nil, err
+	}
+	r, err := s.chatBindingRepo()
+	if err != nil {
+		return nil, err
+	}
+	result, err := r.ChatBotClaimTrialCredit(ctx, event)
+	if err != nil {
+		return nil, err
+	}
+	if result.CacheUserID != nil && result.Receipt.Status == "claimed" {
 		s.invalidateAchievementBalanceCaches(ctx, *result.CacheUserID)
 	}
 	return &result.Receipt, nil

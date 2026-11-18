@@ -788,6 +788,7 @@ export default {
     balanceAddedRedeem: 'Balance Added (Redeem)',
     balanceAddedAffiliate: 'Balance Added (Affiliate Transfer)',
     balanceAddedCheckin: 'Check-in Reward',
+    trialCredit: 'New User Trial Credit',
     balanceAddedAchievement: 'Achievement Reward',
     balanceAddedAchievementSeries: 'Series Achievement Reward',
     balanceAddedAdmin: 'Balance Added (Admin)',

@@ -347,6 +347,10 @@ https://api.model-gate.cc/health
 - 记录中的目标镜像 digest。
 - 记录中的旧镜像引用。
 
+替换生产镜像前，部署脚本会将当前容器实际使用的镜像导出到 `/opt/sub2api/backups/production-image-*/image.tar`，校验 SHA-256，试加载归档并比对 Docker image ID。发布记录的 `previous_image_archive` 指向归档文件。同目录的 `image.env` 保存原镜像引用、image ID 和本地回退标签。归档核验失败时，生产继续使用原镜像。
+
+需要从磁盘取回旧镜像时，在该归档目录执行 `sha256sum -c SHA256SUMS` 和 `docker image load --input image.tar`，再用 `docker image inspect` 对照 `image.env` 中的 image ID。加载镜像后，生产容器仍运行当前版本。应用切换和数据库恢复分别执行。
+
 ## 8. 失败处理
 
 如果应用容器启动失败或健康检查失败，部署脚本会尝试使用部署前的旧应用镜像恢复服务。

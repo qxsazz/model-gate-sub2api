@@ -34,22 +34,66 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 		"260_chat_bot_bindings.sql":                      true,
 		"261_chat_bot_email_binding.sql":                 true,
 		"262_chat_binding_decline.sql":                   true,
+		"263_chat_trial_credit.sql":                      true,
+	}
+	upstreamUpdates := map[string]bool{
+		"251_group_force_openai_ultrafast.sql":         true,
+		"251_group_usage_rollup_nonblocking_build.sql": true,
+		"252_channel_pricing_ultrafast_multiplier.sql": true,
 	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)
 	old := fstest.MapFS{}
+	staging := fstest.MapFS{}
 	for _, name := range names {
+		if upstreamUpdates[name] {
+			continue
+		}
+		data, err := migrations.FS.ReadFile(name)
+		require.NoError(t, err)
+		staging[name] = &fstest.MapFile{Data: data}
 		if !additions[name] {
-			data, err := migrations.FS.ReadFile(name)
-			require.NoError(t, err)
-			old[name] = &fstest.MapFile{Data: data}
+			old[name] = staging[name]
 		}
 	}
 	require.NoError(t, applyMigrationsFS(ctx, db, old))
 	uid := achievementAccessUser(t, db)
 	seedAchievementRecharge(t, db, uid, 10)
+	require.NoError(t, applyMigrationsFS(ctx, db, staging))
+	_, err = db.ExecContext(ctx, `SELECT chat_configure_trial_credit(true,3)`)
+	require.NoError(t, err)
+	var cutoff time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT eligible_after FROM chat_trial_credit_policy`).Scan(&cutoff))
+	var newUser int64
+	require.NoError(t, db.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance,created_at)
+		VALUES('staging-upgrade@example.invalid','fixture',0,clock_timestamp()) RETURNING id`).Scan(&newUser))
+	svc := botTestService(db)
+	qq := botTestIdentity("qq_official")
+	botTestBind(t, svc, newUser, qq)
+	event := botTestEvent(qq)
+	claim, err := svc.ChatBotClaimTrialCredit(ctx, event)
+	require.NoError(t, err)
+	require.Equal(t, "claimed", claim.Status)
+
 	require.NoError(t, ApplyMigrations(ctx, db))
 	require.NoError(t, ApplyMigrations(ctx, db)) // startup retry validates checksums and does not reapply
+	var policyPreserved bool
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT enabled AND amount=3 AND eligible_after=$1
+		FROM chat_trial_credit_policy`, cutoff).Scan(&policyPreserved))
+	require.True(t, policyPreserved)
+	replay, err := svc.ChatBotClaimTrialCredit(ctx, event)
+	require.NoError(t, err)
+	require.True(t, replay.Replayed)
+	require.Equal(t, claim.RequestKey, replay.RequestKey)
+	require.Equal(t, claim.Status, replay.Status)
+	wx := botTestIdentity("wechat_native")
+	botTestBind(t, svc, newUser, wx)
+	second, err := svc.ChatBotClaimTrialCredit(ctx, botTestEvent(wx))
+	require.NoError(t, err)
+	require.Equal(t, "already_claimed", second.Status)
+	var balance float64
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, newUser).Scan(&balance))
+	require.Equal(t, 3.0, balance)
 	rows, err := db.QueryContext(ctx, `SELECT filename,checksum FROM schema_migrations ORDER BY filename`)
 	require.NoError(t, err)
 	defer func() { _ = rows.Close() }()

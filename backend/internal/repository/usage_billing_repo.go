@@ -15,7 +15,7 @@ type usageBillingRepository struct {
 	db *sql.DB
 }
 
-func NewUsageBillingRepository(_ *dbent.Client, sqlDB *sql.DB) service.UsageBillingRepository {
+func NewUsageBillingRepository(_ *dbent.Client, sqlDB *sql.DB) service.UsageBillingBatchRepository {
 	return &usageBillingRepository{db: sqlDB}
 }
 
@@ -210,17 +210,18 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 		result.QuotaState = quotaState
 	}
-	if tokens := cmd.AchievementTokens(); tokens > 0 {
-		_, err := tx.ExecContext(ctx, `INSERT INTO achievement_growth(user_id,tokens,last_paid_at,last_balance_paid_at)
+	return incrementUsageBillingAchievementGrowth(ctx, tx, cmd.UserID, cmd.AchievementTokens(), cmd.BalanceCost > 0)
+}
+
+func incrementUsageBillingAchievementGrowth(ctx context.Context, tx *sql.Tx, userID, tokens int64, balancePaid bool) error {
+	if tokens <= 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO achievement_growth(user_id,tokens,last_paid_at,last_balance_paid_at)
 		 VALUES($1,$2,now(),CASE WHEN $3 THEN now() ELSE NULL END)
 		 ON CONFLICT(user_id) DO UPDATE SET tokens=achievement_growth.tokens+excluded.tokens,
-		 last_paid_at=now(),last_balance_paid_at=COALESCE(excluded.last_balance_paid_at,achievement_growth.last_balance_paid_at)`, cmd.UserID, tokens, cmd.BalanceCost > 0)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+		 last_paid_at=now(),last_balance_paid_at=COALESCE(excluded.last_balance_paid_at,achievement_growth.last_balance_paid_at)`, userID, tokens, balancePaid)
+	return err
 }
 
 func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
@@ -424,9 +425,9 @@ func userExistsForBilling(ctx context.Context, tx *sql.Tx, userID int64) (bool, 
 	return true, nil
 }
 
-func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {
-	var exhausted bool
-	err := tx.QueryRowContext(ctx, `
+// usageBillingAPIKeyQuotaUpdate 累加 Key 已用额度（$1），本次累加从未达额度跨到达到额度时把 active 状态置为额度耗尽。
+// 参数：$1=金额 $2=api_key_id $3=active 状态 $4=额度耗尽状态。
+const usageBillingAPIKeyQuotaUpdate = `
 		UPDATE api_keys
 		SET quota_used = quota_used + $1,
 			status = CASE
@@ -438,7 +439,11 @@ func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID 
 				ELSE status
 			END,
 			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
+		WHERE id = $2 AND deleted_at IS NULL`
+
+func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {
+	var exhausted bool
+	err := tx.QueryRowContext(ctx, usageBillingAPIKeyQuotaUpdate+`
 		RETURNING quota > 0 AND quota_used >= quota AND quota_used - $1 < quota
 	`, amount, apiKeyID, service.StatusAPIKeyActive, service.StatusAPIKeyQuotaExhausted).Scan(&exhausted)
 	if errors.Is(err, sql.ErrNoRows) {

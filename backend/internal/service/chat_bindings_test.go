@@ -13,11 +13,11 @@ type chatBindingServiceStub struct {
 	ChatBindingRepository
 	input  BotCheckinInput
 	day    string
-	result *BotCheckinResult
+	result *BotReceiptResult
 	err    error
 }
 
-func (s *chatBindingServiceStub) ChatBotCheckin(_ context.Context, in BotCheckinInput, day, _ string) (*BotCheckinResult, error) {
+func (s *chatBindingServiceStub) ChatBotCheckin(_ context.Context, in BotCheckinInput, day, _ string) (*BotReceiptResult, error) {
 	s.input = in
 	s.day = day
 	return s.result, s.err
@@ -35,7 +35,7 @@ func (s *chatBalanceCacheStub) InvalidateUserBalance(_ context.Context, id int64
 
 func TestChatBotUsesOriginalReceiptAccountAndShanghaiTime(t *testing.T) {
 	uid := int64(17)
-	repo := &chatBindingServiceStub{result: &BotCheckinResult{Receipt: BotReceipt{Status: "checked_in", Replayed: true}, CacheUserID: &uid}}
+	repo := &chatBindingServiceStub{result: &BotReceiptResult{Receipt: BotReceipt{Status: "checked_in", Replayed: true}, CacheUserID: &uid}}
 	cache := &chatBalanceCacheStub{}
 	s := NewUserService(repo, nil, nil, cache)
 	input := BotCheckinInput{BotIdentityEvent: BotIdentityEvent{Identity: ChatIdentity{Platform: "qq_official", BotID: "b", GroupID: "g", SenderID: "member_openid"}, EventID: "event"}, EventAt: time.Date(2026, 11, 11, 16, 0, 0, 0, time.UTC)}

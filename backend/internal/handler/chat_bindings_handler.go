@@ -126,6 +126,22 @@ func (h *UserHandler) BotCheckin(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func (h *UserHandler) ClaimBotTrialCredit(c *gin.Context) {
+	var event service.BotIdentityEvent
+	if !decodeBotJSON(c, &event) {
+		return
+	}
+	if _, ok := validateBotEvent(c, event); !ok {
+		return
+	}
+	result, err := h.userService.ChatBotClaimTrialCredit(c.Request.Context(), event)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func (h *UserHandler) GetChatBindingChallenge(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
