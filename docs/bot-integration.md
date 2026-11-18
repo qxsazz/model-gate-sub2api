@@ -1,8 +1,8 @@
-# ModelGate v0.2.21 群聊接入协议
+# ModelGate 群聊接入协议
 
 此文档交付网站侧实现。AstrBot 的 QQ/微信命令解析、真实群事件映射及真实群验收由本地端完成。测试环境为 `https://staging.model-gate.cc`；生产晋级仍需 PR 审核和真实 Bot 验收。
 
-## 版本与保留范围
+## 首次接入版本与保留范围
 
 - 原生产：`59153037b9ce4804a041ab086e64abd5750c1d49`，`0.2.20-mg.1`。
 - 官方源码：`v0.2.21`，`10ba8f9b4dc2e6023d4a9879ab77b21841babd10`。
@@ -135,7 +135,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 ## 迁移与验收
 
-相对于生产基线，新增官方 `249_add_usage_logs_api_key_cost_index_notx.sql`、官方 `250_openai_cache_write_ttl.sql`、`260_chat_bot_bindings.sql`、`261_chat_bot_email_binding.sql` 和 `262_chat_binding_decline.sql`。原有两个编号为 249、两个编号为 250 的迁移按完整文件名分别识别。完整文件名、原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
+升级至 `0.2.23-mg.1` 时，生产基线 `6392d129` 已有 324 个 SQL 文件。测试环境另有 `263_chat_trial_credit.sql`。这 325 个文件的内容均予以保留，官方新增 `251_group_force_openai_ultrafast.sql`、`251_group_usage_rollup_nonblocking_build.sql` 和 `252_channel_pricing_ultrafast_multiplier.sql`。迁移按完整文件名识别。所有 328 个文件的原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
 
 260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件清理须保留足以阻止旧消息作用于新账号的回执。解绑只撤销有效绑定。263 增加体验额度活动、账号级领取记录及事务函数。
 
@@ -146,6 +146,8 @@ go test -tags unit ./internal/config ./internal/server/middleware ./internal/han
 ```
 
 集成测试在真实 PostgreSQL 上覆盖空库初始化、旧版 319 个 SQL 迁移升级与完整 checksum、跨平台身份、过期/限次/单次消费、越权解绑、退款、零奖励、上海午夜、旧事件重绑定、18 个并发网站/QQ/微信请求只发一次奖励。资格边界测试同时复用现有 VIP、成就、补签及退款测试。
+
+升级回归会在已有 325 个迁移的数据库中先发放一次体验额度，执行新版迁移并模拟服务重启，再核验活动金额、首次启用时间、余额与跨平台领取回执。测试站 HTTPS 验收沿用现有活动配置，开启时验证到账、跨平台去重和充值本金，关闭时验证停发。
 
 合成事件可用 `python tools/bot_event_fixture.py qq_official --checkin` 或 `wechat_native` 生成；发送后保存整个 JSON，重试不可重新生成事件 ID 或时间。去掉 `--checkin` 生成绑定挑战事件。真实联调时应将这些字段替换为适配器可信事件，不得用测试 ID 冒充真实群身份。
 

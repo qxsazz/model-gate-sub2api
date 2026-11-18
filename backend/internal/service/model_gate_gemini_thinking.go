@@ -16,7 +16,7 @@ func applyModelGateGeminiThinkingConfig(body, claudeBody []byte, model string) [
 	name := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "models/")
 	intent := parseClaudeThinkingIntent(claudeBody)
 	if strings.HasPrefix(name, "gemini-3") && intent.thinkingType != "disabled" && !geminiModelNameCarriesThinkingTier(model) {
-		level := geminiThinkingLevelFromClaudeBody(claudeBody)
+		level := normalizeGeminiThinkingLevel(gjson.GetBytes(claudeBody, "output_config.effort").String())
 		if level == "" && intent.tier == "" && intent.budgetTokens > 0 {
 			level = geminiThinkingLevelForBudget(intent.budgetTokens)
 		}

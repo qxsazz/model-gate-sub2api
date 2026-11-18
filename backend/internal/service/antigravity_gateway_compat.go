@@ -259,7 +259,7 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 	mappedModel := s.getMappedModelForThinkingLevel(
 		account,
 		request.originalModel,
-		geminiThinkingLevelFromClaudeThinking(claudeRequest.Thinking),
+		geminiThinkingLevelFromClaudeBody(request.claudeBody, claudeRequest.Thinking),
 	)
 	if mappedModel == "" {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -317,12 +317,12 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
-		body = applyModelGateGeminiThinkingConfig(body, claudeBody, mappedModel)
 		body, err = enableMixedGeminiToolInvocations(body)
 		if err != nil {
 			return nil, err
 		}
 		body = ensureGeminiFunctionCallThoughtSignatures(body)
+		body = applyModelGateGeminiThinkingConfig(body, claudeBody, mappedModel)
 		body, err = injectIdentityPatchToGeminiRequest(body)
 		if err != nil {
 			return nil, err
@@ -368,10 +368,6 @@ func configureGeminiThinking(body []byte, mappedModel string, requestedLevels ..
 		return nil, err
 	}
 	return applyModelGateGeminiThinkingConfig(body, encoded, mappedModel), nil
-}
-
-func geminiThinkingLevelFromClaudeBody(body []byte) string {
-	return normalizeGeminiThinkingLevel(gjson.GetBytes(body, "output_config.effort").String())
 }
 
 func normalizeGeminiThinkingLevel(level string) string {

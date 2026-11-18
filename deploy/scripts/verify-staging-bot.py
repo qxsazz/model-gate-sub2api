@@ -144,11 +144,36 @@ def recharge(uid, principal):
     sql(f"INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_key,provider_snapshot,out_trade_no,paid_at,completed_at) VALUES({uid},{principal},{principal},now(),'COMPLETED','alipay','easypay','{{\"currency\":\"CNY\",\"recharge_principal\":{principal}}}','bot-smoke-{uuid.uuid4().hex}',now(),now());")
 
 
+def verify_trial_credit(uid, qq, wx):
+    path = "/integrations/bot/claim-trial-credit"
+    request = event(qq)
+    enabled = sql("SELECT enabled FROM chat_trial_credit_policy WHERE id;") == "t"
+    receipt = call(path, token, request)
+    if enabled:
+        assert_status(receipt, "claimed")
+        assert call(path, token, request) == {**receipt, "replayed": True}
+        assert_status(call(path, token, event(wx)), "already_claimed")
+        verified = sql(f"""
+            SELECT c.amount=p.amount AND c.credited_amount=p.amount AND u.balance=c.credited_amount
+               AND (achievement_access_snapshot(u.id)->>'qualified_recharge_cny')::numeric=0
+               AND (SELECT count(*) FROM redeem_codes WHERE used_by=u.id AND type='trial_credit')=1
+            FROM users u JOIN chat_trial_credit_claims c ON c.user_id=u.id
+            CROSS JOIN chat_trial_credit_policy p WHERE u.id={uid} AND p.id;
+        """)
+        assert verified == "t"
+        print("Trial credit HTTPS passed: QQ grant, event replay, WeChat duplicate, one credit entry and zero recharge principal.")
+    else:
+        assert_status(receipt, "disabled")
+        assert sql(f"SELECT balance=0 AND NOT EXISTS (SELECT 1 FROM chat_trial_credit_claims WHERE user_id={uid}) FROM users WHERE id={uid};") == "t"
+        print("Trial credit HTTPS passed with the staging policy disabled: no account was credited.")
+
+
 try:
     for index in range(2):
         email = f"bot-acceptance-{prefix}-{index}@example.invalid"
         password = "synthetic-unusable-" + uuid.uuid4().hex
-        uid = int(sql(f"INSERT INTO users(email,password_hash,balance,created_at) VALUES('{email}','{password}',0,now()-interval '2 days') RETURNING id;"))
+        created_at = "clock_timestamp()" if index == 0 else "now()-interval '2 days'"
+        uid = int(sql(f"INSERT INTO users(email,password_hash,balance,created_at) VALUES('{email}','{password}',0,{created_at}) RETURNING id;"))
         users.append((uid, jwt(uid, email, password), email))
     (uid, user_token, user_email), (other_uid, other_token, _) = users
     minimum = json.loads(sql(f"SELECT achievement_access_snapshot({uid});"))["minimum_recharge_cny"]
@@ -169,6 +194,7 @@ try:
     assert rejected["access_reason"] == "recharge_required" and rejected["minimum_recharge_cny"] == minimum
     assert sql(f"SELECT count(*) FROM achievement_checkins WHERE user_id={uid};") == "0"
     assert sql(f"SELECT balance=0 FROM users WHERE id={uid};") == "t"
+    verify_trial_credit(uid, qq, wx)
     recharge(uid, minimum)
     assert call("/integrations/bot/checkin", token, unpaid) == {**rejected, "replayed": True}
     paid = checkin(qq)
@@ -194,7 +220,7 @@ finally:
     if users:
         ids = ",".join(str(item[0]) for item in users)
         # The shared checkin path updates daily spent even when budget limits are off.
-        sql(f"BEGIN; SELECT 1 FROM achievement_config WHERE id=true FOR UPDATE; UPDATE achievement_budget b SET spent=GREATEST(0,b.spent-c.gross) FROM (SELECT day,sum(gross) gross FROM achievement_checkins WHERE user_id IN ({ids}) GROUP BY day) c WHERE b.day=c.day; DELETE FROM chat_bot_events WHERE user_id IN ({ids}) OR identity_key IN (SELECT identity_key FROM chat_binding_challenges WHERE user_id IN ({ids})); DELETE FROM payment_orders WHERE user_id IN ({ids}); DELETE FROM users WHERE id IN ({ids}); COMMIT;")
+        sql(f"BEGIN; SELECT 1 FROM achievement_config WHERE id=true FOR UPDATE; UPDATE achievement_budget b SET spent=GREATEST(0,b.spent-c.gross) FROM (SELECT day,sum(gross) gross FROM achievement_checkins WHERE user_id IN ({ids}) GROUP BY day) c WHERE b.day=c.day; DELETE FROM chat_bot_events WHERE user_id IN ({ids}) OR identity_key IN (SELECT identity_key FROM chat_binding_challenges WHERE user_id IN ({ids})); DELETE FROM payment_orders WHERE user_id IN ({ids}); DELETE FROM redeem_codes WHERE type='trial_credit' AND used_by IN ({ids}); DELETE FROM users WHERE id IN ({ids}); COMMIT;")
         # Unbound/wrong-sender receipts have no user association; remove only this run's identities.
         for identity in identities:
             for sender in [identity["sender_id"], identity["sender_id"] + "-wrong"]:
