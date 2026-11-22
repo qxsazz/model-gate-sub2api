@@ -65,7 +65,7 @@ func TestVIPGroupDiscountSupportsZeroFloorsAndZeroBaseRates(t *testing.T) {
 	user, err := client.User.Create().SetEmail(uuid.NewString() + "@test.invalid").SetPasswordHash("fixture").SetBalance(100).Save(ctx)
 	require.NoError(t, err)
 	groupRepo := &groupRepository{client: client, sql: client}
-	admin := service.NewAdminService(nil, nil, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	admin := service.NewAdminService(nil, nil, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	free, err := admin.CreateGroup(ctx, &service.CreateGroupInput{Name: uuid.NewString(), Platform: service.PlatformOpenAI, RateMultiplier: 0})
 	require.NoError(t, err)
 	require.Zero(t, free.RateMultiplier)

@@ -36,7 +36,7 @@ func TestRewardBalanceHistoryPreservesOldRecordsAndNeverRecredits(t *testing.T) 
 	exec(`INSERT INTO achievement_claims(user_id,key,gross,net,offset_amount,revision,revoked_at) VALUES($1,'T02',.5,.5,0,1,now())`, uid)
 	exec(`INSERT INTO achievement_series_claims(user_id,key,gross,net,offset_amount,revision) VALUES($1,'A-K',1.4,1.4,0,1)`, uid)
 	redeems := NewRedeemCodeRepository(client)
-	svc := service.NewAdminService(nil, nil, nil, nil, nil, nil, redeems, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := service.NewAdminService(nil, nil, nil, nil, nil, nil, redeems, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	readBalance := func() float64 {
 		rows, err := client.QueryContext(ctx, `SELECT balance::double precision FROM users WHERE id=$1`, uid)
 		require.NoError(t, err)
