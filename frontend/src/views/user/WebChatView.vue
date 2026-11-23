@@ -26,7 +26,7 @@
         <button type="button" :disabled="!!operation" @click="refresh">{{ t('webChat.reload') }}</button>
       </div>
 
-      <div class="chat-workspace">
+      <div class="chat-workspace" :class="{ 'workspace-welcome': showWelcome }">
         <aside class="chat-history" data-testid="chat-history" :aria-label="t('webChat.history')">
           <h2 class="desktop-history-title">{{ t('webChat.history') }}</h2>
           <button type="button" class="mobile-history-toggle" aria-controls="chat-history-list" :aria-expanded="showHistory" @click="showHistory = !showHistory">
@@ -54,17 +54,33 @@
               <Icon name="trash" size="sm" />
             </button>
           </header>
-          <div ref="timeline" class="chat-timeline" role="log" aria-live="polite" :aria-label="t('webChat.title')">
+          <div v-if="chatReady && !needsReload" class="guide-slot" :class="{ 'guide-welcome': showWelcome }">
+            <details class="chat-guide" :open="showWelcome">
+              <summary>
+                <Icon name="book" size="sm" aria-hidden="true" />
+                {{ t('webChat.guide.title') }}
+                <Icon name="chevronDown" size="xs" class="guide-chevron" aria-hidden="true" />
+              </summary>
+              <dl>
+                <dt>{{ t('webChat.guide.setup') }}</dt><dd>{{ t('webChat.guide.setupHint') }}</dd>
+                <dt>{{ t('webChat.guide.text') }}</dt><dd>{{ t('webChat.guide.textHint') }}</dd>
+                <dt>{{ t('webChat.guide.image') }}</dt><dd>{{ t('webChat.guide.imageHint') }}</dd>
+              </dl>
+            </details>
+          </div>
+          <div v-show="!showWelcome" ref="timeline" class="chat-timeline" role="log" aria-live="polite" :aria-label="t('webChat.title')">
             <p v-if="operation === 'keys' || operation === 'options' || operation === 'session'" class="chat-status" role="status">{{ t('webChat.loading') }}</p>
             <div v-else-if="keysLoaded && !keys.length" class="chat-empty">
               <span class="chat-mark" aria-hidden="true"><Icon name="key" size="lg" /></span>
               <h3>{{ t('webChat.noKeys') }}</h3><p>{{ t('webChat.noKeysHint') }}</p>
               <RouterLink to="/keys" class="manage-link">{{ t('webChat.manageKeys') }} <Icon name="arrowRight" size="sm" /></RouterLink>
             </div>
-            <div v-else-if="!selectedId && operation !== 'send'" class="chat-empty">
-              <span class="chat-mark" aria-hidden="true"><Icon name="chatBubble" size="lg" /></span>
-              <h3>{{ t('webChat.startTitle') }}</h3>
-              <p>{{ optionsLoaded && !models.length ? t('webChat.noModels') : t('webChat.startHint') }}</p>
+            <div v-else-if="keysLoaded && !keyId" class="chat-empty">
+              <span class="chat-mark" aria-hidden="true"><Icon name="key" size="lg" /></span>
+              <h3>{{ t('webChat.chooseKey') }}</h3><p>{{ t('webChat.selectKeyHint') }}</p>
+            </div>
+            <div v-else-if="keyId && optionsLoaded && !models.length && !selectedId" class="chat-empty">
+              <h3>{{ t('webChat.noModelsTitle') }}</h3><p>{{ t('webChat.noModels') }}</p>
             </div>
             <article v-for="(turn, i) in session?.messages" :key="i" class="chat-turn" :class="{ 'user-turn': turn.role === 'user' }" data-testid="chat-message">
               <strong>{{ turn.role === 'user' ? t('webChat.you') : t('webChat.assistant') }}</strong>
@@ -84,21 +100,22 @@
               data-testid="chat-draft-attachments" @remove="removeFile" />
             <p v-if="readingFiles" class="file-status" role="status">{{ t('webChat.files.reading') }}</p>
             <p v-if="fileError" class="file-status" role="alert">{{ t('webChat.files.errors.' + fileError) }}</p>
+            <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t(attachments.length ? 'webChat.imageQuestion' : 'webChat.placeholder')"
+              rows="2" :disabled="!chatReady || !!operation || needsReload"
+              :aria-invalid="tooLong || undefined" :aria-describedby="tooLong ? 'chat-length-error' : attachments.length ? 'chat-attachment-hint' : undefined"
+              @keydown="composerKeydown" />
             <div class="composer-row">
               <input ref="fileInput" type="file" multiple hidden data-testid="chat-file-input" :accept="chatFileAccept" @change="selectFiles" />
-              <button data-testid="chat-attach" type="button" class="chat-attach" :disabled="!keyId || !optionsLoaded || !model || !!operation || readingFiles || needsReload"
-                :aria-label="t('webChat.files.attach')" :aria-describedby="keyId && optionsLoaded && model ? 'chat-attachment-hint' : undefined" :title="t('webChat.files.hint')" @click="fileInput?.click()">
-                <Icon name="upload" size="sm" />
+              <button data-testid="chat-attach" type="button" class="chat-attach" :disabled="!chatReady || !!operation || readingFiles || needsReload"
+                :aria-describedby="chatReady ? 'chat-attachment-hint' : undefined" :title="t('webChat.files.hint')" @click="fileInput?.click()">
+                <Icon name="upload" size="sm" aria-hidden="true" />{{ t('webChat.files.attach') }}
               </button>
-              <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t(attachments.length ? 'webChat.imageQuestion' : 'webChat.placeholder')"
-                rows="2" :disabled="!keyId || !optionsLoaded || !model || !!operation || needsReload"
-                :aria-invalid="tooLong || undefined" :aria-describedby="tooLong ? 'chat-length-error' : undefined"
-                @keydown="composerKeydown" />
+              <small v-if="chatReady" id="chat-attachment-hint" class="file-hint">{{ t(attachments.length ? 'webChat.files.readyHint' : 'webChat.files.hint') }}</small>
+              <small v-else-if="selectedId && optionsLoaded && !model" class="file-hint">{{ t(models.length ? 'webChat.selectModelHint' : 'webChat.noModels') }}</small>
               <button data-testid="chat-send" type="submit" class="chat-send" :disabled="!canSend" :title="t('webChat.send')">
                 <Icon name="arrowUp" size="sm" /><span>{{ t('webChat.send') }}</span>
               </button>
             </div>
-            <small v-if="keyId && optionsLoaded && model" id="chat-attachment-hint" class="file-hint">{{ t('webChat.files.hint') }}</small>
           </form>
           <p v-if="tooLong" id="chat-length-error" class="length-error" role="status">{{ t('webChat.tooLong') }}</p>
         </section>
@@ -133,6 +150,8 @@ const { t, locale } = useI18n()
 const { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
   operation, keysLoaded, optionsLoaded, mutating, tooLong, canSend, needsReload,
   refresh, chooseKey, newChat, openSession, send, remove } = useWebChat()
+const chatReady = computed(() => Boolean(keyId.value && optionsLoaded.value && model.value))
+const showWelcome = computed(() => chatReady.value && !selectedId.value && !operation.value && !needsReload.value)
 const timeline = ref<HTMLElement>()
 const showHistory = ref(false)
 const deleteTarget = ref('')
@@ -242,23 +261,37 @@ watch([session, pending], async () => {
 .chat-mark { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; color: var(--mg-gold-700); background: var(--mg-champagne-50); }
 .chat-empty h3 { font-family: Georgia, 'Noto Serif SC', serif; font-weight: 600; font-size: clamp(19px, 2.1vw, 27px); margin: 12px 0 8px; }
 .chat-empty p { color: var(--mg-muted); font-size: 13px; line-height: 1.8; }
+.guide-slot { min-height: 0; max-height: 45%; overflow-y: auto; padding: 3px 16px 0; }
+.guide-slot.guide-welcome { flex: 1; display: flex; max-height: none; padding: 12px 16px; }
+.chat-guide { width: fit-content; max-width: 100%; font-size: 13px; color: var(--mg-ink-700); }
+.guide-welcome .chat-guide { margin: auto; }
+.chat-guide[open] { width: min(100%, 32rem); border: 1px solid var(--mg-line-warm); border-radius: 10px; background: var(--mg-gold-50); }
+.chat-guide summary { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 8px; cursor: pointer; font-weight: 600; color: var(--mg-ink-900); list-style: none; }
+.chat-guide summary::-webkit-details-marker { display: none; }
+.chat-guide summary:focus-visible { outline: 2px solid var(--mg-gold-500); outline-offset: -2px; border-radius: 8px; }
+.chat-guide summary svg { color: var(--mg-gold-700); }
+.chat-guide[open] summary { padding: 8px 14px; border-bottom: 1px solid var(--mg-line-warm); }
+.guide-chevron { margin-left: auto; }
+.chat-guide[open] .guide-chevron { transform: rotate(180deg); }
+.chat-guide dl { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 9px 14px; padding: 12px 14px; line-height: 1.6; }
+.chat-guide dt { color: var(--mg-ink-900); font-weight: 600; }
 .manage-link { margin-top: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .chat-turn { max-width: 90%; align-self: flex-start; }
 .chat-turn strong { display: block; font-size: 11px; color: var(--mg-muted); margin-bottom: 5px; }
 .chat-turn p { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
 .user-turn { align-self: flex-end; padding: 10px 14px; background: var(--mg-champagne-50); border-radius: 12px 12px 2px 12px; }
 .chat-composer { display: grid; gap: 6px; margin: 0 16px 14px; padding: 8px; border: 1px solid var(--mg-line-warm); border-radius: 9px; }
-.composer-row { align-items: end; gap: 6px; min-width: 0; }
-.chat-attach { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--mg-line-warm); }
+.composer-row { gap: 8px; min-width: 0; }
+.chat-attach { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 4px 9px; border: 1px solid var(--mg-line-warm); border-radius: 6px; color: var(--mg-ink-700); font-size: 13px; }
 .chat-composer .file-list { max-height: 96px; overflow-y: auto; }
 .chat-turn .file-list { margin-top: 5px; }
 .file-hint { color: var(--mg-muted); font-size: 11px; overflow-wrap: anywhere; }
 .file-status { margin: 2px 4px; color: var(--mg-muted); font-size: 12px; }
 .original-image { display: block; max-width: 100%; max-height: 65dvh; margin: 0 auto; object-fit: contain; }
 .chat-composer:focus-within { border-color: var(--mg-gold-500); }
-.chat-composer textarea { min-width: 0; flex: 1; max-height: 140px; padding: 4px 6px; resize: vertical; font-size: 14px; color: inherit; background: transparent; }
+.chat-composer textarea { width: 100%; min-width: 0; max-height: 140px; padding: 4px 6px; resize: vertical; font-size: 14px; color: inherit; background: transparent; }
 .chat-composer textarea:focus-visible { outline: 2px solid var(--mg-gold-500); border-radius: 3px; }
-.chat-send { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 11px; border-radius: 6px; color: #fbfaf7; background: #24252a; font-weight: 600; font-size: 13px; }
+.chat-send { flex: none; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 11px; border-radius: 6px; color: #fbfaf7; background: #24252a; font-weight: 600; font-size: 13px; }
 .dark .chat-send { background: #e3d4af; color: #241f14; }
 .chat-footer { padding: 10px calc(7rem + env(safe-area-inset-right, 0px)) 0 0; color: var(--mg-muted); font-size: 12px; }
 .chat-error button { text-decoration: underline; text-underline-offset: 3px; }
@@ -270,6 +303,8 @@ watch([session, pending], async () => {
   .chat-select select { max-width: 100%; width: 100%; }
   .chat-settings { align-items: flex-end; gap: 8px; }
   .chat-workspace { display: flex; flex-direction: column; height: clamp(440px, calc(100dvh - 220px), 900px); }
+  .chat-workspace.workspace-welcome { height: auto; min-height: clamp(440px, calc(100dvh - 220px), 900px); }
+  .workspace-welcome .guide-welcome { flex: 1 0 auto; overflow: visible; }
   .chat-history { flex: none; flex-flow: row wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--mg-line-warm); }
   .desktop-history-title { display: none; }
   .mobile-history-toggle { display: inline-flex; font-size: 14px; }
@@ -279,6 +314,8 @@ watch([session, pending], async () => {
   .conversation-header { padding: 6px 12px; min-height: 42px; }
   .chat-timeline { padding: 12px; }
   .chat-composer { margin: 0 10px 10px; }
+  .composer-row { flex-wrap: wrap; }
+  .file-hint { order: 1; width: 100%; }
   .chat-footer { padding-bottom: 50px; }
 }
 </style>

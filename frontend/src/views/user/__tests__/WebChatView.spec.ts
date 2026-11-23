@@ -70,6 +70,7 @@ describe('user web chat', () => {
     api.keys.mockResolvedValue([])
     await render()
     expect(view.get('a[href="/keys"]').text()).toBe('Manage API keys')
+    expect(view.find('.chat-guide').exists()).toBe(false)
     expect(control('send').attributes('disabled')).toBeDefined()
     expect(api.models).not.toHaveBeenCalled()
     expect(api.sessions).not.toHaveBeenCalled()
@@ -84,6 +85,7 @@ describe('user web chat', () => {
     api.sessions.mockImplementation(id => Promise.resolve(id === k1.id ? [makeSession()] : []))
     await render()
     expect(api.models).not.toHaveBeenCalled()
+    expect(view.text()).toContain(webChat.selectKeyHint)
     await control('key').setValue(String(k1.id))
     await control('key').setValue(String(k2.id))
     await flushPromises()
@@ -195,6 +197,14 @@ describe('user web chat', () => {
     expect(control('draft').attributes('disabled')).toBeUndefined()
   })
 
+  it('explains what to do when the selected key has no models', async () => {
+    api.models.mockResolvedValue([])
+    await render()
+    expect(view.get('.chat-empty').text()).toContain(webChat.noModels)
+    expect(view.find('.chat-guide').exists()).toBe(false)
+    expect(control('attach').attributes('disabled')).toBeDefined()
+  })
+
   it('removes expired history from the open page', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
     const session = { ...makeSession(), expires_at: new Date(Date.now() + 4800).toISOString() }
@@ -219,13 +229,21 @@ describe('user web chat', () => {
     const reply = delayed<ChatSession>()
     api.send.mockReturnValue(reply.promise)
     await render()
+    const guide = () => view.get<HTMLDetailsElement>('details.chat-guide').element
+    expect(guide().open).toBe(true)
+    expect(control('attach').text()).toBe(webChat.files.attach)
+    expect(view.get('#chat-attachment-hint').text()).toBe(webChat.files.hint)
     await pickFiles(image)
     await vi.waitFor(() => expect(control('draft-attachments').get('img').attributes('src')).toBe('data:image/png;base64,' + pngData))
+    expect(control('draft').attributes('placeholder')).toBe(webChat.imageQuestion)
+    expect(view.get('#chat-attachment-hint').text()).toBe(webChat.files.readyHint)
     await control('remove-attachment').trigger('click')
     expect(control('send').attributes('disabled')).toBeDefined()
+    expect(view.get('#chat-attachment-hint').text()).toBe(webChat.files.hint)
     await pickFiles(image)
     await vi.waitFor(() => expect(control('send').attributes('disabled')).toBeUndefined())
     await view.get('form').trigger('submit')
+    expect(guide().open).toBe(false)
     expect(api.send.mock.calls[0][0]).toEqual({
       key_id: k1.id, model: model.id, content: '',
       attachments: [{ name: image.name, mime_type: image.type, data: pngData }]
@@ -234,6 +252,9 @@ describe('user web chat', () => {
     reply.resolve(session)
     await flushPromises()
     expect(control('message-attachments').get('button').attributes('aria-label')).toBe('View image red.png')
+    expect(guide().open).toBe(false)
+    await view.get('.chat-new').trigger('click')
+    expect(guide().open).toBe(true)
     expect(localStorage.length + sessionStorage.length).toBe(0)
   })
 
