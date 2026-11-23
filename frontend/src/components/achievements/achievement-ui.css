@@ -1879,7 +1879,18 @@
   font-size: 15px;
   line-height: 1.9;
 }
+.achievement-page .day-inline-tip h3 {
+  margin: 4px 0 8px;
+  color: var(--companion-ink);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.achievement-page .day-inline-tip .daily-tip {
+  font-size: 13px;
+  line-height: 1.7;
+}
 .achievement-page .day-inline-tip svg {
+  flex: none;
   width: 19px;
   height: 19px;
   color: var(--gold);

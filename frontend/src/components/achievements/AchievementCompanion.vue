@@ -13,11 +13,11 @@
       </div>
       <div class="letter-whisper">
         <span class="whisper-seal">宜</span>
-        <p>{{ whisper[0] }}</p>
+        <p>{{ dailyEntry.recommended }}</p>
       </div>
       <div class="letter-whisper">
         <span class="whisper-seal quiet">忌</span>
-        <p>{{ whisper[1] }}</p>
+        <p>{{ dailyEntry.avoid }}</p>
       </div>
       <p class="letter-footnote">一份随心的日常提示，愿今天从容一些。</p>
     </section>
@@ -102,12 +102,11 @@ import {
   type AchievementState,
 } from '@/api/achievements'
 import {
-  dayIndex,
-  dayWhispers,
   zodiacSigns,
   energyLines,
   lunarDate,
 } from './companion'
+import { calendarEntryFor, calendarChoice } from './calendarContent'
 const props = defineProps<{ state: AchievementState; date?: string }>()
 const emit = defineEmits<{ updated: [] }>()
 const selectedDate = computed(() => props.date || props.state.date)
@@ -119,22 +118,11 @@ const weekday = computed(() =>
     timeZone: 'Asia/Shanghai',
   }).format(new Date(selectedDate.value + 'T04:00:00Z')),
 )
-const whisper = computed(
-  () => dayWhispers[dayIndex(selectedDate.value) % dayWhispers.length],
-)
-const sign = computed(() =>
-  zodiacSigns.find((z) => z[0] === props.state.zodiac),
-)
-const energy = computed(
-  () =>
-    energyLines[
-      (dayIndex(selectedDate.value) +
-        Math.max(
-          0,
-          zodiacSigns.findIndex((z) => z[0] === props.state.zodiac),
-        )) %
-        energyLines.length
-    ],
+const dailyEntry = computed(() => calendarEntryFor(selectedDate.value))
+const signIndex = computed(() => zodiacSigns.findIndex((z) => z[0] === props.state.zodiac))
+const sign = computed(() => zodiacSigns[signIndex.value])
+const energy = computed(() =>
+  calendarChoice(selectedDate.value, energyLines, Math.max(0, signIndex.value)),
 )
 async function save(event: Event) {
   const select = event.target as HTMLSelectElement
