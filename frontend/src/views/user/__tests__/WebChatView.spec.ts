@@ -67,8 +67,8 @@ describe('user web chat', () => {
     expect(control('send').attributes('disabled')).toBeDefined()
     expect(api.models).not.toHaveBeenCalled()
     expect(api.sessions).not.toHaveBeenCalled()
-    expect(view.text()).toContain('5 days after the last successful reply')
-    expect(view.get('a[href="https://openwebui.com/"]').text()).toBe('Powered by Open WebUI')
+    expect(view.get('footer').text()).toBe(webChat.retention)
+    expect(view.find('footer a').exists()).toBe(false)
   })
 
   it('requires an explicit choice between keys and ignores late results from the previous key', async () => {

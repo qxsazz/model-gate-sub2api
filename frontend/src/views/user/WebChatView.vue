@@ -104,10 +104,7 @@
         </section>
       </div>
       <p v-if="originalError" class="file-status" role="alert">{{ t('webChat.files.errors.original') }}</p>
-      <footer class="chat-footer">
-        <span>{{ t('webChat.retention') }}</span>
-        <a href="https://openwebui.com/" target="_blank" rel="noopener noreferrer">Powered by Open WebUI</a>
-      </footer>
+      <footer class="chat-footer">{{ t('webChat.retention') }}</footer>
     </div>
     <BaseDialog :show="!!imagePreview" :title="imagePreview?.name || ''" @close="closeOriginal">
       <img v-if="imagePreview" :src="imagePreview.url" :alt="imagePreview.name" class="original-image" />
@@ -214,7 +211,7 @@ watch([session, pending], async () => {
   max-width: 1360px;
   margin: 0 auto;
 }
-.chat-settings, .chat-footer, .chat-error, .conversation-header, .composer-row { display: flex; align-items: center; gap: 12px; }
+.chat-settings, .chat-error, .conversation-header, .composer-row { display: flex; align-items: center; gap: 12px; }
 .chat-settings { flex-wrap: wrap; gap: 12px 20px; margin-bottom: 16px; }
 .chat-select { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
 .chat-select > span { color: var(--mg-muted); white-space: nowrap; }
@@ -263,8 +260,8 @@ watch([session, pending], async () => {
 .chat-composer textarea:focus-visible { outline: 2px solid var(--mg-gold-500); border-radius: 3px; }
 .chat-send { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 11px; border-radius: 6px; color: #fbfaf7; background: #24252a; font-weight: 600; font-size: 13px; }
 .dark .chat-send { background: #e3d4af; color: #241f14; }
-.chat-footer { justify-content: flex-start; flex-wrap: wrap; gap: 6px 14px; padding: 10px calc(7rem + env(safe-area-inset-right, 0px)) 0 0; color: var(--mg-muted); font-size: 12px; }
-.chat-footer a, .chat-error button { text-decoration: underline; text-underline-offset: 3px; }
+.chat-footer { padding: 10px calc(7rem + env(safe-area-inset-right, 0px)) 0 0; color: var(--mg-muted); font-size: 12px; }
+.chat-error button { text-decoration: underline; text-underline-offset: 3px; }
 .chat-error { justify-content: space-between; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--mg-line-warm); border-radius: 6px; color: var(--mg-ink-900); background: var(--mg-champagne-50); font-size: 13px; }
 .chat-error button { flex: none; }
 .length-error { margin: -8px 18px 10px; color: var(--mg-danger); font-size: 12px; }
@@ -282,6 +279,6 @@ watch([session, pending], async () => {
   .conversation-header { padding: 6px 12px; min-height: 42px; }
   .chat-timeline { padding: 12px; }
   .chat-composer { margin: 0 10px 10px; }
-  .chat-footer { align-items: flex-start; flex-direction: column; padding-bottom: 50px; }
+  .chat-footer { padding-bottom: 50px; }
 }
 </style>
