@@ -116,6 +116,24 @@ describe('DocsView', () => {
     expect(article.text()).toContain('5 天')
   })
 
+  it('opens the image guide and distinguishes chat retention from canvas retention', async () => {
+    const { wrapper } = await mountDocs('/docs?cat=tutorial&page=quick-start')
+    const prose = () => wrapper.get('[data-testid="docs-article"] .docs-prose')
+
+    await prose().get('a[href="/docs?cat=tutorial&page=image-generation"]').trigger('click')
+    await flushPromises()
+    expect(prose().get('a[href="/infinite-canvas"]').text()).toBe('无限画布')
+    expect(prose().get('a[href="/batch-image"]').text()).toBe('打开批量生图')
+
+    await prose().get('a[href="/docs?cat=about&page=security"]').trigger('click')
+    await flushPromises()
+    const chat = prose().get('a[href="/docs?cat=tutorial&page=web-chat"]').element.closest('li')
+    const canvas = prose().get('a[href="/docs?cat=tutorial&page=image-generation"]').element.closest('li')
+    expect(chat?.textContent).toContain('5 天')
+    expect(chat?.textContent).toContain('删除对话')
+    expect(canvas?.textContent).toContain('7 天')
+  })
+
   it('searches navigation and shows the achievement collection', async () => {
     const { wrapper, router } = await mountDocs('/docs?cat=achievements&page=overview')
     expect(wrapper.find('[data-testid="docs-coming-soon"]').exists()).toBe(false)

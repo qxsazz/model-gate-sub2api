@@ -1,6 +1,6 @@
 # 快速开始
 
-想在网页里提问或上传图片？从[在线对话](/docs?cat=tutorial&page=web-chat)开始。
+在浏览器里提问或看图，可以从[在线对话](/docs?cat=tutorial&page=web-chat)开始。想按描述画图或用参考图改图，请看[网站生图](/docs?cat=tutorial&page=image-generation)。
 
 要接入自己的客户端或脚本，按下面的步骤完成首次 API 调用。
 

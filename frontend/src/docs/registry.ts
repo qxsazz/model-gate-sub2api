@@ -4,6 +4,7 @@ import apiKeySource from '@/content/docs/tutorial/api-key.md?raw'
 import apiReferenceSource from '@/content/docs/tutorial/api-reference.md?raw'
 import quickStartSource from '@/content/docs/tutorial/quick-start.md?raw'
 import webChatSource from '@/content/docs/tutorial/web-chat.md?raw'
+import imageGenerationSource from '@/content/docs/tutorial/image-generation.md?raw'
 import claudeCodeSource from '@/content/docs/clients/claude-code.md?raw'
 import codexSource from '@/content/docs/clients/codex.md?raw'
 import cursorSource from '@/content/docs/clients/cursor.md?raw'
@@ -51,10 +52,11 @@ export const docsNavigation: DocGroup[] = [
   {
     slug: 'tutorial',
     title: '开始使用',
-    description: '在网页里提问，或接入自己的客户端。',
+    description: '在网页里聊天、生图，或接入自己的客户端。',
     articles: [
       article('quick-start', '快速开始', '用几分钟完成首次 Model-Gate API 调用。', quickStartSource, '2026-11-23'),
       article('web-chat', '在线对话', '用自己的密钥聊天、上传图片和查看对话记录。', webChatSource, '2026-11-23'),
+      article('image-generation', '网站生图', '在无限画布生成图片、上传参考图和下载作品。', imageGenerationSource, '2026-11-23'),
       article('api-key', 'API Key', '创建、保存和轮换你的访问密钥。', apiKeySource),
       article('api-reference', 'API 参考', '了解兼容端点、请求头和响应约定。', apiReferenceSource),
       article('sdk', 'SDK 调用示例', '使用 Python 和 JavaScript 连接 Model-Gate。', sdkSource),
@@ -111,8 +113,8 @@ export const docsNavigation: DocGroup[] = [
     title: '了解我们',
     description: '了解服务原则、安全与隐私底线。',
     articles: [
-      article('service', '了解 MODEL-GATE', '接入清晰、计费可查、故障可追踪。', serviceSource, '2026-10-02'),
-      article('security', '安全与隐私 · 服务底线', '凭据保护、账户隔离与清晰的数据边界。', privacySource, '2026-11-23'),
+      article('service', '了解 MODEL-GATE', '接入清晰、计费可查、故障可追踪。', serviceSource, '2026-11-23'),
+      article('security', '安全与隐私 · 服务底线', '查看聊天和图片的保存期限，了解账户数据和密钥保护。', privacySource, '2026-11-23'),
     ],
   },
   {
