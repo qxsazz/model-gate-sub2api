@@ -211,11 +211,7 @@ func TestAchievementRechargeConcurrentConfirmationAndCheckin(t *testing.T) {
 					done <- checkin(waiter)
 				}
 			}()
-			require.Eventually(t, func() bool {
-				var waiting bool
-				err := integrationDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')`, pid).Scan(&waiting)
-				return err == nil && waiting
-			}, 5*time.Second, 10*time.Millisecond, "confirmation and checkin must serialize, including legacy orders without VIP snapshots")
+			waitForAchievementLock(t, ctx, pid)
 			require.NoError(t, holding.Commit())
 			result := <-done
 			if sequence == "refund_first" {
@@ -234,6 +230,47 @@ func TestAchievementRechargeConcurrentConfirmationAndCheckin(t *testing.T) {
 			require.Equal(t, sequence == "payment_first", access["access_unlocked"])
 		})
 	}
+}
+
+func waitForAchievementLock(t *testing.T, ctx context.Context, pid int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := integrationDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')`, pid).Scan(&waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond, "check-in and a change in qualifying principal must serialize")
+}
+
+func TestAchievementCheckinWaitsForAdminRefund(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client := testEntClient(t)
+	id := achievementAccessUser(t, integrationDB)
+	_, err := newUserRepositoryWithSQL(client, integrationDB).AdjustBalance(ctx, id, 10)
+	require.NoError(t, err)
+	refund, err := client.Tx(ctx)
+	require.NoError(t, err)
+	defer func() { _ = refund.Rollback() }()
+	_, err = newUserRepositoryWithSQL(refund.Client(), integrationDB).AdjustBalance(ctx, id, -1)
+	require.NoError(t, err)
+
+	waiter, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { cancel(); _ = waiter.Close() }()
+	var pid int
+	require.NoError(t, waiter.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+	done := make(chan error, 1)
+	go func() {
+		var receipt []byte
+		done <- achievementError(waiter.QueryRowContext(ctx, `SELECT achievement_checkin($1,$2,$3)`,
+			id, service.CheckinDate(time.Now()), uuid.NewString()).Scan(&receipt))
+	}()
+	waitForAchievementLock(t, ctx, pid)
+	require.NoError(t, refund.Commit())
+	require.Equal(t, 403, infraerrors.Code(<-done))
+	var count int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT count(*) FROM achievement_checkins WHERE user_id=$1`, id).Scan(&count))
+	require.Zero(t, count)
 }
 
 func TestAchievementRechargeAllUserWriteEntrypointsRejectWithoutSideEffects(t *testing.T) {
@@ -365,7 +402,7 @@ func TestAchievementRechargeAccessBoundaries(t *testing.T) {
 			for _, amount := range test.payments {
 				seedAchievementRecharge(t, tx, id, amount)
 			}
-			// A large balance and manual VIP growth are never qualifying online principal.
+			// Historical VIP adjustments have no paid-principal marker.
 			_, err = tx.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount) VALUES($1,'admin_balance',$2,1000)`, id, uuid.NewString())
 			require.NoError(t, err)
 			var raw []byte
@@ -376,4 +413,73 @@ func TestAchievementRechargeAccessBoundaries(t *testing.T) {
 			require.Equal(t, test.unlocked, result["access_unlocked"])
 		})
 	}
+}
+
+func TestAchievementAdminRechargePrincipal(t *testing.T) {
+	ctx := context.Background()
+	db := integrationDB
+	users := newUserRepositoryWithSQL(testEntClient(t), db)
+	uid := achievementAccessUser(t, db)
+	check := func(qualified float64, reason string) {
+		t.Helper()
+		snapshot := achievementAccessResult(t, db, uid)
+		require.Equal(t, qualified, snapshot["qualified_recharge_cny"])
+		require.Equal(t, reason, snapshot["access_reason"])
+		require.Equal(t, reason == "eligible", snapshot["access_unlocked"])
+	}
+	adjust := func(delta float64) {
+		t.Helper()
+		_, err := users.AdjustBalance(ctx, uid, delta)
+		require.NoError(t, err)
+	}
+
+	_, err := users.SetBalance(ctx, uid, 100)
+	require.NoError(t, err)
+	adjust(-20) // Refund of old funds cannot create a debt against future deposits.
+	order := seedAchievementRecharge(t, db, uid, 4)
+	check(4, "recharge_required")
+	adjust(5.99999999)
+	check(9.99, "recharge_required")
+
+	bot := botTestService(db)
+	identity := botTestIdentity("qq_official")
+	botTestBind(t, bot, uid, identity)
+	event := service.BotCheckinInput{BotIdentityEvent: botTestEvent(identity), EventAt: time.Now()}
+	botCheck(t, bot, event, "ineligible")
+	adjust(0.00000001)
+	check(10, "eligible")
+	require.True(t, botCheck(t, bot, event, "ineligible").Replayed)
+	event.EventID = uuid.NewString()
+	botCheck(t, bot, event, "checked_in")
+
+	require.NoError(t, users.DeductBalance(ctx, uid, 3))
+	_, err = users.SetBalance(ctx, uid, 50)
+	require.NoError(t, err)
+	check(10, "eligible")
+	_, err = users.AdjustBalance(ctx, uid, -1000)
+	require.ErrorIs(t, err, service.ErrBalanceNegative)
+	check(10, "eligible")
+	adjust(-12) // The extra refund cannot consume the four CNY online principal.
+	check(4, "recharge_refunded")
+	_, err = db.ExecContext(ctx, `INSERT INTO vip_reward_debt(user_id,amount) VALUES($1,3)`, uid)
+	require.NoError(t, err)
+	// Clearing reward debt changes spendable balance, not the ten units paid.
+	adjust(10)
+	check(14, "eligible")
+	_, err = db.ExecContext(ctx, `UPDATE payment_orders SET status='REFUNDED', refund_amount=4 WHERE id=$1`, order)
+	require.NoError(t, err)
+	check(10, "eligible")
+
+	// A retried ledger insert and a rolled-back adjustment cannot change the posted principal.
+	_, err = db.ExecContext(ctx, `INSERT INTO vip_recharge_ledger (user_id,source,source_id,amount,admin_principal_delta_cny)
+		SELECT user_id,source,source_id,amount,admin_principal_delta_cny FROM vip_recharge_ledger
+		WHERE user_id=$1 AND admin_principal_delta_cny=10 ON CONFLICT (source,source_id) DO NOTHING`, uid)
+	require.NoError(t, err)
+	entTx, err := testEntClient(t).Tx(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = entTx.Rollback() })
+	_, err = newUserRepositoryWithSQL(entTx.Client(), db).AdjustBalance(ctx, uid, 50)
+	require.NoError(t, err)
+	require.NoError(t, entTx.Rollback())
+	check(10, "eligible")
 }

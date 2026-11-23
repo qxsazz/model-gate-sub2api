@@ -701,6 +701,8 @@ export default {
       withdraw: 'Withdraw',
       depositAmount: 'Deposit Amount',
       withdrawAmount: 'Withdraw Amount',
+      depositPrincipalHint: 'Each balance unit deposited adds CNY 1 toward check-in and achievement eligibility.',
+      withdrawPrincipalHint: 'Refunds reduce qualifying admin deposits made since this rule took effect, down to zero.',
       withdrawAll: 'All',
       currentBalance: 'Current Balance',
       depositNotesPlaceholder:

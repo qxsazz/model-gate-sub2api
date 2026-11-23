@@ -1,7 +1,7 @@
 {
-  "production_commit": "6392d12957949e3a5075bed17755d4da05a0fd74",
-  "existing_sql_files_unchanged": 324,
-  "total_sql_files": 328,
+  "production_commit": "a723baa628fe2a3938bb7fb2056cbcd255350fb3",
+  "existing_sql_files_unchanged": 328,
+  "total_sql_files": 329,
   "migrations": [
     {
       "filename": "001_init.sql",
@@ -1912,13 +1912,13 @@
       "filename": "251_group_force_openai_ultrafast.sql",
       "sha256": "f91352f2d3b1bffbbea5f6b7fc17e37c5ad64f04c3426cb7168778d10135a7bf",
       "runner_checksum": "d78e605d4fc2038c57f620dff398022823a850ea8994b129b50774ac49e20af1",
-      "existing_in_production": false
+      "existing_in_production": true
     },
     {
       "filename": "251_group_usage_rollup_nonblocking_build.sql",
       "sha256": "da504646104cec14aa7bcf5a0af6f06f5cd40883459379ae915db27c1d4cec8b",
       "runner_checksum": "5b6e9b57f9b354a96c6870185c034db8adc7def944efcddf654e39cd97770718",
-      "existing_in_production": false
+      "existing_in_production": true
     },
     {
       "filename": "252_achievement_companion.sql",
@@ -1930,7 +1930,7 @@
       "filename": "252_channel_pricing_ultrafast_multiplier.sql",
       "sha256": "01eb249a933e5c3bef3a8e2106098abf56d20a5f2890fcc6490b1f83ec05687f",
       "runner_checksum": "458752b3523254ee60ab4a821261ab64df9216a6f208c1960e7b816f8c7cfd1d",
-      "existing_in_production": false
+      "existing_in_production": true
     },
     {
       "filename": "253_vip_level_entitlements.sql",
@@ -1996,6 +1996,12 @@
       "filename": "263_chat_trial_credit.sql",
       "sha256": "c6f1b1a9fb9c4c8121ecc78bfad783ff759b2154c23bd8138e1aeaeabe6e6091",
       "runner_checksum": "63d4654513a28b708b96d3d60bc0e4d6c433e0ba9caa17b3f5504582fb55f72a",
+      "existing_in_production": true
+    },
+    {
+      "filename": "264_admin_recharge_principal.sql",
+      "sha256": "257bcdcdddc52487a1bc200ede62770bf786bdd75815588dd79f52b06d515eb6",
+      "runner_checksum": "9b590094dd04ee0b86403c7b5f0b106e34fe25edb48197c9e072e629f7188687",
       "existing_in_production": false
     }
   ]

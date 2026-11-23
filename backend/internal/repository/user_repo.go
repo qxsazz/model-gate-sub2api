@@ -962,8 +962,9 @@ func (r *userRepository) AdjustBalance(ctx context.Context, id int64, delta floa
 		FROM previous WHERE u.id=previous.id AND previous.balance + $1 >= 0
 		RETURNING u.id,previous.balance AS old_balance,u.balance AS new_balance
  ), recorded AS (
- INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason)
- SELECT id,'admin_balance',gen_random_uuid()::text,$1,'Backend balance adjustment' FROM changed WHERE $1<>0
+ INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason,admin_principal_delta_cny)
+ SELECT id,'admin_balance',gen_random_uuid()::text,$1,'Backend balance adjustment',$1
+ FROM changed WHERE $1<>0
  RETURNING id)
  SELECT old_balance,new_balance FROM changed
 	`

@@ -119,7 +119,7 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 
 同一事件的成功或业务拒绝都会保存回执。绑定、资格、现金策略变化后，重放仍返回原状态并标记 `replayed:true`，必须新发一条消息才能重新判断。回执保存原绑定和原用户，即使之后解绑并绑定其他账号，旧事件也不会签到到新账号。同一事件修改 `event_at` 或确认码返回 `409 BOT_EVENT_CONFLICT`。
 
-首次事件复用 SQL `achievement_checkin`：实时核验有效线上充值本金净额（默认最低 10 CNY），退款扣除，赠送、管理员加余额、余额消费不替代本金。拒绝时不修改签到、连续天数或奖励。现金开关关闭、非现金白名单、预算不足允许沿用网站的零奖励成功签到。网站、QQ、微信共用配置/用户锁、每日唯一约束与奖励债务抵扣；签到和 Bot 回执在同一个事务提交，再执行现有余额及鉴权缓存失效。
+首次事件通过 SQL `achievement_checkin` 实时核验有效充值本金，默认门槛为 10 CNY。已确认的在线本金可与本站启用 `0.2.24-mg.2` 后的后台「充值」累计，每个后台充值单位计 1 CNY。后台「退款」最多冲回已计入的后台本金，历史加款不补算。体验赠额和日常消费沿用各自的账目。拒绝时不修改签到、连续天数或奖励。现金开关关闭、非现金白名单、预算不足允许沿用网站的零奖励成功签到。网站、QQ、微信共用配置/用户锁、每日唯一约束与奖励债务抵扣；签到和 Bot 回执在同一个事务提交，再执行现有余额及鉴权缓存失效。
 
 常见非业务错误：401 `BOT_UNAUTHORIZED`、403 `BOT_SCOPE_FORBIDDEN`、400 `BOT_REQUEST_INVALID` / `BOT_IDENTITY_INVALID` / `BOT_BINDING_CODE_INVALID`、409 `BOT_IDENTITY_ALREADY_BOUND` / `BOT_BINDING_CHALLENGE_CLAIMED` / `BOT_BINDING_CHALLENGE_USED` / `BOT_BINDING_ACCOUNT_CHANGED` / `BOT_EVENT_CONFLICT`、410 `BOT_BINDING_CHALLENGE_EXPIRED`。超限为 429 并带 `Retry-After`，客户端每分钟 240 次、身份每分钟 30 次；Redis 不可用时 503，禁止绕过限流。网络错误或 HTTP 5xx 可有限退避重试原请求；收到业务回执后停止自动重试。确认失败的重放标记在错误 `metadata` 内。
 
@@ -136,6 +136,8 @@ gh secret set BOT_SMOKE_TOKEN --env model-gate-staging \
 ## 迁移与验收
 
 升级至 `0.2.23-mg.1` 时，生产基线 `6392d129` 已有 324 个 SQL 文件。测试环境另有 `263_chat_trial_credit.sql`。这 325 个文件的内容均予以保留，官方新增 `251_group_force_openai_ultrafast.sql`、`251_group_usage_rollup_nonblocking_build.sql` 和 `252_channel_pricing_ultrafast_multiplier.sql`。迁移按完整文件名识别。所有 328 个文件的原始 SHA-256、运行器去首尾空白后的 SHA-256 和既有历史兼容值记录在 `bot-upgrade-migrations.json`。测试服务器逐项核验，结果保存至 `/opt/sub2api-staging/.bot-migration-receipt.json`。
+
+`0.2.24-mg.2` 在这 328 个文件之外新增 `264_admin_recharge_principal.sql`，测试部署逐项校验全部 329 个文件。
 
 260 新建 `chat_bindings`、`chat_binding_challenges`、`chat_bot_events` 及事务函数。事件清理须保留足以阻止旧消息作用于新账号的回执。解绑只撤销有效绑定。263 增加体验额度活动、账号级领取记录及事务函数。
 

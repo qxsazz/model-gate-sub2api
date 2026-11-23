@@ -7,6 +7,8 @@ BEGIN
  SELECT (payload->>'minimum_recharge_cny')::numeric INTO minimum FROM achievement_config WHERE id=true FOR UPDATE;
  IF minimum IS NULL OR minimum<=0 THEN RAISE EXCEPTION 'achievement minimum recharge is invalid';END IF;
  INSERT INTO users(email,password_hash,balance,created_at) VALUES('achievement-access-verify-'||gen_random_uuid()::text||'@example.invalid','synthetic-unusable',minimum,now()-interval '2 days') RETURNING id INTO uid;
+ INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason)
+ VALUES(uid,'admin_balance',gen_random_uuid()::text,minimum,'Backend balance adjustment');
  nearby:=GREATEST(minimum-.01,0);
  IF nearby>0 THEN
   INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_snapshot,out_trade_no,paid_at,completed_at)
@@ -29,16 +31,20 @@ BEGIN
  BEGIN
   PERFORM achievement_require_access(uid,false);RAISE EXCEPTION 'refund relock bypass';
  EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'ACHIEVEMENT_RECHARGE_REQUIRED' THEN RAISE;END IF;END;
- INSERT INTO payment_orders(user_id,amount,pay_amount,expires_at,status,payment_type,provider_snapshot,out_trade_no,paid_at,completed_at)
- VALUES(uid,.01,.01,now(),'COMPLETED','alipay','{"currency":"CNY","recharge_principal":0.01}'::jsonb,gen_random_uuid()::text,now(),now());
+ INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,admin_principal_delta_cny)
+ VALUES(uid,'admin_balance',gen_random_uuid()::text,.01,.01);
+ IF (achievement_access_snapshot(uid)->>'qualified_recharge_cny')::numeric<>minimum THEN RAISE EXCEPTION 'admin recharge did not restore eligibility';END IF;
  receipt:=achievement_checkin(uid,(clock_timestamp() AT TIME ZONE 'Asia/Shanghai')::date::text,gen_random_uuid()::text);
  SELECT count(*) INTO counted FROM achievement_checkins WHERE user_id=uid;
  SELECT balance INTO remaining_balance FROM users WHERE id=uid;
  IF counted<>1 OR remaining_balance<>0 OR NOT (receipt->>'replayed')::boolean THEN RAISE EXCEPTION 'readmission duplicated historical reward';END IF;
+ INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,admin_principal_delta_cny)
+ VALUES(uid,'admin_balance',gen_random_uuid()::text,-minimum,-minimum);
+ IF (achievement_access_snapshot(uid)->>'qualified_recharge_cny')::numeric<>nearby THEN RAISE EXCEPTION 'admin refund reduced online principal';END IF;
  UPDATE users SET status='disabled' WHERE id=uid;
  BEGIN
   PERFORM achievement_require_access(uid,false);RAISE EXCEPTION 'disabled account bypass';
  EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'ACHIEVEMENT_ACCOUNT_UNAVAILABLE' THEN RAISE;END IF;END;
- RAISE NOTICE 'achievement_recharge_access minimum_cny=% synthetic_flow=passed rollback=true',minimum;
+ RAISE NOTICE 'achievement_recharge_access minimum_cny=% admin_principal=passed synthetic_flow=passed rollback=true',minimum;
 END $$;
 ROLLBACK;
