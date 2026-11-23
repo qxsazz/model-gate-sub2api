@@ -294,7 +294,14 @@ func TestWebchatWireMessagesHydratedContentOnly(t *testing.T) {
 	require.NoError(t, encodeErr)
 	assert.NotContains(t, string(data), "private-")
 	expected := "data:image/png;base64," + base64.StdEncoding.EncodeToString(img.Data)
-	assert.JSONEq(t, `[{"role":"user","content":[{"type":"image_url","image_url":{"url":"`+expected+`"}}]},{"role":"assistant","content":"an image"},{"role":"user","content":"note.txt\nABCD"},{"role":"assistant","content":"a document"},{"role":"user","content":"compare them"}]`, string(data))
+	assert.JSONEq(t, `[{"role":"user","content":[{"type":"text","text":"请用当前对话的语言简要描述图片中的内容，并读出清晰可辨的文字。"},{"type":"image_url","image_url":{"url":"`+expected+`"}}]},{"role":"assistant","content":"an image"},{"role":"user","content":"note.txt\nABCD"},{"role":"assistant","content":"a document"},{"role":"user","content":"compare them"}]`, string(data))
+	require.Empty(t, messages[0].Content)
+	messages[0].Content = "What is the number on the sign?"
+	require.Equal(t, []map[string]any{
+		{"type": "text", "text": messages[0].Content},
+		{"type": "image_url", "image_url": map[string]string{"url": expected}},
+	}, webchatWireMessages(messages)[0].Content)
+
 	for _, a := range []WebchatAttachment{
 		{MIMEType: "image/png", Name: "x.png", Size: 3, Data: []byte("url")},
 		{MIMEType: "https://example.invalid", Name: "x", Size: 3, Data: []byte("raw")},

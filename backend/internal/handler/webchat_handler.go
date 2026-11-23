@@ -313,10 +313,10 @@ func webchatUploads(raw json.RawMessage) ([]service.WebchatUpload, error) {
 
 func webchatAttachmentError(c *gin.Context, err error) {
 	if errors.Is(err, service.ErrWebchatAttachmentBusy) {
-		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "文件处理繁忙，请稍后重试", "WEBCHAT_ATTACHMENT_BUSY", nil)
+		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "图片处理繁忙，请稍后重试", "WEBCHAT_ATTACHMENT_BUSY", nil)
 		return
 	}
-	response.ErrorWithDetails(c, http.StatusBadRequest, "附件无效或超出大小限制，请检查文件格式和内容", "WEBCHAT_ATTACHMENT_INVALID", nil)
+	response.ErrorWithDetails(c, http.StatusBadRequest, "请上传有效的 PNG、JPEG 或 WebP 图片，每条消息最多 3 张，合计不超过 4 MiB", "WEBCHAT_ATTACHMENT_INVALID", nil)
 }
 
 func (h *WebchatHandler) SendMessage(c *gin.Context) {
@@ -331,7 +331,7 @@ func (h *WebchatHandler) SendMessage(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "消息和附件超过大小限制", "WEBCHAT_ATTACHMENT_INVALID", nil)
+			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "消息和图片超过大小限制", "WEBCHAT_ATTACHMENT_INVALID", nil)
 		} else {
 			response.BadRequest(c, "消息格式无效")
 		}
@@ -361,7 +361,7 @@ func (h *WebchatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 	if req.Content == "" && len(uploads) == 0 {
-		response.BadRequest(c, "请输入消息或添加附件")
+		response.BadRequest(c, "请输入消息或添加图片")
 		return
 	}
 

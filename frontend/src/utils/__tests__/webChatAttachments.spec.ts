@@ -1,41 +1,48 @@
 import { describe, expect, it } from 'vitest'
 import { chatFileAccept, maxChatFileBytes, readChatFile, validateChatFiles, type DraftChatFile } from '../webChatAttachments'
 
-const textFile = (name: string, bytes: number) => new File([new Uint8Array(bytes)], name)
+const sizedFile = (name: string, size: number, type = '') => new File([new Uint8Array(size)], name, { type })
 const signal = () => new AbortController().signal
-const existing: DraftChatFile = { name: 'first.txt', size: 1, mime_type: '', data: 'YQ==' }
+const existing: DraftChatFile = { name: 'first.png', size: 1, mime_type: 'image/png', data: 'YQ==' }
+const jpegData = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AP7//2Q=='
+const webpData = 'UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoBAAEAAgA0JaACdLoAA5gA/vmTb/+QH/+QH/+QH/8gP+IXeyAwAA=='
 
-describe('web chat attachments', () => {
-  it('checks the cumulative byte and file counts across separate selections', () => {
-    const exact = textFile('photo.jpg', maxChatFileBytes - existing.size)
+describe('web chat image uploads', () => {
+  it('checks the cumulative byte and image counts across separate selections', () => {
+    const exact = sizedFile('photo.jpg', maxChatFileBytes - existing.size)
     expect(validateChatFiles([existing], [exact])).toBe('')
-    expect(validateChatFiles([existing], [exact, textFile('extra.md', 1)])).toBe('total')
-    expect(validateChatFiles([existing], [textFile('1.pdf', 1), textFile('2.docx', 1)])).toBe('')
-    expect(validateChatFiles([existing], Array(3).fill(textFile('1.md', 1)))).toBe('count')
+    expect(validateChatFiles([existing], [exact, sizedFile('extra.png', 1)])).toBe('total')
+    expect(validateChatFiles([existing], [sizedFile('1.jpg', 1), sizedFile('2.webp', 1)])).toBe('')
+    expect(validateChatFiles([existing], Array(3).fill(sizedFile('1.png', 1)))).toBe('count')
   })
 
-  it('accepts only the published extensions and bounds individual text files', () => {
-    expect(chatFileAccept.split(',')).toContain('.webp')
-    expect(validateChatFiles([], [textFile('a.Js', 128 * 1024)])).toBe('')
-    expect(validateChatFiles([], [textFile('a.Js', 128 * 1024 + 1)])).toBe('textSize')
-    expect(validateChatFiles([], [textFile('report.pdf', 0)])).toBe('empty')
-    expect(validateChatFiles([], [textFile('photo.svg', 4)])).toBe('type')
-    expect(validateChatFiles([], [textFile('no-extension', 4)])).toBe('type')
-  })
-
-  it('reads exact bytes, preserves an absent browser MIME type and decodes UTF-8 previews', async () => {
-    const result = await readChatFile(new File(['模型'], 'notes.md'), signal())
-    expect(result).toEqual({ name: 'notes.md', mime_type: '', data: '5qih5Z6L', size: 6, textPreview: '模型' })
-    const webp = await readChatFile(new File(['a'], 'photo.WEBP'), signal())
-    expect(webp.imageSrc).toBe('data:image/webp;base64,YQ==')
-  })
-
-  it('rejects invalid UTF-8, NUL-containing text and a cancelled selection', async () => {
-    for (const byte of [0xff, 0]) {
-      await expect(readChatFile(new File([new Uint8Array([byte])], 'notes.txt'), signal())).rejects.toThrow('encoding')
+  it('limits the picker and the validation of new selections to PNG, JPEG and WebP', () => {
+    expect(new Set(chatFileAccept.split(','))).toEqual(new Set(['.png', '.jpg', '.jpeg', '.webp', 'image/png', 'image/jpeg', 'image/webp']))
+    for (const name of ['doc.pdf', 'doc.docx', 'notes.md', 'notes.txt', 'sheet.csv', 'script.js', 'photo.svg', 'photo.gif', 'no-extension']) {
+      expect(validateChatFiles([], [sizedFile(name, 20, 'image/png')])).toBe('type')
     }
+    expect(validateChatFiles([], [sizedFile('photo.jpg', 0)])).toBe('empty')
+    expect(validateChatFiles([], [sizedFile('photo.PNG', 20, 'image/jpeg')])).toBe('type')
+    expect(validateChatFiles([], [sizedFile('photo.jpg', 20, 'application/pdf')])).toBe('type')
+    expect(validateChatFiles([], [sizedFile('photo.JPEG', 20, 'image/jpeg')])).toBe('')
+    expect(validateChatFiles([], [sizedFile('photo.WEBP', 20, 'application/octet-stream')])).toBe('')
+  })
+
+  it.each([
+    ['photo.WEBP', webpData, 'image/webp'],
+    ['photo.JPEG', jpegData, 'image/jpeg']
+  ])('reads and previews %s even when the browser omits its MIME type', async (name, data, mime) => {
+    const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0))
+    const result = await readChatFile(new File([bytes], name), signal())
+    expect(result).toEqual({ name, mime_type: '', data, size: bytes.length, imageSrc: 'data:' + mime + ';base64,' + data })
+  })
+
+  it('rejects a document renamed as an image, mismatched image formats and a cancelled selection', async () => {
+    const bytes = Uint8Array.from(atob(webpData), c => c.charCodeAt(0))
+    await expect(readChatFile(new File(['%PDF-1.5'], 'renamed.png'), signal())).rejects.toThrow('type')
+    await expect(readChatFile(new File([bytes], 'wrong.jpg'), signal())).rejects.toThrow('type')
     const controller = new AbortController()
     controller.abort()
-    await expect(readChatFile(textFile('note.txt', 1), controller.signal)).rejects.toThrow('cancelled')
+    await expect(readChatFile(sizedFile('photo.png', 1), controller.signal)).rejects.toThrow('cancelled')
   })
 })

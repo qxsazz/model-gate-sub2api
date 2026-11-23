@@ -256,24 +256,24 @@ func TestWebchatReservesFirstSessionBeforeCallingModel(t *testing.T) {
 }
 
 const testWebchatFile = "02e6f692-abb7-4898-bd4d-857077b12f12"
+const testWebchatWebP = "UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoBAAEAAgA0JaACdLoAA5gA/vmTb/+QH/+QH/+QH/8gP+IXeyAwAA=="
 
 func TestWebchatSendsAttachmentOnlyAndKeepsPrivateBytesOutOfJSON(t *testing.T) {
 	store := &webchatTurnStore{}
 	bridge := &webchatBridgeStub{}
 	h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
-	const secret = "private uploaded notes"
-	encoded := base64.StdEncoding.EncodeToString([]byte(secret))
+	original, err := base64.StdEncoding.DecodeString(testWebchatWebP)
+	require.NoError(t, err)
 	w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages",
-		`{"key_id":5,"model":"m","attachments":[{"name":"example.txt","mime_type":"text/plain","data":"`+encoded+`"}]}`)
+		`{"key_id":5,"model":"m","attachments":[{"name":"example.webp","mime_type":"image/webp","data":"`+testWebchatWebP+`"}]}`)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.Len(t, bridge.messages, 1)
 	require.Len(t, store.files, 1)
 	require.Equal(t, store.files, bridge.messages[0].Attachments)
-	require.Equal(t, []byte(secret), store.files[0].Data)
-	require.Equal(t, secret, store.files[0].Text)
-	require.Contains(t, w.Body.String(), "example.txt")
-	require.NotContains(t, w.Body.String(), encoded)
-	require.NotContains(t, w.Body.String(), secret)
+	require.Equal(t, original, store.files[0].Data)
+	require.Empty(t, store.files[0].Text)
+	require.Contains(t, w.Body.String(), "example.webp")
+	require.NotContains(t, w.Body.String(), testWebchatWebP)
 }
 
 func TestWebchatRejectsInvalidUploadsBeforeModelUse(t *testing.T) {
@@ -281,7 +281,9 @@ func TestWebchatRejectsInvalidUploadsBeforeModelUse(t *testing.T) {
 		`[{"name":"test.txt","mime_type":"text/plain","url":"https://example.invalid/file"}]`,
 		`[{}, {}, {}, {}]`,
 		`{"name":"test.txt"}`,
-		`[{"name":"test.txt","mime_type":"text/plain","data":"invalid base64"}]`,
+		`[{"name":"test.png","mime_type":"image/png","data":"invalid base64"}]`,
+		`[{"name":"note.txt","mime_type":"text/plain","data":"aGVsbG8="}]`,
+		`[{"name":"image.webp","mime_type":"image/webp","data":"` + testWebchatWebP + `"},{"name":"note.md","mime_type":"text/markdown","data":"aGVsbG8="}]`,
 	} {
 		store := &webchatTurnStore{}
 		bridge := &webchatBridgeStub{}
@@ -300,18 +302,34 @@ func TestWebchatRejectsInvalidUploadsBeforeModelUse(t *testing.T) {
 func TestWebchatRejectsOversizedRetainedAttachmentsBeforeBilling(t *testing.T) {
 	for _, old := range []service.WebchatAttachment{
 		{Size: service.WebchatMaxSessionAttachmentBytes},
-		{Text: strings.Repeat("a", service.WebchatMaxSessionExtractedBytes)},
+		{Text: strings.Repeat("a", service.WebchatMaxSessionExtractedBytes+1)},
 	} {
 		store := &webchatTurnStore{history: []service.WebchatMessage{{Role: "user", Attachments: []service.WebchatAttachment{old}}}}
 		bridge := &webchatBridgeStub{}
 		h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
 		w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages",
-			`{"key_id":5,"model":"m","session_id":"`+testWebchatSession+`","content":"summarize","attachments":[{"name":"new.txt","mime_type":"text/plain","data":"YWJj"}]}`)
+			`{"key_id":5,"model":"m","session_id":"`+testWebchatSession+`","content":"summarize","attachments":[{"name":"new.webp","mime_type":"image/webp","data":"`+testWebchatWebP+`"}]}`)
 		require.Equal(t, http.StatusBadRequest, w.Code)
 		require.Contains(t, w.Body.String(), "WEBCHAT_HISTORY_LIMIT")
 		require.Nil(t, bridge.messages)
 		require.True(t, store.released)
 	}
+}
+
+func TestWebchatContinuesStoredDocumentWithNewImage(t *testing.T) {
+	old := service.WebchatAttachment{ID: testWebchatFile, Name: "notes.txt", MIMEType: "text/plain", Data: []byte("notes"), Text: "notes", Size: 5}
+	history := service.WebchatMessage{Role: "user", Attachments: []service.WebchatAttachment{old}}
+	store := &webchatTurnStore{history: []service.WebchatMessage{history}}
+	bridge := &webchatBridgeStub{}
+	h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
+
+	w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages",
+		`{"key_id":5,"model":"m","session_id":"`+testWebchatSession+`","attachments":[{"name":"new.webp","mime_type":"image/webp","data":"`+testWebchatWebP+`"}]}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Len(t, bridge.messages, 2)
+	require.Equal(t, history, bridge.messages[0])
+	require.Len(t, store.files, 1)
+	require.Equal(t, "new.webp", store.files[0].Name)
 }
 
 type webchatDownloadStore struct {

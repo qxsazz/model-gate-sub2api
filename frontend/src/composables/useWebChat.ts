@@ -56,7 +56,7 @@ export function useWebChat() {
       const items = await Promise.all(files.map(file => readChatFile(file, controller.signal)))
       if (!controller.signal.aborted) attachments.value = [...attachments.value, ...items]
     } catch (error) {
-      if (!controller.signal.aborted) fileError.value = error instanceof Error && error.message === 'encoding' ? 'encoding' : 'read'
+      if (!controller.signal.aborted) fileError.value = error instanceof Error && error.message === 'type' ? 'type' : 'read'
     } finally {
       if (!controller.signal.aborted) readingFiles.value = false
     }

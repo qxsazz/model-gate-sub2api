@@ -294,7 +294,8 @@ func webchatAttachmentWeight(messages []WebchatMessage) (int64, *WebchatUpstream
 				if http.DetectContentType(a.Data) != a.MIMEType || a.Text != "" {
 					return 0, webchatError(400)
 				}
-			case "text/plain", "application/pdf", webchatDOCXMIME:
+			case "text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+				// Older conversations can contain documents saved before uploads became image-only.
 				if !ValidWebchatText(a.Text, WebchatMaxExtractedFileBytes) {
 					return 0, webchatError(400)
 				}
@@ -330,12 +331,13 @@ func webchatWireMessages(messages []WebchatMessage) []webchatWireMessage {
 				}
 			}
 			text := strings.Join(texts, "\n\n")
-			item.Content = text
-			if len(parts) > 0 {
-				if text != "" {
-					parts = append([]map[string]any{{"type": "text", "text": text}}, parts...)
+			if len(parts) == 0 {
+				item.Content = text
+			} else {
+				if text == "" {
+					text = "请用当前对话的语言简要描述图片中的内容，并读出清晰可辨的文字。"
 				}
-				item.Content = parts
+				item.Content = append([]map[string]any{{"type": "text", "text": text}}, parts...)
 			}
 		}
 		wire = append(wire, item)

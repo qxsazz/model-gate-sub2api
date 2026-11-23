@@ -94,8 +94,6 @@ RUN apk add --no-cache \
     tzdata \
     curl \
     su-exec \
-    poppler-utils \
-    nsjail \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user

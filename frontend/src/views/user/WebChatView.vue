@@ -90,7 +90,7 @@
                 :aria-label="t('webChat.files.attach')" :aria-describedby="keyId && optionsLoaded && model ? 'chat-attachment-hint' : undefined" :title="t('webChat.files.hint')" @click="fileInput?.click()">
                 <Icon name="upload" size="sm" />
               </button>
-              <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t('webChat.placeholder')"
+              <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t(attachments.length ? 'webChat.imageQuestion' : 'webChat.placeholder')"
                 rows="2" :disabled="!keyId || !optionsLoaded || !model || !!operation || needsReload"
                 :aria-invalid="tooLong || undefined" :aria-describedby="tooLong ? 'chat-length-error' : undefined"
                 @keydown="composerKeydown" />

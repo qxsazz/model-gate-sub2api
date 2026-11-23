@@ -1,34 +1,38 @@
 import type { ChatAttachmentUpload } from '@/api/webChat'
 
 const imageTypes = new Map([['png', 'image/png'], ['jpg', 'image/jpeg'], ['jpeg', 'image/jpeg'], ['webp', 'image/webp']])
-const textExtensions = new Set('txt md markdown csv tsv json log yaml yml xml html css js ts py go sh'.split(' '))
-const documentExtensions = new Set(['pdf', 'docx'])
-export const chatFileAccept = [...imageTypes.keys(), ...textExtensions, ...documentExtensions].map(ext => '.' + ext).join(',')
+const imageMimes = new Set(imageTypes.values())
+export const chatFileAccept = [...Array.from(imageTypes.keys(), ext => '.' + ext), ...imageMimes].join(',')
 export const maxChatFiles = 3
 export const maxChatFileBytes = 4 * 1024 * 1024
-const maxTextBytes = 128 * 1024
 
 export interface DraftChatFile extends ChatAttachmentUpload {
   size: number
   imageSrc?: string
-  textPreview?: string
 }
 
-function extension(file: File) {
+function imageMime(file: File) {
   const dot = file.name.lastIndexOf('.')
-  return dot < 0 ? '' : file.name.slice(dot + 1).toLowerCase()
+  return dot < 0 ? undefined : imageTypes.get(file.name.slice(dot + 1).toLowerCase())
 }
 
 export function validateChatFiles(existing: DraftChatFile[], files: File[]) {
   if (existing.length + files.length > maxChatFiles) return 'count'
   if ([...existing, ...files].reduce((n, f) => n + f.size, 0) > maxChatFileBytes) return 'total'
   for (const file of files) {
-    const ext = extension(file)
     if (!file.size) return 'empty'
-    if (!imageTypes.has(ext) && !documentExtensions.has(ext) && !textExtensions.has(ext)) return 'type'
-    if (textExtensions.has(ext) && file.size > maxTextBytes) return 'textSize'
+    const mime = imageMime(file)
+    if (!mime || (file.type && file.type !== 'application/octet-stream' && file.type !== mime)) return 'type'
   }
   return ''
+}
+
+// Check the header before previewing. The server fully decodes the image and enforces its dimensions.
+function matchesImageHeader(data: string, mime: string) {
+  const header = atob(data.slice(0, 16))
+  if (mime === 'image/png') return header.startsWith('\x89PNG\r\n\x1a\n')
+  if (mime === 'image/jpeg') return header.startsWith('\xff\xd8\xff')
+  return mime === 'image/webp' && header.startsWith('RIFF') && header.slice(8, 12) === 'WEBP'
 }
 
 export function readChatFile(file: File, signal: AbortSignal): Promise<DraftChatFile> {
@@ -42,24 +46,16 @@ export function readChatFile(file: File, signal: AbortSignal): Promise<DraftChat
     reader.onload = () => {
       const url = String(reader.result)
       const data = url.slice(url.indexOf(',') + 1)
-      const ext = extension(file)
-      const item: DraftChatFile = { name: file.name, mime_type: file.type, data, size: file.size }
-      if (imageTypes.has(ext)) item.imageSrc = 'data:' + imageTypes.get(ext) + ';base64,' + data
-      if (textExtensions.has(ext)) {
-        try {
-          const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0))
-          if (bytes.includes(0)) throw new Error('binary')
-          item.textPreview = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trim().slice(0, 120)
-        } catch { reject(new Error('encoding')); return }
-      }
-      resolve(item)
+      const mime = imageMime(file)
+      if (!mime || !matchesImageHeader(data, mime)) { reject(new Error('type')); return }
+      resolve({ name: file.name, mime_type: file.type, data, size: file.size, imageSrc: 'data:' + mime + ';base64,' + data })
     }
     reader.readAsDataURL(file)
   })
 }
 
 export function isChatImage(type: string) {
-  return ['image/png', 'image/jpeg', 'image/webp'].includes(type)
+  return imageMimes.has(type)
 }
 
 export function formatChatFileSize(size: number) {

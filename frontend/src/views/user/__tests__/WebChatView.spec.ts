@@ -13,6 +13,12 @@ vi.mock('@/api/webChat', () => ({
 const api = vi.mocked(webChatAPI)
 const k1 = { id: 11, name: 'Team' }, k2 = { id: 22, name: 'Personal' }
 const model = { id: 'model-a' }
+// A 1 × 1 red PNG.
+const pngData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+function png(name: string) {
+  const bytes = Uint8Array.from(atob(pngData), char => char.charCodeAt(0))
+  return new File([bytes], name, { type: 'image/png' })
+}
 const makeSession = (id = 'd751a8d3-00e8-4942-a318-9be71ca5aeeb'): ChatSession => ({
   id, title: 'Saved thread', updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + 5 * 86400000).toISOString(),
   messages: [{ role: 'user', content: 'Hello' }, { role: 'assistant', content: '<img src=x onerror=alert(1)>' }]
@@ -204,45 +210,62 @@ describe('user web chat', () => {
     expect(view.get('[role="alert"]').text()).toContain('expired')
   })
 
-  it('previews, removes and reselects a file, then sends only raw data without a text message', async () => {
-    const doc = new File(['Invoice 32'], 'note.md', { type: 'text/markdown' })
+  it('previews and removes a PNG, then sends the reselected image without a text message', async () => {
+    const image = png('red.png')
     const session = makeSession()
     session.messages[0] = { role: 'user', content: '', attachments: [
-      { id: 'd936221b-ec52-408c-878f-e7099a5b68b3', name: doc.name, mime_type: doc.type, size: doc.size }
+      { id: 'd936221b-ec52-408c-878f-e7099a5b68b3', name: image.name, mime_type: image.type, size: image.size }
     ] }
     const reply = delayed<ChatSession>()
     api.send.mockReturnValue(reply.promise)
     await render()
-    await pickFiles(doc)
-    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('Invoice 32'))
+    await pickFiles(image)
+    await vi.waitFor(() => expect(control('draft-attachments').get('img').attributes('src')).toBe('data:image/png;base64,' + pngData))
     await control('remove-attachment').trigger('click')
     expect(control('send').attributes('disabled')).toBeDefined()
-    await pickFiles(doc)
+    await pickFiles(image)
     await vi.waitFor(() => expect(control('send').attributes('disabled')).toBeUndefined())
     await view.get('form').trigger('submit')
     expect(api.send.mock.calls[0][0]).toEqual({
       key_id: k1.id, model: model.id, content: '',
-      attachments: [{ name: doc.name, mime_type: doc.type, data: 'SW52b2ljZSAzMg==' }]
+      attachments: [{ name: image.name, mime_type: image.type, data: pngData }]
     })
-    expect(view.get('.chat-timeline').text()).toContain('note.md')
+    expect(view.get('.chat-timeline').text()).toContain(image.name)
     reply.resolve(session)
     await flushPromises()
-    expect(control('message-attachments').get('button').attributes('aria-label')).toBe('Download note.md')
-    expect(view.text()).not.toContain('Invoice 32')
+    expect(control('message-attachments').get('button').attributes('aria-label')).toBe('View image red.png')
     expect(localStorage.length + sessionStorage.length).toBe(0)
   })
 
-  it('rejects an invalid selection without dropping valid files and explains an oversized upstream request', async () => {
+  it('sends the question and image together with the explicitly selected key and model', async () => {
+    api.keys.mockResolvedValue([k1, k2])
+    const vision = { id: 'vision-model-b' }
+    api.models.mockResolvedValue([model, vision])
+    api.send.mockResolvedValue(makeSession())
+    await render()
+    await control('key').setValue(String(k2.id))
+    await flushPromises()
+    await control('model').setValue(vision.id)
+    await pickFiles(png('sample.png'))
+    await vi.waitFor(() => expect(control('send').attributes('disabled')).toBeUndefined())
+    await sendMessage('Which color is the pixel?')
+    expect(api.send).toHaveBeenCalledWith({
+      key_id: k2.id, model: vision.id, content: 'Which color is the pixel?',
+      attachments: [{ name: 'sample.png', mime_type: 'image/png', data: pngData }]
+    }, expect.any(AbortSignal))
+  })
+
+  it('rejects a non-image selection without dropping an existing image and explains an oversized upstream request', async () => {
     api.send.mockRejectedValue({ status: 413, reason: 'WEBCHAT_PAYLOAD_TOO_LARGE' })
     await render()
-    await pickFiles(new File(['one'], 'keep.txt'))
-    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('keep.txt'))
-    await pickFiles(new File(['two'], 'two.txt'), new File(['binary'], 'program.exe'))
-    expect(view.get('[role="alert"]').text()).toContain('supported text file')
-    expect(control('draft-attachments').text()).not.toContain('two.txt')
-    await sendMessage('read my file')
-    expect(view.get('[role="alert"]').text()).toContain('Reduce the attachments')
-    expect(control('draft-attachments').text()).toContain('keep.txt')
+    await pickFiles(png('keep.png'))
+    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('keep.png'))
+    await pickFiles(png('second.png'), new File(['notes'], 'notes.txt', { type: 'text/plain' }))
+    expect(view.get('[role="alert"]').text()).toBe(webChat.files.errors.type)
+    expect(control('draft-attachments').text()).not.toContain('second.png')
+    await sendMessage('Describe the picture')
+    expect(view.get('[role="alert"]').text()).toContain(webChat.errors.payload)
+    expect(control('draft-attachments').text()).toContain('keep.png')
     expect(api.send.mock.calls[0][0].attachments).toHaveLength(1)
   })
 
@@ -250,11 +273,11 @@ describe('user web chat', () => {
     api.send.mockRejectedValueOnce({ status: 503, reason: 'WEBCHAT_ATTACHMENT_BUSY' })
       .mockRejectedValueOnce({ status: 403, reason: 'WEBCHAT_KEY_UNAVAILABLE' })
     await render()
-    await pickFiles(new File(['one'], 'test.txt'))
-    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('test.txt'))
+    await pickFiles(png('test.png'))
+    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('test.png'))
     await sendMessage('review it')
-    expect(view.get('[role="alert"]').text()).toContain('processing is busy')
-    expect(control('draft-attachments').text()).toContain('test.txt')
+    expect(view.get('[role="alert"]').text()).toContain(webChat.errors.processing)
+    expect(control('draft-attachments').text()).toContain('test.png')
     await view.get('form').trigger('submit')
     await flushPromises()
     expect(api.send.mock.calls[1][0]).toEqual(api.send.mock.calls[0][0])
@@ -270,18 +293,19 @@ describe('user web chat', () => {
       await render()
       await control('key').setValue(String(k1.id))
       await flushPromises()
-      await pickFiles(new File(['a'], 'private.txt'))
+      const image = png('private.png')
+      await pickFiles(image)
       expect(control('send').attributes('disabled')).toBeDefined()
       await control('key').setValue(String(k2.id))
       expect(reader.mock.calls[0][1].aborted).toBe(true)
-      late.resolve({ name: 'private.txt', mime_type: '', data: 'YQ==', size: 1 })
+      late.resolve({ name: image.name, mime_type: image.type, data: pngData, size: image.size, imageSrc: 'data:image/png;base64,' + pngData })
       await flushPromises()
-      expect(view.text()).not.toContain('private.txt')
-      await pickFiles(new File(['a'], 'second.txt'))
-      await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('second.txt'))
+      expect(view.text()).not.toContain('private.png')
+      await pickFiles(png('second.png'))
+      await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('second.png'))
       await view.get('.chat-new').trigger('click')
       expect(control('send').attributes('disabled')).toBeDefined()
-      expect(view.text()).not.toContain('second.txt')
+      expect(view.text()).not.toContain('second.png')
     } finally { reader.mockRestore() }
   })
 
@@ -313,6 +337,43 @@ describe('user web chat', () => {
       expect(revoke).toHaveBeenCalledWith('blob:preview')
       expect(view.find('.original-image').exists()).toBe(false)
     } finally { vi.unstubAllGlobals() }
+  })
+
+  it('downloads a document from a legacy conversation using its key and session', async () => {
+    const session = makeSession()
+    const document = { id: '04c1b211-b00a-4bea-bc4f-2939df154a75', name: 'notes.pdf', mime_type: 'application/pdf', size: 6 }
+    session.messages[0].attachments = [document]
+    api.keys.mockResolvedValue([k1, k2])
+    api.sessions.mockImplementation(key => Promise.resolve(key === k2.id ? [session] : []))
+    api.session.mockResolvedValue(session)
+    api.attachment.mockResolvedValue(new Blob(['%PDF-1'], { type: 'application/pdf' }))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', class extends URL {
+      static createObjectURL = () => 'blob:legacy-pdf'
+      static revokeObjectURL = revoke
+    })
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      await render()
+      await control('key').setValue(String(k2.id))
+      await flushPromises()
+      await view.get('.history-list button').trigger('click')
+      await flushPromises()
+      const button = control('message-attachments').get('button')
+      expect(button.text()).toBe(document.name)
+      expect(button.attributes('aria-label')).toBe('Download notes.pdf')
+      expect(api.attachment).not.toHaveBeenCalled()
+      await button.trigger('click')
+      await flushPromises()
+      expect(api.attachment).toHaveBeenCalledWith(k2.id, session.id, document.id, expect.any(AbortSignal))
+      expect(download.mock.contexts[0]).toMatchObject({ download: document.name, href: 'blob:legacy-pdf' })
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(revoke).toHaveBeenCalledWith('blob:legacy-pdf')
+      await control('key').setValue(String(k1.id))
+      await flushPromises()
+      expect(view.text()).not.toContain(document.name)
+    } finally { download.mockRestore(); vi.unstubAllGlobals() }
   })
 
   it('enforces the UTF-8 byte limit without calling the provider', async () => {

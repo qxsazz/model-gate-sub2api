@@ -10,7 +10,6 @@
         </button>
         <span v-else class="file-name" :title="item.name">{{ item.name }}</span>
         <small>{{ formatChatFileSize(item.size) }}</small>
-        <span v-if="item.textPreview" class="file-snippet">{{ item.textPreview }}</span>
       </div>
       <button v-if="removable" type="button" class="file-remove" data-testid="chat-remove-attachment" :disabled="disabled"
         :aria-label="t('webChat.files.remove', { name: item.name })" @click="$emit('remove', i)">
@@ -26,7 +25,7 @@ import Icon from '@/components/icons/Icon.vue'
 import type { ChatAttachment } from '@/api/webChat'
 import { formatChatFileSize, isChatImage } from '@/utils/webChatAttachments'
 
-interface FileLabel { id?: string; name: string; mime_type: string; size: number; imageSrc?: string; textPreview?: string }
+interface FileLabel { id?: string; name: string; mime_type: string; size: number; imageSrc?: string }
 defineProps<{ files: FileLabel[]; removable?: boolean; disabled?: boolean }>()
 defineEmits<{ open: [file: ChatAttachment]; remove: [index: number] }>()
 const { t } = useI18n()
@@ -38,9 +37,9 @@ const { t } = useI18n()
 .file-thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 4px; }
 .file-chip > svg, .file-thumb, .file-remove { flex: none; }
 .file-info { min-width: 0; max-width: 14rem; line-height: 1.3; }
-.file-name, .file-action, .file-snippet { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; }
+.file-name, .file-action { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; }
 .file-name, .file-action { font-size: 12px; font-weight: 600; }
 .file-action { text-decoration: underline; text-underline-offset: 2px; }
-.file-info small, .file-snippet { color: var(--mg-muted); font-size: 11px; }
+.file-info small { color: var(--mg-muted); font-size: 11px; }
 .file-remove { display: grid; place-items: center; width: 28px; height: 28px; }
 </style>
