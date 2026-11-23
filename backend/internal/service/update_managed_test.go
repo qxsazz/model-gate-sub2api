@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +59,32 @@ func managedFields(t *testing.T, svc *UpdateService, force bool) map[string]any 
 	require.Equal(t, "managed", result["deployment_mode"])
 	return result
 }
+
+// MG release names carry the verified upstream version before the -mg.N suffix.
+// The runtime baseline stays explicit so a build flag cannot change its meaning.
+func TestPackagedMGReleaseRecognizesItsUpstreamVersion(t *testing.T) {
+	versionFile, err := os.ReadFile("../../cmd/server/VERSION")
+	require.NoError(t, err)
+	version := strings.TrimSpace(string(versionFile))
+	parts := regexp.MustCompile(`^v?([0-9]+\.[0-9]+\.[0-9]+)-mg\.[0-9]+$`).FindStringSubmatch(version)
+	if parts == nil {
+		t.Skip("the packaged version does not use the X.Y.Z-mg.N release convention")
+	}
+
+	baseline := parts[1]
+	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v" + baseline}}
+	svc := NewUpdateService(nil, client, version, "release")
+	info, err := svc.CheckUpdate(context.Background(), false)
+	require.NoError(t, err)
+	require.Equal(t, version, info.CurrentVersion)
+	require.NotNil(t, info.Upstream)
+	require.Equal(t, baseline, info.Upstream.BaselineVersion,
+		"update upstream_version.txt after merging and verifying the corresponding official release")
+	require.Equal(t, baseline, info.Upstream.LatestVersion)
+	require.Equal(t, "ok", info.Upstream.Status)
+	require.False(t, info.Upstream.HasUpdate)
+}
+
 func TestManagedUpstreamNotificationSeparatesBaselineAndCaches(t *testing.T) {
 	client := &upstreamCheckClient{release: &GitHubRelease{TagName: "v9.0.0"}}
 	svc := NewUpdateService(&updateServiceCacheStub{data: `{"current_version":"0.2.8","latest_version":"9.0.0","has_update":true}`}, client, "0.2.11-mg.1", "release")
