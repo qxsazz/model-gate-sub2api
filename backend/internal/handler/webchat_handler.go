@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,11 +29,12 @@ type webchatKeys interface {
 type webchatStore interface {
 	List(context.Context, int64, int64) ([]service.WebchatConversation, error)
 	Get(context.Context, int64, int64, string) (*service.WebchatConversation, error)
+	GetAttachment(context.Context, int64, int64, string, string) (*service.WebchatAttachment, error)
 	Delete(context.Context, int64, int64, string) error
 	ReserveStart(context.Context, int64, int64) (string, error)
 	ReleaseStart(context.Context, int64, int64, string) error
 	BeginTurn(context.Context, int64, int64, string) (*service.WebchatConversation, string, error)
-	SaveTurn(context.Context, int64, int64, string, int64, string, string, string, string) (*service.WebchatConversation, error)
+	SaveTurn(context.Context, int64, int64, string, int64, string, string, string, string, ...service.WebchatAttachment) (*service.WebchatConversation, error)
 	ReleaseTurn(context.Context, int64, int64, string, string) error
 }
 
@@ -193,6 +198,35 @@ func (h *WebchatHandler) Session(c *gin.Context) {
 	response.Success(c, session)
 }
 
+func (h *WebchatHandler) GetAttachment(c *gin.Context) {
+	key, sessionID, ok := h.sessionParams(c)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(c.Param("attachment_id"))
+	if err != nil {
+		webchatAttachmentNotFound(c)
+		return
+	}
+	file, err := h.store.GetAttachment(c.Request.Context(), key.UserID, key.ID, sessionID, id.String())
+	if errors.Is(err, service.ErrWebchatNotFound) {
+		webchatAttachmentNotFound(c)
+		return
+	}
+	if err != nil {
+		webchatStoreError(c, err)
+		return
+	}
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Name}))
+	c.Data(http.StatusOK, file.MIMEType, file.Data)
+}
+
+func webchatAttachmentNotFound(c *gin.Context) {
+	response.ErrorWithDetails(c, http.StatusNotFound, "附件不存在或会话已过期", "WEBCHAT_ATTACHMENT_NOT_FOUND", nil)
+}
+
 func (h *WebchatHandler) DeleteSession(c *gin.Context) {
 	key, id, ok := h.sessionParams(c)
 	if !ok {
@@ -231,8 +265,10 @@ func webchatBridgeError(c *gin.Context, err error) {
 		response.ErrorWithDetails(c, http.StatusForbidden, "所选密钥不可用于对话，请重新选择", "WEBCHAT_KEY_UNAVAILABLE", nil)
 	case http.StatusPaymentRequired, http.StatusForbidden:
 		response.ErrorWithDetails(c, upstream.Status, "请检查所选密钥的余额、配额和模型权限", "WEBCHAT_ACCESS_DENIED", nil)
+	case http.StatusRequestEntityTooLarge:
+		response.ErrorWithDetails(c, upstream.Status, "模型请求超过大小限制，请减少附件或新建会话", "WEBCHAT_PAYLOAD_TOO_LARGE", nil)
 	case http.StatusBadRequest, http.StatusNotFound, http.StatusUnprocessableEntity:
-		response.ErrorWithDetails(c, http.StatusBadRequest, "当前模型未能处理该消息，请检查模型和上下文长度", "WEBCHAT_MODEL_ERROR", nil)
+		response.ErrorWithDetails(c, http.StatusBadRequest, "当前模型未能处理该消息，请检查模型支持的输入类型和上下文长度", "WEBCHAT_MODEL_ERROR", nil)
 	case http.StatusTooManyRequests:
 		response.ErrorWithDetails(c, upstream.Status, "请求已达到使用限制，请稍后再试", "WEBCHAT_RATE_LIMITED", nil)
 	case http.StatusServiceUnavailable:
@@ -245,10 +281,42 @@ func webchatBridgeError(c *gin.Context, err error) {
 }
 
 type webchatSendRequest struct {
-	KeyID     int64  `json:"key_id"`
-	SessionID string `json:"session_id"`
-	Model     string `json:"model"`
-	Content   string `json:"content"`
+	KeyID       int64           `json:"key_id"`
+	SessionID   string          `json:"session_id"`
+	Model       string          `json:"model"`
+	Content     string          `json:"content"`
+	Attachments json.RawMessage `json:"attachments,omitempty"`
+}
+
+// Defer allocating file strings until we have verified key ownership. Bound the
+// count while decoding so a large array of empty objects cannot amplify memory.
+func webchatUploads(raw json.RawMessage) ([]service.WebchatUpload, error) {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil, nil
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	t, err := d.Token()
+	if err != nil || t != json.Delim('[') {
+		return nil, service.ErrWebchatInvalidAttachment
+	}
+	var uploads []service.WebchatUpload
+	for d.More() {
+		var upload service.WebchatUpload
+		if len(uploads) >= service.WebchatMaxAttachments || d.Decode(&upload) != nil {
+			return nil, service.ErrWebchatInvalidAttachment
+		}
+		uploads = append(uploads, upload)
+	}
+	return uploads, nil
+}
+
+func webchatAttachmentError(c *gin.Context, err error) {
+	if errors.Is(err, service.ErrWebchatAttachmentBusy) {
+		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "文件处理繁忙，请稍后重试", "WEBCHAT_ATTACHMENT_BUSY", nil)
+		return
+	}
+	response.ErrorWithDetails(c, http.StatusBadRequest, "附件无效或超出大小限制，请检查文件格式和内容", "WEBCHAT_ATTACHMENT_INVALID", nil)
 }
 
 func (h *WebchatHandler) SendMessage(c *gin.Context) {
@@ -258,18 +326,42 @@ func (h *WebchatHandler) SendMessage(c *gin.Context) {
 	}
 	var req webchatSendRequest
 	// A code point may occupy six ASCII bytes when JSON-escaped.
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 6*(service.WebchatMaxUserBytes+service.WebchatMaxModelBytes)+1024)
+	maxBody := base64.StdEncoding.EncodedLen(service.WebchatMaxTurnAttachmentBytes) + 6*(service.WebchatMaxUserBytes+service.WebchatMaxModelBytes) + 8*1024
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(maxBody))
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "消息格式无效或内容过长")
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "消息和附件超过大小限制", "WEBCHAT_ATTACHMENT_INVALID", nil)
+		} else {
+			response.BadRequest(c, "消息格式无效")
+		}
 		return
 	}
 	req.Model = strings.TrimSpace(req.Model)
-	if !service.ValidWebchatText(req.Model, service.WebchatMaxModelBytes) || !service.ValidWebchatText(req.Content, service.WebchatMaxUserBytes) {
+	if !service.ValidWebchatText(req.Model, service.WebchatMaxModelBytes) || len(req.Content) > service.WebchatMaxUserBytes {
+		response.BadRequest(c, "请选择模型并输入有效长度的消息")
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		req.Content = ""
+	}
+	if (req.Content != "" || len(req.Attachments) == 0) && !service.ValidWebchatText(req.Content, service.WebchatMaxUserBytes) {
 		response.BadRequest(c, "请选择模型并输入有效长度的消息")
 		return
 	}
 	key, ok := h.ownKey(c, userID, req.KeyID)
 	if !ok {
+		return
+	}
+
+	uploads, err := webchatUploads(req.Attachments)
+	req.Attachments = nil
+	if err != nil {
+		webchatAttachmentError(c, err)
+		return
+	}
+	if req.Content == "" && len(uploads) == 0 {
+		response.BadRequest(c, "请输入消息或添加附件")
 		return
 	}
 
@@ -310,16 +402,16 @@ func (h *WebchatHandler) SendMessage(c *gin.Context) {
 			_ = h.store.ReleaseTurn(cleanup, userID, key.ID, req.SessionID, lease)
 		}
 	}()
-	// Reserve enough room for the largest supported answer before incurring usage.
-	size := len(req.Content) + service.WebchatMaxAssistantBytes
-	for _, message := range history {
-		size += len(message.Content)
+	attachments, err := service.ParseWebchatAttachments(ctx, uploads)
+	if err != nil {
+		webchatAttachmentError(c, err)
+		return
 	}
-	if size > service.WebchatMaxHistoryBytes {
+	messages := append(history, service.WebchatMessage{Role: "user", Content: req.Content, Attachments: attachments})
+	if !webchatHistoryFits(messages) {
 		webchatStoreError(c, service.ErrWebchatLimit)
 		return
 	}
-	messages := append(history, service.WebchatMessage{Role: "user", Content: req.Content})
 	answer, err := h.bridge.Complete(ctx, key, middleware.SecurityClientIP(c), req.Model, messages)
 	if err != nil {
 		webchatBridgeError(c, err)
@@ -329,11 +421,25 @@ func (h *WebchatHandler) SendMessage(c *gin.Context) {
 	// A completed, billable response should survive the browser closing before delivery.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 8*time.Second)
 	defer cancel()
-	session, err := h.store.SaveTurn(saveCtx, userID, key.ID, req.SessionID, version, lease, req.Model, req.Content, answer)
+	session, err := h.store.SaveTurn(saveCtx, userID, key.ID, req.SessionID, version, lease, req.Model, req.Content, answer, attachments...)
 	if err != nil {
 		webchatStoreError(c, err)
 		return
 	}
 	lease = "" // SaveTurn released the lease atomically with persisting the pair.
 	response.Success(c, session)
+}
+
+// Reserve room for the largest supported answer before incurring model usage.
+func webchatHistoryFits(messages []service.WebchatMessage) bool {
+	textSize := service.WebchatMaxAssistantBytes
+	var fileSize, extractedSize int
+	for _, m := range messages {
+		textSize += len(m.Content)
+		for _, a := range m.Attachments {
+			fileSize += a.Size
+			extractedSize += len(a.Text)
+		}
+	}
+	return textSize <= service.WebchatMaxHistoryBytes && fileSize <= service.WebchatMaxSessionAttachmentBytes && extractedSize <= service.WebchatMaxSessionExtractedBytes
 }

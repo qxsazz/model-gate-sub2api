@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { extractApiErrorCode } from '@/utils/apiError'
 import { webChatAPI, type ChatKey, type ChatModel, type ChatSession, type ChatSessionSummary } from '@/api/webChat'
+import { readChatFile, validateChatFiles, type DraftChatFile } from '@/utils/webChatAttachments'
 
 type Operation = 'keys' | 'options' | 'session' | 'send' | 'delete'
 const maxMessageBytes = 32 * 1024
@@ -14,6 +15,11 @@ export function useWebChat() {
   const model = ref('')
   const selectedId = ref('')
   const session = ref<ChatSession | null>(null)
+  const attachments = ref<DraftChatFile[]>([])
+  const pendingFiles = ref<DraftChatFile[]>([])
+  const readingFiles = ref(false)
+  const fileError = ref('')
+  let reading: AbortController | undefined
   const draft = ref('')
   const pending = ref('')
   const errorKey = ref('')
@@ -26,12 +32,44 @@ export function useWebChat() {
   const canSend = computed(() => Boolean(
     keyId.value && model.value && optionsLoaded.value && !operation.value && !needsReload.value &&
     (!selectedId.value || selectedId.value === session.value?.id) &&
-    draft.value.trim() && !tooLong.value
+    (draft.value.trim() || attachments.value.length) && !tooLong.value && !readingFiles.value
   ))
   let request: AbortController | undefined
   let expirationTimer: ReturnType<typeof setTimeout> | undefined
 
+  function clearFiles() {
+    reading?.abort()
+    readingFiles.value = false
+    attachments.value = []
+    pendingFiles.value = []
+    fileError.value = ''
+  }
+
+  async function addFiles(files: File[]) {
+    if (!files.length || !keyId.value || !model.value || !optionsLoaded.value || needsReload.value || operation.value || readingFiles.value) return
+    fileError.value = validateChatFiles(attachments.value, files)
+    if (fileError.value) return
+    const controller = new AbortController()
+    reading = controller
+    readingFiles.value = true
+    try {
+      const items = await Promise.all(files.map(file => readChatFile(file, controller.signal)))
+      if (!controller.signal.aborted) attachments.value = [...attachments.value, ...items]
+    } catch (error) {
+      if (!controller.signal.aborted) fileError.value = error instanceof Error && error.message === 'encoding' ? 'encoding' : 'read'
+    } finally {
+      if (!controller.signal.aborted) readingFiles.value = false
+    }
+  }
+
+  function removeFile(index: number) {
+    if (operation.value || readingFiles.value) return
+    attachments.value.splice(index, 1)
+    fileError.value = ''
+  }
+
   function resetChat() {
+    clearFiles()
     selectedId.value = ''
     session.value = null
     pending.value = ''
@@ -57,6 +95,7 @@ export function useWebChat() {
         errorKey.value = 'key'
         return
       case 'WEBCHAT_SESSION_NOT_FOUND':
+        clearFiles()
         sessions.value = sessions.value.filter(s => s.id !== selectedId.value)
         session.value = null
         needsReload.value = true
@@ -74,6 +113,15 @@ export function useWebChat() {
         return
       case 'WEBCHAT_TIMEOUT':
         errorKey.value = 'timeout'
+        return
+      case 'WEBCHAT_ATTACHMENT_INVALID':
+        errorKey.value = 'attachment'
+        return
+      case 'WEBCHAT_PAYLOAD_TOO_LARGE':
+        errorKey.value = 'payload'
+        return
+      case 'WEBCHAT_ATTACHMENT_BUSY':
+        errorKey.value = 'processing'
         return
       case 'WEBCHAT_HISTORY_LIMIT':
         needsReload.value = true
@@ -126,6 +174,7 @@ export function useWebChat() {
       if (signal.aborted) return
       if (selectedId.value) {
         if (!sessions.value.some(item => item.id === selectedId.value)) {
+          clearFiles()
           session.value = null
           needsReload.value = true
           errorKey.value = 'expired'
@@ -170,7 +219,12 @@ export function useWebChat() {
     if (!key || !canSend.value) return
     const content = draft.value.trim()
     const id = selectedId.value
-    const payload = { key_id: key, model: model.value, content, ...(id && { session_id: id }) }
+    const files = attachments.value
+    const payload = { key_id: key, model: model.value, content, ...(id && { session_id: id }),
+      ...(files.length > 0 && { attachments: files.map(({ name, mime_type, data }) => ({ name, mime_type, data })) }) }
+    pendingFiles.value = files
+    attachments.value = []
+    fileError.value = ''
     pending.value = content
     draft.value = ''
     return run('send', async signal => {
@@ -178,14 +232,22 @@ export function useWebChat() {
         const result = await webChatAPI.send(payload, signal)
         if (signal.aborted) return
         session.value = result
+        needsReload.value = false
+        errorKey.value = ''
         selectedId.value = result.id
         const { id, title, model, updated_at, expires_at } = result
         sessions.value = [{ id, title, model, updated_at, expires_at }, ...sessions.value.filter(s => s.id !== id)]
       } catch (error) {
-        if (!signal.aborted) draft.value = content
+        if (!signal.aborted) {
+          draft.value = content
+          attachments.value = files
+        }
         throw error
       } finally {
-        if (!signal.aborted) pending.value = ''
+        if (!signal.aborted) {
+          pending.value = ''
+          pendingFiles.value = []
+        }
       }
     })
   }
@@ -208,6 +270,7 @@ export function useWebChat() {
     if (remaining.length !== sessions.value.length) {
       sessions.value = remaining
       if (session.value && !remaining.some(item => item.id === session.value?.id)) {
+        clearFiles()
         session.value = null
         needsReload.value = true
         errorKey.value = 'expired'
@@ -220,8 +283,8 @@ export function useWebChat() {
   }
   watch(sessions, expireHistory)
   onMounted(refresh)
-  onBeforeUnmount(() => { request?.abort(); clearTimeout(expirationTimer) })
-  return { keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
+  onBeforeUnmount(() => { request?.abort(); clearFiles(); clearTimeout(expirationTimer) })
+  return { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
     operation, keysLoaded, optionsLoaded, mutating, tooLong, canSend, needsReload,
     refresh, chooseKey, newChat, openSession, send, remove }
 }

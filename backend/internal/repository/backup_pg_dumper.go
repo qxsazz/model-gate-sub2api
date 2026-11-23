@@ -56,6 +56,7 @@ func (d *PgDumper) Dump(ctx context.Context) (io.ReadCloser, error) {
 		"-U", d.cfg.User,
 		"-d", d.cfg.DBName,
 		// The chat retention period also applies when restoring a logical backup.
+		"--exclude-table-data=public.webchat_attachments",
 		"--exclude-table-data=public.webchat_sessions",
 		"--exclude-table-data=public.webchat_start_leases",
 		"--no-owner",

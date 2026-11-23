@@ -3,7 +3,9 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -287,5 +289,144 @@ func TestWebchatStoreExpiryAndBatchedCleanup(t *testing.T) {
 	s.Stop()
 	s.Stop()
 	_, err = s.Get(ctx, uid, key, fresh.ID)
+	require.NoError(t, err)
+}
+
+func TestWebchatAttachmentsAtomicAndIsolated(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	db := integrationDB
+	s := service.NewWebchatStore(db)
+	uid := achievementAccessUser(t, db)
+	other := achievementAccessUser(t, db)
+	key := webchatTestKey(t, uid)
+	otherKey := webchatTestKey(t, uid)
+	reservation, err := s.ReserveStart(ctx, uid, key)
+	require.NoError(t, err)
+	document := service.WebchatAttachment{Name: "提纲.txt", MIMEType: "text/plain", Data: []byte("PRIVATE_RAW_FIXTURE"), Text: "PRIVATE_EXTRACTED_FIXTURE", ID: uuid.NewString()}
+	photo := service.WebchatAttachment{Name: "会议照片.png", MIMEType: "image/png", Data: []byte{137, 80, 78, 71}}
+	// Verify a failed second file rolls back the first attachment, the history and the lease conversion.
+	const forbidden = "webchat-store-rollback-fixture.txt"
+	_, err = db.Exec(`ALTER TABLE webchat_attachments ADD CONSTRAINT webchat_attachment_rollback_fixture CHECK(name <> 'webchat-store-rollback-fixture.txt') NOT VALID`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.Exec("ALTER TABLE webchat_attachments DROP CONSTRAINT IF EXISTS webchat_attachment_rollback_fixture")
+	})
+	invalid := photo
+	invalid.Name = forbidden
+	_, err = s.SaveTurn(ctx, uid, key, "", 0, reservation, "gpt", "", "answer", document, invalid)
+	require.Error(t, err)
+	list, err := s.List(ctx, uid, key)
+	require.NoError(t, err)
+	require.Empty(t, list)
+	c, err := s.SaveTurn(ctx, uid, key, "", 0, reservation, "gpt", "", "answer", document, photo)
+	require.NoError(t, err)
+	require.Equal(t, document.Name, c.Title)
+	metas := c.Messages[0].Attachments
+	require.Len(t, metas, 2)
+	require.NotEqual(t, document.ID, metas[0].ID)
+	require.NotEqual(t, metas[0].ID, metas[1].ID)
+	require.Equal(t, len(document.Data), metas[0].Size)
+	require.Empty(t, metas[0].Data)
+	require.Empty(t, metas[0].Text)
+	read, err := s.Get(ctx, uid, key, c.ID)
+	require.NoError(t, err)
+	require.Equal(t, metas, read.Messages[0].Attachments)
+	raw, err := json.Marshal(read)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "PRIVATE_")
+	require.NotContains(t, string(raw), `"data":`)
+	require.NotContains(t, string(raw), `"text":`)
+	wrongSession, err := saveWebchatFixture(ctx, s, uid, key, "m", "old", "text only")
+	require.NoError(t, err)
+	require.Empty(t, wrongSession.Messages[0].Attachments)
+	for _, scope := range []struct {
+		uid, key int64
+		session  string
+	}{{uid, otherKey, c.ID}, {other, key, c.ID}, {uid, key, wrongSession.ID}} {
+		_, err = s.GetAttachment(ctx, scope.uid, scope.key, scope.session, metas[0].ID)
+		require.ErrorIs(t, err, service.ErrWebchatNotFound)
+	}
+	download, err := s.GetAttachment(ctx, uid, key, c.ID, metas[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, document.Data, download.Data)
+	history, lease, err := s.BeginTurn(ctx, uid, key, c.ID)
+	require.NoError(t, err)
+	require.Equal(t, document.Text, history.Messages[0].Attachments[0].Text)
+	require.Equal(t, photo.Data, history.Messages[0].Attachments[1].Data)
+	raw, err = json.Marshal(history)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "PRIVATE_")
+	_, err = s.SaveTurn(ctx, uid, key, c.ID, history.Version, lease, "m", "another", "ans", photo, invalid)
+	require.Error(t, err)
+	read, err = s.Get(ctx, uid, key, c.ID)
+	require.NoError(t, err)
+	require.Equal(t, c.UpdatedAt, read.UpdatedAt)
+	require.Equal(t, c.Version, read.Version)
+	var count int
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM webchat_attachments WHERE session_id=$1", c.ID).Scan(&count))
+	require.Equal(t, 2, count)
+	// An old plain-text session can accept a new attachment on its next turn.
+	history2, lease2, err := s.BeginTurn(ctx, uid, key, wrongSession.ID)
+	require.NoError(t, err)
+	got, err := s.SaveTurn(ctx, uid, key, wrongSession.ID, history2.Version, lease2, "m", "look", "ok", photo)
+	require.NoError(t, err)
+	attached := got.Messages[2].Attachments[0].ID
+	require.NoError(t, s.Delete(ctx, uid, key, wrongSession.ID))
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM webchat_attachments WHERE id=$1", attached).Scan(&count))
+	require.Zero(t, count)
+	_, err = db.Exec("UPDATE webchat_sessions SET updated_at=clock_timestamp()-interval '120 hours' WHERE id=$1", c.ID)
+	require.NoError(t, err)
+	_, err = s.GetAttachment(ctx, uid, key, c.ID, metas[0].ID)
+	require.ErrorIs(t, err, service.ErrWebchatNotFound)
+	_, err = s.CleanupExpired(ctx)
+	require.NoError(t, err)
+	require.NoError(t, db.QueryRow("SELECT count(*) FROM webchat_attachments WHERE session_id=$1", c.ID).Scan(&count))
+	require.Zero(t, count)
+}
+
+func TestWebchatAttachmentLimits(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	db := integrationDB
+	s := service.NewWebchatStore(db)
+	uid := achievementAccessUser(t, db)
+	key := webchatTestKey(t, uid)
+	lease, err := s.ReserveStart(ctx, uid, key)
+	require.NoError(t, err)
+	file := service.WebchatAttachment{Name: "image.webp", MIMEType: "image/webp", Data: bytes.Repeat([]byte("F"), service.WebchatMaxTurnAttachmentBytes)}
+	small := service.WebchatAttachment{Name: "brief.txt", MIMEType: "text/plain", Data: []byte("a")}
+	for _, files := range [][]service.WebchatAttachment{{file, small}, {small, small, small, small}} {
+		_, err = s.SaveTurn(ctx, uid, key, "", 0, lease, "m", "", "ok", files...)
+		require.ErrorIs(t, err, service.ErrWebchatLimit)
+	}
+	c, err := s.SaveTurn(ctx, uid, key, "", 0, lease, "m", "", "a", file)
+	require.NoError(t, err)
+	for range 2 {
+		c, lease, err = s.BeginTurn(ctx, uid, key, c.ID)
+		require.NoError(t, err)
+		c, err = s.SaveTurn(ctx, uid, key, c.ID, c.Version, lease, "m", "", "a", file)
+		require.NoError(t, err)
+	}
+	c, lease, err = s.BeginTurn(ctx, uid, key, c.ID)
+	require.NoError(t, err)
+	_, err = s.SaveTurn(ctx, uid, key, c.ID, c.Version, lease, "m", "", "a", small)
+	require.ErrorIs(t, err, service.ErrWebchatLimit)
+	// A text-only turn still works when binary retention has reached 12 MiB.
+	_, err = s.SaveTurn(ctx, uid, key, c.ID, c.Version, lease, "m", "text only", "a")
+	require.NoError(t, err)
+	lease, err = s.ReserveStart(ctx, uid, key)
+	require.NoError(t, err)
+	small.Text = strings.Repeat("e", service.WebchatMaxExtractedFileBytes+1)
+	_, err = s.SaveTurn(ctx, uid, key, "", 0, lease, "m", "", "ok", small)
+	require.ErrorIs(t, err, service.ErrWebchatLimit)
+	small.Text = small.Text[1:]
+	c, err = s.SaveTurn(ctx, uid, key, "", 0, lease, "m", "", "ok", small, small, small)
+	require.NoError(t, err)
+	c, lease, err = s.BeginTurn(ctx, uid, key, c.ID)
+	require.NoError(t, err)
+	_, err = s.SaveTurn(ctx, uid, key, c.ID, c.Version, lease, "m", "", "ok", small, small)
+	require.ErrorIs(t, err, service.ErrWebchatLimit)
+	_, err = s.SaveTurn(ctx, uid, key, c.ID, c.Version, lease, "m", "", "ok", small)
 	require.NoError(t, err)
 }

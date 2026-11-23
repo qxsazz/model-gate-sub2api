@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebChatView from '../WebChatView.vue'
 import { webChatAPI, type ChatSession } from '@/api/webChat'
 import webChat from '@/i18n/locales/en/webChat'
+import * as chatFiles from '@/utils/webChatAttachments'
 
 vi.mock('@/api/webChat', () => ({
-  webChatAPI: { keys: vi.fn(), models: vi.fn(), sessions: vi.fn(), session: vi.fn(), send: vi.fn(), remove: vi.fn() }
+  webChatAPI: { keys: vi.fn(), models: vi.fn(), sessions: vi.fn(), session: vi.fn(), send: vi.fn(), remove: vi.fn(), attachment: vi.fn() }
 }))
 
 const api = vi.mocked(webChatAPI)
@@ -40,6 +41,12 @@ const sendMessage = async (text: string) => {
   await control('draft').setValue(text)
   await view.get('form').trigger('submit')
   await flushPromises()
+}
+
+async function pickFiles(...files: File[]) {
+  const input = control('file-input')
+  Object.defineProperty(input.element, 'files', { configurable: true, value: files })
+  await input.trigger('change')
 }
 
 beforeEach(() => {
@@ -195,6 +202,117 @@ describe('user web chat', () => {
     expect(view.find('article').exists()).toBe(false)
     expect(view.find('.history-list button').exists()).toBe(false)
     expect(view.get('[role="alert"]').text()).toContain('expired')
+  })
+
+  it('previews, removes and reselects a file, then sends only raw data without a text message', async () => {
+    const doc = new File(['Invoice 32'], 'note.md', { type: 'text/markdown' })
+    const session = makeSession()
+    session.messages[0] = { role: 'user', content: '', attachments: [
+      { id: 'd936221b-ec52-408c-878f-e7099a5b68b3', name: doc.name, mime_type: doc.type, size: doc.size }
+    ] }
+    const reply = delayed<ChatSession>()
+    api.send.mockReturnValue(reply.promise)
+    await render()
+    await pickFiles(doc)
+    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('Invoice 32'))
+    await control('remove-attachment').trigger('click')
+    expect(control('send').attributes('disabled')).toBeDefined()
+    await pickFiles(doc)
+    await vi.waitFor(() => expect(control('send').attributes('disabled')).toBeUndefined())
+    await view.get('form').trigger('submit')
+    expect(api.send.mock.calls[0][0]).toEqual({
+      key_id: k1.id, model: model.id, content: '',
+      attachments: [{ name: doc.name, mime_type: doc.type, data: 'SW52b2ljZSAzMg==' }]
+    })
+    expect(view.get('.chat-timeline').text()).toContain('note.md')
+    reply.resolve(session)
+    await flushPromises()
+    expect(control('message-attachments').get('button').attributes('aria-label')).toBe('Download note.md')
+    expect(view.text()).not.toContain('Invoice 32')
+    expect(localStorage.length + sessionStorage.length).toBe(0)
+  })
+
+  it('rejects an invalid selection without dropping valid files and explains an oversized upstream request', async () => {
+    api.send.mockRejectedValue({ status: 413, reason: 'WEBCHAT_PAYLOAD_TOO_LARGE' })
+    await render()
+    await pickFiles(new File(['one'], 'keep.txt'))
+    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('keep.txt'))
+    await pickFiles(new File(['two'], 'two.txt'), new File(['binary'], 'program.exe'))
+    expect(view.get('[role="alert"]').text()).toContain('supported text file')
+    expect(control('draft-attachments').text()).not.toContain('two.txt')
+    await sendMessage('read my file')
+    expect(view.get('[role="alert"]').text()).toContain('Reduce the attachments')
+    expect(control('draft-attachments').text()).toContain('keep.txt')
+    expect(api.send.mock.calls[0][0].attachments).toHaveLength(1)
+  })
+
+  it('restores attachments for a retry, then discards them when the key is revoked', async () => {
+    api.send.mockRejectedValueOnce({ status: 503, reason: 'WEBCHAT_ATTACHMENT_BUSY' })
+      .mockRejectedValueOnce({ status: 403, reason: 'WEBCHAT_KEY_UNAVAILABLE' })
+    await render()
+    await pickFiles(new File(['one'], 'test.txt'))
+    await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('test.txt'))
+    await sendMessage('review it')
+    expect(view.get('[role="alert"]').text()).toContain('processing is busy')
+    expect(control('draft-attachments').text()).toContain('test.txt')
+    await view.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.send.mock.calls[1][0]).toEqual(api.send.mock.calls[0][0])
+    expect(view.find('[data-testid="chat-draft-attachments"]').exists()).toBe(false)
+    expect(control('attach').attributes('disabled')).toBeDefined()
+  })
+
+  it('cancels a pending file read on key switch and clears a completed draft on opening a new chat', async () => {
+    api.keys.mockResolvedValue([k1, k2])
+    const late = delayed<chatFiles.DraftChatFile>()
+    const reader = vi.spyOn(chatFiles, 'readChatFile').mockReturnValueOnce(late.promise)
+    try {
+      await render()
+      await control('key').setValue(String(k1.id))
+      await flushPromises()
+      await pickFiles(new File(['a'], 'private.txt'))
+      expect(control('send').attributes('disabled')).toBeDefined()
+      await control('key').setValue(String(k2.id))
+      expect(reader.mock.calls[0][1].aborted).toBe(true)
+      late.resolve({ name: 'private.txt', mime_type: '', data: 'YQ==', size: 1 })
+      await flushPromises()
+      expect(view.text()).not.toContain('private.txt')
+      await pickFiles(new File(['a'], 'second.txt'))
+      await vi.waitFor(() => expect(control('draft-attachments').text()).toContain('second.txt'))
+      await view.get('.chat-new').trigger('click')
+      expect(control('send').attributes('disabled')).toBeDefined()
+      expect(view.text()).not.toContain('second.txt')
+    } finally { reader.mockRestore() }
+  })
+
+  it('fetches an image original using its conversation and key and revokes the preview on close', async () => {
+    const session = makeSession()
+    const image = { id: '043edfd7-1b9c-45df-a7ce-dd7e4cbaa8c8', name: 'drawing.png', mime_type: 'image/png', size: 99 }
+    session.messages[0].attachments = [image]
+    api.sessions.mockResolvedValue([session])
+    api.session.mockResolvedValue(session)
+    api.attachment.mockResolvedValue(new Blob(['test']))
+    const create = vi.fn(() => 'blob:preview')
+    const revoke = vi.fn()
+    const urlClass = class extends URL {
+      static createObjectURL = create
+      static revokeObjectURL = revoke
+    }
+    vi.stubGlobal('URL', urlClass)
+    try {
+      await render()
+      await view.get('.history-list button').trigger('click')
+      await flushPromises()
+      expect(api.attachment).not.toHaveBeenCalled()
+      await control('message-attachments').get('button').trigger('click')
+      await flushPromises()
+      expect(api.attachment).toHaveBeenCalledWith(k1.id, session.id, image.id, expect.any(AbortSignal))
+      expect(view.get('.original-image').attributes('src')).toBe('blob:preview')
+      expect(view.get('a[download]').attributes('download')).toBe(image.name)
+      await view.get('.chat-new').trigger('click')
+      expect(revoke).toHaveBeenCalledWith('blob:preview')
+      expect(view.find('.original-image').exists()).toBe(false)
+    } finally { vi.unstubAllGlobals() }
   })
 
   it('enforces the UTF-8 byte limit without calling the provider', async () => {

@@ -184,7 +184,7 @@ backup_postgres() {
   fi
   mkdir -p "$backup_dir"
   backup_file="$backup_dir/postgres-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  docker exec "$database_container" sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --exclude-table-data=public.webchat_sessions --exclude-table-data=public.webchat_start_leases' > "$backup_file"
+  docker exec "$database_container" sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --exclude-table-data=public.webchat_attachments --exclude-table-data=public.webchat_sessions --exclude-table-data=public.webchat_start_leases' > "$backup_file"
   chmod 600 "$backup_file"
 }
 

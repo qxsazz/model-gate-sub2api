@@ -106,6 +106,7 @@ func RegisterUserRoutes(
 			chat.GET("/models", h.Webchat.Models)
 			chat.GET("/sessions", h.Webchat.Sessions)
 			chat.GET("/sessions/:id", h.Webchat.Session)
+			chat.GET("/sessions/:id/attachments/:attachment_id", h.Webchat.GetAttachment)
 			chat.DELETE("/sessions/:id", h.Webchat.DeleteSession)
 			chat.POST("/messages", h.Webchat.SendMessage)
 		}

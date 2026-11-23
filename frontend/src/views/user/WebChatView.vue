@@ -61,57 +61,131 @@
               <h3>{{ t('webChat.noKeys') }}</h3><p>{{ t('webChat.noKeysHint') }}</p>
               <RouterLink to="/keys" class="manage-link">{{ t('webChat.manageKeys') }} <Icon name="arrowRight" size="sm" /></RouterLink>
             </div>
-            <div v-else-if="!selectedId && !pending" class="chat-empty">
+            <div v-else-if="!selectedId && operation !== 'send'" class="chat-empty">
               <span class="chat-mark" aria-hidden="true"><Icon name="chatBubble" size="lg" /></span>
               <h3>{{ t('webChat.startTitle') }}</h3>
               <p>{{ optionsLoaded && !models.length ? t('webChat.noModels') : t('webChat.startHint') }}</p>
             </div>
             <article v-for="(turn, i) in session?.messages" :key="i" class="chat-turn" :class="{ 'user-turn': turn.role === 'user' }" data-testid="chat-message">
               <strong>{{ turn.role === 'user' ? t('webChat.you') : t('webChat.assistant') }}</strong>
-              <p>{{ turn.content }}</p>
+              <p v-if="turn.content">{{ turn.content }}</p>
+              <ChatFileList v-if="turn.attachments?.length" :files="turn.attachments" data-testid="chat-message-attachments"
+                @open="openOriginal" />
             </article>
-            <template v-if="pending">
-              <article class="chat-turn user-turn"><strong>{{ t('webChat.you') }}</strong><p>{{ pending }}</p></article>
+            <template v-if="operation === 'send'">
+              <article class="chat-turn user-turn"><strong>{{ t('webChat.you') }}</strong><p v-if="pending">{{ pending }}</p>
+                <ChatFileList v-if="pendingFiles.length" :files="pendingFiles" />
+              </article>
               <p class="chat-status" role="status">{{ t('webChat.waiting') }}</p>
             </template>
           </div>
           <form class="chat-composer" @submit.prevent="send">
-            <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t('webChat.placeholder')"
-              rows="2" :disabled="!keyId || !optionsLoaded || !model || !!operation || needsReload"
-              :aria-invalid="tooLong || undefined" :aria-describedby="tooLong ? 'chat-length-error' : undefined"
-              @keydown="composerKeydown" />
-            <button data-testid="chat-send" type="submit" class="chat-send" :disabled="!canSend" :title="t('webChat.send')">
-              <Icon name="arrowUp" size="sm" /><span>{{ t('webChat.send') }}</span>
-            </button>
+            <ChatFileList v-if="attachments.length" :files="attachments" removable :disabled="readingFiles || !!operation"
+              data-testid="chat-draft-attachments" @remove="removeFile" />
+            <p v-if="readingFiles" class="file-status" role="status">{{ t('webChat.files.reading') }}</p>
+            <p v-if="fileError" class="file-status" role="alert">{{ t('webChat.files.errors.' + fileError) }}</p>
+            <div class="composer-row">
+              <input ref="fileInput" type="file" multiple hidden data-testid="chat-file-input" :accept="chatFileAccept" @change="selectFiles" />
+              <button data-testid="chat-attach" type="button" class="chat-attach" :disabled="!keyId || !optionsLoaded || !model || !!operation || readingFiles || needsReload"
+                :aria-label="t('webChat.files.attach')" :aria-describedby="keyId && optionsLoaded && model ? 'chat-attachment-hint' : undefined" :title="t('webChat.files.hint')" @click="fileInput?.click()">
+                <Icon name="upload" size="sm" />
+              </button>
+              <textarea v-model="draft" data-testid="chat-draft" :aria-label="t('webChat.draft')" :placeholder="t('webChat.placeholder')"
+                rows="2" :disabled="!keyId || !optionsLoaded || !model || !!operation || needsReload"
+                :aria-invalid="tooLong || undefined" :aria-describedby="tooLong ? 'chat-length-error' : undefined"
+                @keydown="composerKeydown" />
+              <button data-testid="chat-send" type="submit" class="chat-send" :disabled="!canSend" :title="t('webChat.send')">
+                <Icon name="arrowUp" size="sm" /><span>{{ t('webChat.send') }}</span>
+              </button>
+            </div>
+            <small v-if="keyId && optionsLoaded && model" id="chat-attachment-hint" class="file-hint">{{ t('webChat.files.hint') }}</small>
           </form>
           <p v-if="tooLong" id="chat-length-error" class="length-error" role="status">{{ t('webChat.tooLong') }}</p>
         </section>
       </div>
+      <p v-if="originalError" class="file-status" role="alert">{{ t('webChat.files.errors.original') }}</p>
       <footer class="chat-footer">
         <span>{{ t('webChat.retention') }}</span>
         <a href="https://openwebui.com/" target="_blank" rel="noopener noreferrer">Powered by Open WebUI</a>
       </footer>
     </div>
+    <BaseDialog :show="!!imagePreview" :title="imagePreview?.name || ''" @close="closeOriginal">
+      <img v-if="imagePreview" :src="imagePreview.url" :alt="imagePreview.name" class="original-image" />
+      <template #footer>
+        <a v-if="imagePreview" class="btn btn-secondary" :href="imagePreview.url" :download="imagePreview.name">{{ t('webChat.files.save') }}</a>
+      </template>
+    </BaseDialog>
     <ConfirmDialog :show="!!deleteTarget" :title="t('webChat.deleteTitle')" :message="t('webChat.deleteHint')"
       :confirm-text="t('webChat.delete')" danger @confirm="confirmRemoval" @cancel="deleteTarget = ''" />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import ChatFileList from '@/components/webChat/ChatFileList.vue'
+import { webChatAPI, type ChatAttachment } from '@/api/webChat'
+import { chatFileAccept, isChatImage } from '@/utils/webChatAttachments'
 import { useWebChat } from '@/composables/useWebChat'
 
 const { t, locale } = useI18n()
-const { keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
+const { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
   operation, keysLoaded, optionsLoaded, mutating, tooLong, canSend, needsReload,
   refresh, chooseKey, newChat, openSession, send, remove } = useWebChat()
 const timeline = ref<HTMLElement>()
 const showHistory = ref(false)
 const deleteTarget = ref('')
+const fileInput = ref<HTMLInputElement>()
+const imagePreview = ref<{ name: string; url: string } | null>(null)
+const originalError = ref(false)
+let originalRequest: AbortController | undefined
+
+function selectFiles(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  void addFiles(files)
+}
+
+function closeOriginal() {
+  originalRequest?.abort()
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value.url)
+  imagePreview.value = null
+  originalError.value = false
+}
+
+async function openOriginal(file: ChatAttachment) {
+  const key = keyId.value, id = session.value?.id
+  if (!key || !id) return
+  closeOriginal()
+  const controller = new AbortController()
+  originalRequest = controller
+  try {
+    const bytes = await webChatAPI.attachment(key, id, file.id, controller.signal)
+    if (controller.signal.aborted) return
+    const image = isChatImage(file.mime_type)
+    const url = URL.createObjectURL(new Blob([bytes], { type: image ? file.mime_type : 'application/octet-stream' }))
+    if (image) imagePreview.value = { name: file.name, url }
+    else {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = file.name
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+  } catch {
+    if (!controller.signal.aborted) originalError.value = true
+  }
+}
+
+watch([keyId, () => session.value?.id], closeOriginal, { flush: 'sync' })
+onBeforeUnmount(closeOriginal)
 const dateFormat = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
 function formatDate(value: string) { return dateFormat.value.format(new Date(value)) }
 function changeKey(event: Event) { void chooseKey(Number((event.target as HTMLSelectElement).value)) }
@@ -140,7 +214,7 @@ watch([session, pending], async () => {
   max-width: 1360px;
   margin: 0 auto;
 }
-.chat-settings, .chat-footer, .chat-error, .conversation-header, .chat-composer { display: flex; align-items: center; gap: 12px; }
+.chat-settings, .chat-footer, .chat-error, .conversation-header, .composer-row { display: flex; align-items: center; gap: 12px; }
 .chat-settings { flex-wrap: wrap; gap: 12px 20px; margin-bottom: 16px; }
 .chat-select { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
 .chat-select > span { color: var(--mg-muted); white-space: nowrap; }
@@ -176,7 +250,14 @@ watch([session, pending], async () => {
 .chat-turn strong { display: block; font-size: 11px; color: var(--mg-muted); margin-bottom: 5px; }
 .chat-turn p { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
 .user-turn { align-self: flex-end; padding: 10px 14px; background: var(--mg-champagne-50); border-radius: 12px 12px 2px 12px; }
-.chat-composer { margin: 0 16px 14px; padding: 8px; align-items: end; border: 1px solid var(--mg-line-warm); border-radius: 9px; }
+.chat-composer { display: grid; gap: 6px; margin: 0 16px 14px; padding: 8px; border: 1px solid var(--mg-line-warm); border-radius: 9px; }
+.composer-row { align-items: end; gap: 6px; min-width: 0; }
+.chat-attach { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--mg-line-warm); }
+.chat-composer .file-list { max-height: 96px; overflow-y: auto; }
+.chat-turn .file-list { margin-top: 5px; }
+.file-hint { color: var(--mg-muted); font-size: 11px; overflow-wrap: anywhere; }
+.file-status { margin: 2px 4px; color: var(--mg-muted); font-size: 12px; }
+.original-image { display: block; max-width: 100%; max-height: 65dvh; margin: 0 auto; object-fit: contain; }
 .chat-composer:focus-within { border-color: var(--mg-gold-500); }
 .chat-composer textarea { min-width: 0; flex: 1; max-height: 140px; padding: 4px 6px; resize: vertical; font-size: 14px; color: inherit; background: transparent; }
 .chat-composer textarea:focus-visible { outline: 2px solid var(--mg-gold-500); border-radius: 3px; }

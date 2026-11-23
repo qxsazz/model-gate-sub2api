@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,6 +51,7 @@ func webchatTestRequest(t *testing.T, h *WebchatHandler, userID int64, method, p
 	engine.GET("/models", h.Models)
 	engine.GET("/sessions", h.Sessions)
 	engine.GET("/sessions/:id", h.Session)
+	engine.GET("/sessions/:id/attachments/:attachment_id", h.GetAttachment)
 	engine.DELETE("/sessions/:id", h.DeleteSession)
 	engine.POST("/messages", h.SendMessage)
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -81,6 +84,7 @@ func TestWebchatGatesEverySessionAndGatewayRoute(t *testing.T) {
 		{http.MethodGet, "/models?key_id=5", ""},
 		{http.MethodGet, "/sessions?key_id=5", ""},
 		{http.MethodGet, "/sessions/" + testWebchatSession + "?key_id=5", ""},
+		{http.MethodGet, "/sessions/" + testWebchatSession + "/attachments/" + testWebchatFile + "?key_id=5", ""},
 		{http.MethodDelete, "/sessions/" + testWebchatSession + "?key_id=5", ""},
 		{http.MethodPost, "/messages", `{"key_id":5,"model":"m","content":"hello","user_id":41}`},
 	} {
@@ -105,6 +109,7 @@ type webchatTurnStore struct {
 	beginErr     error
 	began        []any
 	saved        []any
+	files        []service.WebchatAttachment
 	released     bool
 }
 
@@ -128,9 +133,10 @@ func (s *webchatTurnStore) BeginTurn(_ context.Context, user, key int64, id stri
 	}
 	return &service.WebchatConversation{Messages: s.history, Version: 1}, "turn-lease", nil
 }
-func (s *webchatTurnStore) SaveTurn(_ context.Context, user, key int64, id string, version int64, token, model, content, answer string) (*service.WebchatConversation, error) {
+func (s *webchatTurnStore) SaveTurn(_ context.Context, user, key int64, id string, version int64, token, model, content, answer string, files ...service.WebchatAttachment) (*service.WebchatConversation, error) {
+	s.files = files
 	s.saved = []any{user, key, id, version, token, model, content, answer}
-	return &service.WebchatConversation{ID: id, Version: version + 1}, nil
+	return &service.WebchatConversation{ID: id, Version: version + 1, Messages: []service.WebchatMessage{{Role: "user", Content: content, Attachments: files}}}, nil
 }
 func (s *webchatTurnStore) ReleaseTurn(_ context.Context, _, _ int64, _, _ string) error {
 	s.released = true
@@ -247,4 +253,98 @@ func TestWebchatReservesFirstSessionBeforeCallingModel(t *testing.T) {
 			}
 		})
 	}
+}
+
+const testWebchatFile = "02e6f692-abb7-4898-bd4d-857077b12f12"
+
+func TestWebchatSendsAttachmentOnlyAndKeepsPrivateBytesOutOfJSON(t *testing.T) {
+	store := &webchatTurnStore{}
+	bridge := &webchatBridgeStub{}
+	h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
+	const secret = "private uploaded notes"
+	encoded := base64.StdEncoding.EncodeToString([]byte(secret))
+	w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages",
+		`{"key_id":5,"model":"m","attachments":[{"name":"example.txt","mime_type":"text/plain","data":"`+encoded+`"}]}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Len(t, bridge.messages, 1)
+	require.Len(t, store.files, 1)
+	require.Equal(t, store.files, bridge.messages[0].Attachments)
+	require.Equal(t, []byte(secret), store.files[0].Data)
+	require.Equal(t, secret, store.files[0].Text)
+	require.Contains(t, w.Body.String(), "example.txt")
+	require.NotContains(t, w.Body.String(), encoded)
+	require.NotContains(t, w.Body.String(), secret)
+}
+
+func TestWebchatRejectsInvalidUploadsBeforeModelUse(t *testing.T) {
+	for _, raw := range []string{
+		`[{"name":"test.txt","mime_type":"text/plain","url":"https://example.invalid/file"}]`,
+		`[{}, {}, {}, {}]`,
+		`{"name":"test.txt"}`,
+		`[{"name":"test.txt","mime_type":"text/plain","data":"invalid base64"}]`,
+	} {
+		store := &webchatTurnStore{}
+		bridge := &webchatBridgeStub{}
+		h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
+		w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages", `{"key_id":5,"model":"m","attachments":`+raw+`}`)
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		require.Contains(t, w.Body.String(), "WEBCHAT_ATTACHMENT_INVALID")
+		require.Nil(t, bridge.messages)
+		require.Nil(t, store.files)
+		if store.began != nil {
+			require.True(t, store.released)
+		}
+	}
+}
+
+func TestWebchatRejectsOversizedRetainedAttachmentsBeforeBilling(t *testing.T) {
+	for _, old := range []service.WebchatAttachment{
+		{Size: service.WebchatMaxSessionAttachmentBytes},
+		{Text: strings.Repeat("a", service.WebchatMaxSessionExtractedBytes)},
+	} {
+		store := &webchatTurnStore{history: []service.WebchatMessage{{Role: "user", Attachments: []service.WebchatAttachment{old}}}}
+		bridge := &webchatBridgeStub{}
+		h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store, bridge: bridge}
+		w := webchatTestRequest(t, h, 41, http.MethodPost, "/messages",
+			`{"key_id":5,"model":"m","session_id":"`+testWebchatSession+`","content":"summarize","attachments":[{"name":"new.txt","mime_type":"text/plain","data":"YWJj"}]}`)
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		require.Contains(t, w.Body.String(), "WEBCHAT_HISTORY_LIMIT")
+		require.Nil(t, bridge.messages)
+		require.True(t, store.released)
+	}
+}
+
+type webchatDownloadStore struct {
+	webchatStore
+	found   bool
+	request []any
+}
+
+func (s *webchatDownloadStore) GetAttachment(_ context.Context, user, key int64, session, id string) (*service.WebchatAttachment, error) {
+	s.request = []any{user, key, session, id}
+	if !s.found {
+		return nil, service.ErrWebchatNotFound
+	}
+	return &service.WebchatAttachment{ID: id, Name: "聊天记录.txt", MIMEType: "text/plain", Size: 7, Data: []byte("private")}, nil
+}
+
+func TestWebchatPrivateAttachmentDownload(t *testing.T) {
+	store := &webchatDownloadStore{found: true}
+	h := &WebchatHandler{keys: &webchatKeyStub{key: validWebchatTestKey()}, store: store}
+	path := "/sessions/" + testWebchatSession + "/attachments/" + testWebchatFile + "?key_id=5"
+	w := webchatTestRequest(t, h, 41, http.MethodGet, path, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, []any{int64(41), int64(5), testWebchatSession, testWebchatFile}, store.request)
+	require.Equal(t, "private", w.Body.String())
+	require.Contains(t, w.Header().Get("Cache-Control"), "no-store")
+	require.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	disposition, params, err := mime.ParseMediaType(w.Header().Get("Content-Disposition"))
+	require.NoError(t, err)
+	require.Equal(t, "attachment", disposition)
+	require.Equal(t, "聊天记录.txt", params["filename"])
+	store.found = false
+	w = webchatTestRequest(t, h, 41, http.MethodGet, path, "")
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "WEBCHAT_ATTACHMENT_NOT_FOUND")
+	require.NotContains(t, w.Body.String(), "private")
 }

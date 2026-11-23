@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,14 +20,21 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 )
 
 const (
 	webchatAlias        = "modelgate-chat"
 	webchatTicketHeader = "X-ModelGate-Ticket"
 	webchatTicketTTL    = 90 * time.Second
-	// Bounds the JSON envelope, including escaped text and provider metadata.
-	webchatWireLimit = 4 << 20
+	// 12 MiB of images encode to 16 MiB. Both the 512 KiB chat history and
+	// the 512 KiB extracted text can expand by up to 6x in JSON.
+	webchatRequestLimit     = 24 << 20
+	webchatResponseLimit    = 4 << 20
+	webchatTextRequestLimit = 4 << 20
+	// Per-process raw-equivalent attachment budget, independently on each side of the relay.
+	webchatAttachmentBudget = 18 << 20
 )
 
 type WebchatUpstreamError struct{ Status int }
@@ -51,23 +59,26 @@ type WebchatTicketCache interface {
 }
 
 type webchatTicket struct {
-	UserID      int64
-	KeyID       int64
-	IP          string
-	Model       string
-	MessageHash [sha256.Size]byte
-	Receipt     string
+	UserID           int64
+	KeyID            int64
+	IP               string
+	Model            string
+	MessageHash      [sha256.Size]byte
+	Receipt          string
+	AttachmentWeight int64
+	CallbackLimit    int64
 }
 
 type WebchatBridge struct {
-	tickets              WebchatTicketCache
-	keys                 webchatKeyLookup
-	gateway              http.Handler
-	url, email, password string
-	client               *http.Client
-	tokenMu              sync.Mutex
-	token                string
-	tokenExpiry          time.Time
+	tickets                    WebchatTicketCache
+	keys                       webchatKeyLookup
+	gateway                    http.Handler
+	url, email, password       string
+	client                     *http.Client
+	tokenMu                    sync.Mutex
+	token                      string
+	tokenExpiry                time.Time
+	sendBudget, callbackBudget *semaphore.Weighted
 }
 
 func NewWebchatBridge(cache WebchatTicketCache, keys *APIKeyService) *WebchatBridge {
@@ -90,7 +101,7 @@ func NewWebchatBridge(cache WebchatTicketCache, keys *APIKeyService) *WebchatBri
 			password = strings.TrimRight(string(data), "\r\n")
 		}
 	}
-	return &WebchatBridge{tickets: cache, keys: keys, url: rawURL, email: os.Getenv("WEBCHAT_OPEN_WEBUI_EMAIL"), password: password, client: &http.Client{
+	return &WebchatBridge{sendBudget: semaphore.NewWeighted(webchatAttachmentBudget), callbackBudget: semaphore.NewWeighted(webchatAttachmentBudget), tickets: cache, keys: keys, url: rawURL, email: os.Getenv("WEBCHAT_OPEN_WEBUI_EMAIL"), password: password, client: &http.Client{
 		Transport: transport, Timeout: 6 * time.Minute, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 	}}
 }
@@ -116,7 +127,7 @@ func (w *webchatResponse) WriteHeader(status int) {
 }
 func (w *webchatResponse) Write(p []byte) (int, error) {
 	w.WriteHeader(http.StatusOK)
-	if w.oversize || len(p) > webchatWireLimit-w.body.Len() {
+	if w.oversize || len(p) > webchatResponseLimit-w.body.Len() {
 		w.oversize = true
 		return 0, errors.New("chat gateway response exceeds limit")
 	}
@@ -215,8 +226,8 @@ func (b *WebchatBridge) post(ctx context.Context, path, token string, body []byt
 	if res.StatusCode != http.StatusOK {
 		return nil, res.StatusCode, webchatError(webchatStatus(res.StatusCode))
 	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, webchatWireLimit+1))
-	if err != nil || len(data) > webchatWireLimit {
+	data, err := io.ReadAll(io.LimitReader(res.Body, webchatResponseLimit+1))
+	if err != nil || len(data) > webchatResponseLimit {
 		return nil, res.StatusCode, webchatError(502)
 	}
 	return data, res.StatusCode, nil
@@ -251,6 +262,87 @@ func (b *WebchatBridge) sessionToken(ctx context.Context, invalid string) (strin
 	return b.token, nil
 }
 
+// Attachment data is hydrated by the authenticated handler/store. The gateway
+// sees only message roles, text, and inline images, never storage IDs or URLs.
+type webchatWireMessage struct {
+	Role    string `json:"role"`
+	Content any    `json:"content"` // string or OpenAI text/image_url parts
+}
+
+func webchatAttachmentWeight(messages []WebchatMessage) (int64, *WebchatUpstreamError) {
+	rawSize, extracted := 0, 0
+	for _, msg := range messages {
+		if len(msg.Attachments) == 0 {
+			continue
+		}
+		if msg.Role != "user" || len(msg.Attachments) > WebchatMaxAttachments {
+			return 0, webchatError(400)
+		}
+		turnSize := 0
+		for _, a := range msg.Attachments {
+			if !ValidWebchatText(a.Name, 255) || a.Size <= 0 || a.Size != len(a.Data) {
+				return 0, webchatError(400)
+			}
+			turnSize += len(a.Data)
+			rawSize += len(a.Data)
+			extracted += len(a.Text)
+			if turnSize > WebchatMaxTurnAttachmentBytes || rawSize > WebchatMaxSessionAttachmentBytes || extracted > WebchatMaxSessionExtractedBytes {
+				return 0, webchatError(http.StatusRequestEntityTooLarge)
+			}
+			switch a.MIMEType {
+			case "image/png", "image/jpeg", "image/webp":
+				if http.DetectContentType(a.Data) != a.MIMEType || a.Text != "" {
+					return 0, webchatError(400)
+				}
+			case "text/plain", "application/pdf", webchatDOCXMIME:
+				if !ValidWebchatText(a.Text, WebchatMaxExtractedFileBytes) {
+					return 0, webchatError(400)
+				}
+			default:
+				return 0, webchatError(400)
+			}
+		}
+	}
+	if rawSize == 0 {
+		return 0, nil
+	}
+	return int64(max(1<<20, rawSize+extracted)), nil
+}
+
+func webchatWireMessages(messages []WebchatMessage) []webchatWireMessage {
+	wire := make([]webchatWireMessage, 0, len(messages))
+	for _, msg := range messages {
+		item := webchatWireMessage{Role: msg.Role, Content: msg.Content}
+		if len(msg.Attachments) > 0 {
+			// Documents remain in a user's ordinary text prompt, so text models
+			// can read them. Only images require multimodal content parts.
+			texts := make([]string, 0, len(msg.Attachments)+1)
+			if msg.Content != "" {
+				texts = append(texts, msg.Content)
+			}
+			parts := make([]map[string]any, 0, len(msg.Attachments)+1)
+			for _, a := range msg.Attachments {
+				if strings.HasPrefix(a.MIMEType, "image/") {
+					uri := "data:" + a.MIMEType + ";base64," + base64.StdEncoding.EncodeToString(a.Data)
+					parts = append(parts, map[string]any{"type": "image_url", "image_url": map[string]string{"url": uri}})
+				} else {
+					texts = append(texts, a.Name+"\n"+a.Text)
+				}
+			}
+			text := strings.Join(texts, "\n\n")
+			item.Content = text
+			if len(parts) > 0 {
+				if text != "" {
+					parts = append([]map[string]any{{"type": "text", "text": text}}, parts...)
+				}
+				item.Content = parts
+			}
+		}
+		wire = append(wire, item)
+	}
+	return wire
+}
+
 func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, model string, messages []WebchatMessage) (string, error) {
 	if !b.configured() {
 		return "", webchatError(503)
@@ -262,6 +354,20 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 	if !ValidWebchatText(model, WebchatMaxModelBytes) || keyModelPurpose(model) != "text" {
 		return "", webchatError(http.StatusBadRequest)
 	}
+	weight, inputErr := webchatAttachmentWeight(messages)
+	if inputErr != nil {
+		return "", inputErr
+	}
+	if weight > 0 {
+		if !b.sendBudget.TryAcquire(weight) {
+			return "", webchatError(http.StatusServiceUnavailable)
+		}
+		defer b.sendBudget.Release(weight)
+	}
+	contextBytes, err := json.Marshal(webchatWireMessages(messages))
+	if err != nil || len(contextBytes) > webchatRequestLimit-1024 {
+		return "", webchatError(http.StatusRequestEntityTooLarge)
+	}
 	token, err := b.sessionToken(ctx, "")
 	if err != nil {
 		return "", err
@@ -272,11 +378,11 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 	}
 	ticket := hex.EncodeToString(raw[:32])
 	receipt := hex.EncodeToString(raw[32:])
-	contextBytes, err := json.Marshal(messages)
-	if err != nil {
-		return "", webchatError(400)
-	}
-	state, _ := json.Marshal(webchatTicket{UserID: key.UserID, KeyID: key.ID, IP: ip.String(), Model: model, MessageHash: sha256.Sum256(contextBytes), Receipt: receipt})
+	state, _ := json.Marshal(webchatTicket{UserID: key.UserID, KeyID: key.ID, IP: ip.String(), Model: model, MessageHash: sha256.Sum256(contextBytes), Receipt: receipt, AttachmentWeight: weight,
+		// Python's default JSON encoder can escape Unicode plus add whitespace.
+		// A tiny authorized context must not admit an arbitrarily large body.
+		CallbackLimit: min(webchatRequestLimit, 3*int64(len(contextBytes))+(16<<10)),
+	})
 	if ok, err := b.tickets.Issue(ctx, ticket, state, webchatTicketTTL); err != nil || !ok {
 		return "", webchatError(503)
 	}
@@ -285,7 +391,7 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 		defer cancel()
 		_ = b.tickets.Drop(cleanup, ticket)
 	}()
-	request, _ := json.Marshal(map[string]any{"model": webchatAlias, "messages": messages, "stream": false, "metadata": map[string]string{"message_id": ticket}})
+	request, _ := json.Marshal(map[string]any{"model": webchatAlias, "messages": json.RawMessage(contextBytes), "stream": false, "metadata": map[string]string{"message_id": ticket}})
 	data, status, err := b.post(ctx, "/openai/chat/completions", token, request)
 	if status == 401 {
 		// A restarted sidecar can invalidate its service login. Only retry if the
@@ -308,7 +414,10 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 
 type webchatCompletion struct {
 	Choices []struct {
-		Message WebchatMessage `json:"message"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
 	} `json:"choices"`
 	Receipt string `json:"modelgate_receipt,omitempty"`
 }
@@ -361,12 +470,30 @@ func (b *WebchatBridge) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Model    string           `json:"model"`
-		Messages []WebchatMessage `json:"messages"`
-		Stream   bool             `json:"stream"`
+		Model    string               `json:"model"`
+		Messages []webchatWireMessage `json:"messages"`
+		Stream   bool                 `json:"stream"`
 	}
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, webchatWireLimit))
-	if err != nil || json.Unmarshal(raw, &in) != nil || in.Model != webchatAlias || in.Stream {
+	if state.AttachmentWeight > 0 {
+		if !b.callbackBudget.TryAcquire(state.AttachmentWeight) {
+			reject(http.StatusServiceUnavailable)
+			return
+		}
+		defer b.callbackBudget.Release(state.AttachmentWeight)
+	}
+	limit := int64(webchatTextRequestLimit)
+	if state.AttachmentWeight > 0 {
+		limit = webchatRequestLimit
+	}
+	if state.CallbackLimit > 0 {
+		limit = min(limit, state.CallbackLimit)
+	}
+	if r.ContentLength > limit {
+		reject(http.StatusRequestEntityTooLarge)
+		return
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
+	if decoder.Decode(&in) != nil || decoder.Decode(new(json.RawMessage)) != io.EOF || in.Model != webchatAlias || in.Stream {
 		reject(400)
 		return
 	}
@@ -380,7 +507,7 @@ func (b *WebchatBridge) Callback(w http.ResponseWriter, r *http.Request) {
 		reject(403)
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{"model": state.Model, "messages": in.Messages, "stream": false})
+	payload, _ := json.Marshal(map[string]any{"model": state.Model, "messages": json.RawMessage(body), "stream": false})
 	out, gatewayErr := b.dispatch(r.Context(), key, state.IP, http.MethodPost, "/v1/chat/completions", payload)
 	if gatewayErr != nil {
 		reject(gatewayErr.Status)

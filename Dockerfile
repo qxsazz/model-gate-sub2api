@@ -126,6 +126,8 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     su-exec \
+    poppler-utils \
+    nsjail \
     libpq \
     zstd-libs \
     lz4-libs \

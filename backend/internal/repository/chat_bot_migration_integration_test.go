@@ -42,6 +42,7 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 		"252_channel_pricing_ultrafast_multiplier.sql": true,
 		"264_admin_recharge_principal.sql":             true,
 		"265_webchat_sessions.sql":                     true,
+		"266_webchat_attachments.sql":                  true,
 	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)

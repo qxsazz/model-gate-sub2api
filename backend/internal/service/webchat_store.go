@@ -16,12 +16,17 @@ import (
 )
 
 const (
-	WebchatMaxSessions       = 50
-	WebchatMaxTurns          = 32
-	WebchatMaxHistoryBytes   = 512 << 10
-	WebchatMaxUserBytes      = 32 << 10
-	WebchatMaxAssistantBytes = 128 << 10
-	WebchatMaxModelBytes     = 256
+	WebchatMaxSessions               = 50
+	WebchatMaxTurns                  = 32
+	WebchatMaxHistoryBytes           = 512 << 10
+	WebchatMaxUserBytes              = 32 << 10
+	WebchatMaxAssistantBytes         = 128 << 10
+	WebchatMaxModelBytes             = 256
+	WebchatMaxAttachments            = 3
+	WebchatMaxTurnAttachmentBytes    = 4 << 20
+	WebchatMaxSessionAttachmentBytes = 12 << 20
+	WebchatMaxExtractedFileBytes     = 128 << 10
+	WebchatMaxSessionExtractedBytes  = 512 << 10
 
 	// Elapsed hours keep the retention window independent of the database session's time zone and DST.
 	webchatLifetime = "interval '120 hours'"
@@ -36,9 +41,20 @@ var (
 	ErrWebchatLimit    = errors.New("webchat size or session limit exceeded")
 )
 
+type WebchatAttachment struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Size     int    `json:"size"`
+	// These are available only to the internal model bridge and the authorized download handler.
+	Data []byte `json:"-"`
+	Text string `json:"-"`
+}
+
 type WebchatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role        string              `json:"role"`
+	Content     string              `json:"content"`
+	Attachments []WebchatAttachment `json:"attachments,omitempty"`
 }
 
 type WebchatConversation struct {
@@ -187,6 +203,26 @@ func (s *WebchatStore) Get(ctx context.Context, userID, keyID int64, id string) 
 	return scanWebchat(s.db.QueryRowContext(ctx, "SELECT "+webchatColumns+",messages FROM webchat_sessions WHERE "+webchatScope, userID, keyID, id), true, nil)
 }
 
+// GetAttachment uses the same owner/key/expiry checks as reading the conversation.
+func (s *WebchatStore) GetAttachment(ctx context.Context, userID, keyID int64, sessionID, attachmentID string) (*WebchatAttachment, error) {
+	if !validWebchatUUID(sessionID) || !validWebchatUUID(attachmentID) {
+		return nil, ErrWebchatNotFound
+	}
+	var a WebchatAttachment
+	err := s.db.QueryRowContext(ctx, `SELECT a.id,a.name,a.mime_type,a.data
+        FROM webchat_attachments a JOIN webchat_sessions s ON s.id=a.session_id
+        WHERE s.user_id=$1 AND s.api_key_id=$2 AND s.id=$3 AND a.id=$4
+        AND s.updated_at > statement_timestamp()-`+webchatLifetime, userID, keyID, sessionID, attachmentID).Scan(&a.ID, &a.Name, &a.MIMEType, &a.Data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrWebchatNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	a.Size = len(a.Data)
+	return &a, nil
+}
+
 // ReserveStart counts both completed sessions and in-flight first turns, before billing.
 // Lock only the key's short capacity check. No transaction spans a gateway request.
 func (s *WebchatStore) ReserveStart(ctx context.Context, userID, keyID int64) (string, error) {
@@ -235,28 +271,83 @@ func (s *WebchatStore) BeginTurn(ctx context.Context, userID, keyID int64, id st
 	if !validWebchatUUID(id) {
 		return nil, "", ErrWebchatNotFound
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = tx.Rollback() }()
 	var lease string
-	c, err := scanWebchat(s.db.QueryRowContext(ctx, `UPDATE webchat_sessions SET
+	c, err := scanWebchat(tx.QueryRowContext(ctx, `UPDATE webchat_sessions SET
 		lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '15 minutes'
 		WHERE `+webchatScope+` AND updated_at > clock_timestamp() - `+webchatLifetime+`
 		AND version < $4 AND (lease_until IS NULL OR lease_until <= clock_timestamp())
 		RETURNING `+webchatColumns+`,messages,lease_token`, userID, keyID, id, WebchatMaxTurns), true, &lease)
 	if errors.Is(err, ErrWebchatNotFound) {
-		err = s.turnRefusal(ctx, userID, keyID, id, 0)
+		return nil, "", s.turnRefusal(ctx, tx, userID, keyID, id, 0, 0, 0)
 	}
-	return c, lease, err
+	if err != nil {
+		return nil, "", err
+	}
+	// Keep metadata-only reads cheap. Only inference needs the original inputs.
+	if err = loadWebchatInputs(ctx, tx, c); err != nil {
+		return nil, "", err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, "", err
+	}
+	return c, lease, nil
 }
 
-func (s *WebchatStore) turnRefusal(ctx context.Context, userID, keyID int64, id string, moreBytes int) error {
-	var count, size int
-	err := s.db.QueryRowContext(ctx, "SELECT version,content_bytes FROM webchat_sessions WHERE "+webchatScope, userID, keyID, id).Scan(&count, &size)
+func loadWebchatInputs(ctx context.Context, tx *sql.Tx, c *WebchatConversation) error {
+	byID := make(map[string]*WebchatAttachment)
+	for i := range c.Messages {
+		for j := range c.Messages[i].Attachments {
+			a := &c.Messages[i].Attachments[j]
+			byID[a.ID] = a
+		}
+	}
+	if len(byID) == 0 {
+		return nil
+	}
+	// BeginTurn locked and authenticated the parent row in this transaction.
+	rows, err := tx.QueryContext(ctx, `SELECT id,data,extracted_text FROM webchat_attachments WHERE session_id=$1`, c.ID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id string
+		var data []byte
+		var text string
+		if err = rows.Scan(&id, &data, &text); err != nil {
+			return err
+		}
+		a := byID[id]
+		if a == nil || a.Size != len(data) {
+			return errors.New("webchat attachment does not match message metadata")
+		}
+		a.Data, a.Text = data, text
+		delete(byID, id)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if len(byID) != 0 {
+		return errors.New("webchat stored attachment missing")
+	}
+	return nil
+}
+
+func (s *WebchatStore) turnRefusal(ctx context.Context, tx *sql.Tx, userID, keyID int64, id string, moreBytes, moreAttachments, moreExtracted int) error {
+	var count, size, attachmentSize, extractedSize int
+	err := tx.QueryRowContext(ctx, "SELECT version,content_bytes,attachment_bytes,extracted_bytes FROM webchat_sessions WHERE "+webchatScope, userID, keyID, id).Scan(&count, &size, &attachmentSize, &extractedSize)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrWebchatNotFound
 	}
 	if err != nil {
 		return err
 	}
-	if count >= WebchatMaxTurns || size+moreBytes > WebchatMaxHistoryBytes {
+	if count >= WebchatMaxTurns || size+moreBytes > WebchatMaxHistoryBytes || attachmentSize+moreAttachments > WebchatMaxSessionAttachmentBytes || extractedSize+moreExtracted > WebchatMaxSessionExtractedBytes {
 		return ErrWebchatLimit
 	}
 	return ErrWebchatConflict
@@ -278,57 +369,111 @@ func ValidWebchatText(v string, limit int) bool {
 	return len(v) <= limit && strings.TrimSpace(v) != "" && utf8.ValidString(v) && !strings.ContainsRune(v, 0)
 }
 
-func (s *WebchatStore) SaveTurn(ctx context.Context, userID, keyID int64, id string, expectedVersion int64, lease, model, userText, assistantText string) (*WebchatConversation, error) {
-	if !ValidWebchatText(model, WebchatMaxModelBytes) || !ValidWebchatText(userText, WebchatMaxUserBytes) || !ValidWebchatText(assistantText, WebchatMaxAssistantBytes) {
+func (s *WebchatStore) SaveTurn(ctx context.Context, userID, keyID int64, id string, expectedVersion int64, lease, model, userText, assistantText string, attachments ...WebchatAttachment) (*WebchatConversation, error) {
+	attachmentOnly := len(attachments) > 0 && userText == ""
+	if !ValidWebchatText(model, WebchatMaxModelBytes) || (!attachmentOnly && !ValidWebchatText(userText, WebchatMaxUserBytes)) || !ValidWebchatText(assistantText, WebchatMaxAssistantBytes) {
 		return nil, ErrWebchatLimit
 	}
-	pair, err := json.Marshal([]WebchatMessage{{Role: "user", Content: userText}, {Role: "assistant", Content: assistantText}})
+	uploads, attachmentSize, extractedSize, err := prepareWebchatAttachments(attachments)
 	if err != nil {
 		return nil, err
 	}
-	size := len(userText) + len(assistantText)
-	if id == "" {
-		if expectedVersion != 0 || !validWebchatUUID(lease) {
-			return nil, ErrWebchatConflict
-		}
-		return s.saveFirstTurn(ctx, userID, keyID, lease, model, userText, string(pair), size)
-	}
-	if !validWebchatUUID(id) {
-		return nil, ErrWebchatNotFound
+	pair, err := json.Marshal([]WebchatMessage{{Role: "user", Content: userText, Attachments: uploads}, {Role: "assistant", Content: assistantText}})
+	if err != nil {
+		return nil, err
 	}
 	if !validWebchatUUID(lease) {
 		return nil, ErrWebchatConflict
 	}
-	c, err := scanWebchat(s.db.QueryRowContext(ctx, `UPDATE webchat_sessions SET model=$6,
-		messages=messages || $7::jsonb,content_bytes=content_bytes+$8,version=version+1,
-		updated_at=clock_timestamp(),lease_token=NULL,lease_until=NULL
-		WHERE `+webchatScope+` AND updated_at > clock_timestamp() - `+webchatLifetime+`
-		AND version=$4 AND lease_token=$5 AND lease_until>clock_timestamp()
-		AND version<$9 AND content_bytes+$8<=$10
-		RETURNING `+webchatColumns+`,messages`, userID, keyID, id, expectedVersion, lease, model, string(pair), size, WebchatMaxTurns, WebchatMaxHistoryBytes), true, nil)
-	if errors.Is(err, ErrWebchatNotFound) {
-		err = s.turnRefusal(ctx, userID, keyID, id, size)
+	textBytes := len(userText) + len(assistantText)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
-	return c, err
+	defer func() { _ = tx.Rollback() }()
+	var c *WebchatConversation
+	if id == "" {
+		if expectedVersion != 0 {
+			return nil, ErrWebchatConflict
+		}
+		title := userText
+		if attachmentOnly {
+			title = uploads[0].Name
+		}
+		c, err = saveFirstWebchatTurn(ctx, tx, userID, keyID, lease, model, title, string(pair), textBytes, attachmentSize, extractedSize)
+		if errors.Is(err, ErrWebchatNotFound) {
+			return nil, ErrWebchatConflict
+		}
+	} else {
+		if !validWebchatUUID(id) {
+			return nil, ErrWebchatNotFound
+		}
+		c, err = scanWebchat(tx.QueryRowContext(ctx, `UPDATE webchat_sessions SET model=$6,
+            messages=messages || $7::jsonb,content_bytes=content_bytes+$8,version=version+1,
+            attachment_bytes=attachment_bytes+$11,extracted_bytes=extracted_bytes+$12,
+            updated_at=clock_timestamp(),lease_token=NULL,lease_until=NULL
+            WHERE `+webchatScope+` AND updated_at > clock_timestamp() - `+webchatLifetime+`
+            AND version=$4 AND lease_token=$5 AND lease_until>clock_timestamp()
+            AND version<$9 AND content_bytes+$8<=$10 AND attachment_bytes+$11<=$13 AND extracted_bytes+$12<=$14
+            RETURNING `+webchatColumns+`,messages`, userID, keyID, id, expectedVersion, lease, model, string(pair), textBytes, WebchatMaxTurns, WebchatMaxHistoryBytes, attachmentSize, extractedSize, WebchatMaxSessionAttachmentBytes, WebchatMaxSessionExtractedBytes), true, nil)
+		if errors.Is(err, ErrWebchatNotFound) {
+			return nil, s.turnRefusal(ctx, tx, userID, keyID, id, textBytes, attachmentSize, extractedSize)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range uploads {
+		_, err = tx.ExecContext(ctx, `INSERT INTO webchat_attachments(id,session_id,name,mime_type,data,extracted_text)
+            VALUES($1,$2,$3,$4,$5,$6)`, a.ID, c.ID, a.Name, a.MIMEType, a.Data, a.Text)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-func (s *WebchatStore) saveFirstTurn(ctx context.Context, userID, keyID int64, lease, model, prompt, pair string, size int) (*WebchatConversation, error) {
-	title := []rune(strings.Join(strings.Fields(prompt), " "))
-	if len(title) > 48 {
-		title = title[:48]
+func prepareWebchatAttachments(files []WebchatAttachment) ([]WebchatAttachment, int, int, error) {
+	if len(files) > WebchatMaxAttachments {
+		return nil, 0, 0, ErrWebchatLimit
 	}
-	// Convert the reservation atomically: a quota check in another transaction
-	// sees either the pending start or the completed conversation, never a gap.
-	c, err := scanWebchat(s.db.QueryRowContext(ctx, `WITH reserved AS (
+	uploads := make([]WebchatAttachment, 0, len(files))
+	var rawSize, textSize int
+	for _, a := range files {
+		if !ValidWebchatText(a.Name, 255) || !ValidWebchatText(a.MIMEType, 128) || len(a.Data) == 0 || len(a.Data) > WebchatMaxTurnAttachmentBytes || len(a.Text) > WebchatMaxExtractedFileBytes || !utf8.ValidString(a.Text) || strings.ContainsRune(a.Text, 0) {
+			return nil, 0, 0, ErrWebchatLimit
+		}
+		a.Size = len(a.Data)
+		rawSize += a.Size
+		textSize += len(a.Text)
+		if rawSize > WebchatMaxTurnAttachmentBytes {
+			return nil, 0, 0, ErrWebchatLimit
+		}
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		a.ID = id.String()
+		uploads = append(uploads, a)
+	}
+	return uploads, rawSize, textSize, nil
+}
+
+func saveFirstWebchatTurn(ctx context.Context, tx *sql.Tx, userID, keyID int64, lease, model, title, pair string, size, attachmentSize, extractedSize int) (*WebchatConversation, error) {
+	runes := []rune(strings.Join(strings.Fields(title), " "))
+	if len(runes) > 48 {
+		runes = runes[:48]
+	}
+	// Convert the reservation atomically. Concurrent capacity checks see either the pending start or the completed conversation.
+	return scanWebchat(tx.QueryRowContext(ctx, `WITH reserved AS (
         DELETE FROM webchat_start_leases WHERE user_id=$1 AND api_key_id=$2 AND token=$3 AND expires_at>clock_timestamp()
         RETURNING user_id,api_key_id
-    ) INSERT INTO webchat_sessions(user_id,api_key_id,title,model,version,messages,content_bytes)
-      SELECT user_id,api_key_id,$4,$5,1,$6::jsonb,$7 FROM reserved
-      RETURNING `+webchatColumns+`,messages`, userID, keyID, lease, string(title), model, pair, size), true, nil)
-	if errors.Is(err, ErrWebchatNotFound) {
-		return nil, ErrWebchatConflict
-	}
-	return c, err
+    ) INSERT INTO webchat_sessions(user_id,api_key_id,title,model,version,messages,content_bytes,attachment_bytes,extracted_bytes)
+      SELECT user_id,api_key_id,$4,$5,1,$6::jsonb,$7,$8,$9 FROM reserved
+      RETURNING `+webchatColumns+`,messages`, userID, keyID, lease, string(runes), model, pair, size, attachmentSize, extractedSize), true, nil)
 }
 
 func (s *WebchatStore) Delete(ctx context.Context, userID, keyID int64, id string) error {
