@@ -3,6 +3,7 @@ import type { DocArticle, DocGroup, DocLocation, ResolvedDocument } from './type
 import apiKeySource from '@/content/docs/tutorial/api-key.md?raw'
 import apiReferenceSource from '@/content/docs/tutorial/api-reference.md?raw'
 import quickStartSource from '@/content/docs/tutorial/quick-start.md?raw'
+import webChatSource from '@/content/docs/tutorial/web-chat.md?raw'
 import claudeCodeSource from '@/content/docs/clients/claude-code.md?raw'
 import codexSource from '@/content/docs/clients/codex.md?raw'
 import cursorSource from '@/content/docs/clients/cursor.md?raw'
@@ -30,6 +31,7 @@ import recordsSource from '@/content/docs/troubleshooting/records.md?raw'
 import accountIssuesSource from '@/content/docs/troubleshooting/account-issues.md?raw'
 
 const optionalSections: Record<string, string[]> = {
+  'check-in': ['补签与历史记录', '在群里签到和领取体验额度', '每日会员签到礼'],
   'api-reference': ['Responses 请求', 'Anthropic Messages 请求', '图像与其他能力'],
   'claude-code': ['配置冲突', '排查顺序'],
   codex: ['常见问题'],
@@ -37,7 +39,7 @@ const optionalSections: Record<string, string[]> = {
   sdk: ['生产应用注意事项'],
   recommended: ['CC Switch · 配置管理', 'Cherry Studio · 桌面客户端', 'Cline · 编程助手', 'Continue · 编辑器模型配置', 'OpenCode · 终端编程', 'Aider · 终端代码协作'],
   'http-errors': ['400 · 请求格式错误', '401 · 鉴权失败', '403 · 权限与余额', '404 · 地址与模型', '413 · 请求体过大', '429 · 限流与额度', '499 · 请求被取消', '500 · 服务内部异常', '502 · 上游请求失败', '503 · 服务暂不可用', '504 · 等待超时'],
-  'account-issues': ['登录失效或刷新失败', '支付完成但余额未更新', 'VIP 等级、分组或奖励不符合预期', '兑换码失败', '错误记录入口报 403'],
+  'account-issues': ['登录失效或刷新失败', '支付完成但余额未更新', 'VIP 等级、分组或奖励不符合预期', '签到后没有收到金额', '兑换码失败', '错误记录入口报 403'],
 }
 
 export const DEFAULT_DOC_LOCATION: DocLocation = {
@@ -49,9 +51,10 @@ export const docsNavigation: DocGroup[] = [
   {
     slug: 'tutorial',
     title: '开始使用',
-    description: '从创建密钥到发出第一个请求。',
+    description: '在网页里提问，或接入自己的客户端。',
     articles: [
-      article('quick-start', '快速开始', '用几分钟完成首次 Model-Gate API 调用。', quickStartSource),
+      article('quick-start', '快速开始', '用几分钟完成首次 Model-Gate API 调用。', quickStartSource, '2026-11-23'),
+      article('web-chat', '在线对话', '用自己的密钥聊天、上传图片和查看对话记录。', webChatSource, '2026-11-23'),
       article('api-key', 'API Key', '创建、保存和轮换你的访问密钥。', apiKeySource),
       article('api-reference', 'API 参考', '了解兼容端点、请求头和响应约定。', apiReferenceSource),
       article('sdk', 'SDK 调用示例', '使用 Python 和 JavaScript 连接 Model-Gate。', sdkSource),
@@ -74,26 +77,26 @@ export const docsNavigation: DocGroup[] = [
     articles: [
       article('groups', '模型与分组', '理解分组选择、模型权限和接入协议。', groupsSource),
       article('rate-limits', '限流与重试', '构建更稳定的请求与重试策略。', rateLimitsSource),
-      article('billing', '计费与用量', '查看余额、用量和账单记录。', billingSource),
+      article('billing', '计费与用量', '查看余额、用量和账单记录。', billingSource, '2026-11-23'),
     ],
   },
   {
     slug: 'membership', title: '充值与 VIP', description: '从累计充值到会员权益。',
     articles: [
-      article('recharge', '充值与兑换', '了解支付到账、兑换余额与成长计量。', rechargeSource),
-      article('vip', 'VIP 等级与权益', '累计有效充值，逐级开启会员权益。', vipSource),
-      article('rewards', '累充奖励', '各档奖励、领取条件及退款追回规则。', rewardsSource),
+      article('recharge', '充值与兑换', '了解支付到账、兑换余额与成长计量。', rechargeSource, '2026-11-23'),
+      article('vip', 'VIP 等级与权益', '累计有效充值，逐级开启会员权益。', vipSource, '2026-11-23'),
+      article('rewards', '累充奖励', '各档奖励、领取条件及退款追回规则。', rewardsSource, '2026-11-23'),
       article('referral', '邀请返利', '会员等级对应的邀请返利比例。', referralSource),
     ],
   },
   {
     slug: 'achievements', title: '成就与签到', description: '收藏每一次成长。',
     articles: [
-      article('overview', '成就收藏册', '21 枚徽章、成长进度、领取与佩戴。', achievementsSource),
-      article('token', 'Token 成长成就', '付费文本用量的六档成长里程碑。', tokenSource),
-      article('check-in', '签到与全勤', '每日签到、会员权益与连续参与记录。', checkinSource),
-      article('activities', '活动探索', '知识闯关、实践演练与篇章收藏。', activitiesSource),
-      article('collection', '充值与收藏成就', '有效充值荣誉、奖励与退款处理。', collectionSource),
+      article('overview', '成就收藏册', '21 枚徽章、成长进度、领取与佩戴。', achievementsSource, '2026-11-23'),
+      article('token', 'Token 成长成就', '付费文本用量的六档成长里程碑。', tokenSource, '2026-11-23'),
+      article('check-in', '签到与全勤', '查看签到余额何时到期，了解群签到和补签。', checkinSource, '2026-11-23'),
+      article('activities', '活动探索', '知识闯关、实践演练与篇章收藏。', activitiesSource, '2026-11-23'),
+      article('collection', '充值与收藏成就', '有效充值荣誉、奖励与退款处理。', collectionSource, '2026-11-23'),
     ],
   },
   {
@@ -108,18 +111,18 @@ export const docsNavigation: DocGroup[] = [
     title: '了解我们',
     description: '了解服务原则、安全与隐私底线。',
     articles: [
-      article('service', '了解 MODEL-GATE', '接入清晰、计费可查、故障可追踪。', serviceSource),
-      article('security', '安全与隐私 · 服务底线', '凭据保护、账户隔离与清晰的数据边界。', privacySource),
+      article('service', '了解 MODEL-GATE', '接入清晰、计费可查、故障可追踪。', serviceSource, '2026-10-02'),
+      article('security', '安全与隐私 · 服务底线', '凭据保护、账户隔离与清晰的数据边界。', privacySource, '2026-11-23'),
     ],
   },
   {
     slug: 'troubleshooting', title: '常见问题', description: '按报错定位原因，查看记录并逐步排查。',
     articles: [
-      article('faq', '排错导航', '从 HTTP 状态、报错正文和请求记录开始。', faqSource),
-      article('http-errors', 'HTTP 报错速查', '401、403、429 及常见网关状态的排查方法。', errorsSource),
-      article('network', '网络、超时与流式异常', '排查连接失败、断流和 HTTP 200 中的错误事件。', networkSource),
-      article('records', '查看记录与反馈问题', '查看用量与错误记录，准备安全的排障信息。', recordsSource),
-      article('account-issues', '账户、充值与 VIP 问题', '区分登录、支付、权益与奖励的业务限制。', accountIssuesSource),
+      article('faq', '排错导航', '从 HTTP 状态、报错正文和请求记录开始。', faqSource, '2026-10-02'),
+      article('http-errors', 'HTTP 报错速查', '401、403、429 及常见网关状态的排查方法。', errorsSource, '2026-10-02'),
+      article('network', '网络、超时与流式异常', '排查连接失败、断流和 HTTP 200 中的错误事件。', networkSource, '2026-10-02'),
+      article('records', '查看记录与反馈问题', '查看用量与错误记录，准备安全的排障信息。', recordsSource, '2026-11-23'),
+      article('account-issues', '账户、充值与 VIP 问题', '区分登录、支付、权益与奖励的业务限制。', accountIssuesSource, '2026-11-23'),
     ],
   },
 ]
@@ -129,6 +132,7 @@ function article(
   title: string,
   description: string,
   source: string,
+  updatedAt = '2026-10-01',
   status: 'available' | 'upcoming' = 'available',
 ): DocArticle {
   return {
@@ -136,7 +140,7 @@ function article(
     title,
     description,
     source,
-    updatedAt: ['account-issues', 'rewards', 'collection', 'overview', 'vip', 'check-in', 'token', 'activities'].includes(slug) ? '2026-10-03' : ['service', 'security', 'faq', 'http-errors', 'network', 'records', 'recharge'].includes(slug) ? '2026-10-02' : '2026-10-01',
+    updatedAt,
     status,
     collapsedHeadings: optionalSections[slug] || [],
   }
