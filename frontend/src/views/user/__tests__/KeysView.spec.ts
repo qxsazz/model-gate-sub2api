@@ -8,6 +8,7 @@ import KeysView from '../KeysView.vue'
 
 const {
   routeState,
+  authMode,
   replaceRoute,
   listKeys,
   updateKey,
@@ -22,6 +23,7 @@ const {
   nextStep,
 } = vi.hoisted(() => ({
   routeState: { query: {} as Record<string, string> },
+  authMode: { isSimpleMode: false },
   replaceRoute: vi.fn(),
   listKeys: vi.fn(),
   updateKey: vi.fn(),
@@ -86,6 +88,8 @@ vi.mock('@/api', () => ({
     getUserGroupRates,
   },
 }))
+
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authMode }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -236,6 +240,10 @@ const mountView = async () => {
   const wrapper = mount(KeysView, {
     global: {
       stubs: {
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="to"><slot /></a>',
+        },
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
@@ -282,6 +290,7 @@ describe('user KeysView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
     routeState.query = {}
+    authMode.isSimpleMode = false
     replaceRoute.mockReset()
 
     listKeys.mockReset()
@@ -309,6 +318,28 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
     isCurrentStep.mockReturnValue(false)
+  })
+
+  it('links the list toolbar to check-in in a new tab and keeps the creation form independent', async () => {
+    const wrapper = await mountView()
+    const link = wrapper.get('aside a')
+    expect(link.attributes('href')).toBe('/achievements')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    expect(link.get('.sr-only').text()).toContain('keys.checkinNotice.newTab')
+    const create = wrapper.get('[data-tour="keys-create-btn"]')
+    expect(link.element.closest('aside')?.parentElement?.contains(create.element)).toBe(true)
+    await create.trigger('click')
+    expect(wrapper.get('#key-form').find('a[href="/achievements"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the list check-in link hidden in simple mode while key creation stays available', async () => {
+    authMode.isSimpleMode = true
+    const wrapper = await mountView()
+    expect(wrapper.find('a[href="/achievements"]').exists()).toBe(false)
+    expect(wrapper.get('[data-tour="keys-create-btn"]').exists()).toBe(true)
+    wrapper.unmount()
   })
 
   it.each([

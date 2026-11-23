@@ -81,6 +81,12 @@ export default {
     allStatus: '全部状态',
     columnSettings: '列设置',
     columnAlwaysVisible: '该列固定显示，不可隐藏',
+    checkinNotice: {
+      title: '每日签到',
+      description: '在成就中心签到，查看连续签到天数。',
+      action: '去签到',
+      newTab: '在新标签页打开'
+    },
     createKey: '创建密钥',
     editKey: '编辑密钥',
     bulkEdit: {
