@@ -219,7 +219,7 @@ func webchatModelSelectable(id string) bool {
 			return false
 		}
 	}
-	return !(strings.HasPrefix(name, "gpt-") && strings.Contains(name, "-realtime"))
+	return !strings.HasPrefix(name, "gpt-") || !strings.Contains(name, "-realtime")
 }
 
 func (b *WebchatBridge) configured() bool {
