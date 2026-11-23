@@ -79,8 +79,7 @@ var (
 			return 0
 		end
 		local newVal = tonumber(current) - tonumber(ARGV[1])
-		redis.call('SET', KEYS[1], newVal)
-		redis.call('EXPIRE', KEYS[1], ARGV[2])
+		redis.call('SET', KEYS[1], newVal, 'KEEPTTL')
 		return 1
 	`)
 
@@ -158,9 +157,21 @@ func (c *billingCache) SetUserBalance(ctx context.Context, userID int64, balance
 	return c.rdb.Set(ctx, key, balance, jitteredTTL()).Err()
 }
 
+// Use an absolute deadline so queueing a cache write or subsequent usage cannot extend a reward.
+func (c *billingCache) SetUserBalanceUntil(ctx context.Context, userID int64, balance float64, expiry time.Time) error {
+	now := time.Now()
+	if !expiry.After(now) {
+		return nil
+	}
+	if normal := now.Add(jitteredTTL()); normal.Before(expiry) {
+		expiry = normal
+	}
+	return c.rdb.SetArgs(ctx, billingBalanceKey(userID), balance, redis.SetArgs{ExpireAt: expiry}).Err()
+}
+
 func (c *billingCache) DeductUserBalance(ctx context.Context, userID int64, amount float64) error {
 	key := billingBalanceKey(userID)
-	_, err := deductBalanceScript.Run(ctx, c.rdb, []string{key}, amount, int(jitteredTTL().Seconds())).Result()
+	_, err := deductBalanceScript.Run(ctx, c.rdb, []string{key}, amount).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("Warning: deduct balance cache failed for user %d: %v", userID, err)
 		return err

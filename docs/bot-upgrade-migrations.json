@@ -1,7 +1,7 @@
 {
   "production_commit": "a723baa628fe2a3938bb7fb2056cbcd255350fb3",
   "existing_sql_files_unchanged": 328,
-  "total_sql_files": 331,
+  "total_sql_files": 332,
   "migrations": [
     {
       "filename": "001_init.sql",
@@ -2014,6 +2014,12 @@
       "filename": "266_webchat_attachments.sql",
       "sha256": "20cee06d2a28889743dfa6e5f529cda7beac675e70be151dc31120ef6d71c256",
       "runner_checksum": "e30430176c5644c6b4bc845cdfea48aa168588e880c38c51491273a2a717839c",
+      "existing_in_production": false
+    },
+    {
+      "filename": "267_checkin_credit_expiry.sql",
+      "sha256": "0e507da788eb7c49b8b89e3548145d1a40e4f5179c57e3b805ce683b042f3fed",
+      "runner_checksum": "4a42015bf07301c99185b5978d670e4c2df68880f0186e4a342113afffe3c7f4",
       "existing_in_production": false
     }
   ]

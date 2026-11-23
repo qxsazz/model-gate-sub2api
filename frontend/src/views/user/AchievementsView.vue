@@ -218,6 +218,14 @@
                   {{ recordedCashReason(state.today.reason) }}
                 </p></template
               >
+              <div class="quiet-note flex-col" data-testid="checkin-credit-policy">
+                <p>新发的签到奖励自到账起有效 1 个月。消费时先用最早到期的签到金额，到期剩余部分自动清零。</p>
+                <p v-if="state.checkin_credit">
+                  可用签到金额 <strong>${{ creditAmount.format(state.checkin_credit.available) }}</strong>，
+                  其中 ${{ creditAmount.format(state.checkin_credit.next_amount) }} 将于
+                  <time :datetime="state.checkin_credit.next_expiry">{{ formatDateTime(state.checkin_credit.next_expiry, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
+                </p>
+              </div>
               <div class="sign-stats day-stats">
                 <div>
                   <strong>{{ state.streak }}</strong
@@ -771,7 +779,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { formatMoneyFixed as money } from '@/utils/format'
+import { formatDateTime, formatMoneyFixed as money } from '@/utils/format'
 import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
 import '@/components/achievements/achievement-ui.css'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -803,6 +811,11 @@ const auth = useAuthStore(),
   tab = ref('sign'),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
+const creditAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
+const creditDateFormat: Intl.DateTimeFormatOptions = {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+}
 const requestKey = ref(crypto.randomUUID())
 const accessRefreshing = ref(false)
 const requireAccessConfirmation = ref(false)

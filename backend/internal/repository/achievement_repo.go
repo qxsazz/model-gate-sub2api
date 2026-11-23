@@ -124,6 +124,10 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'zodiac',COALESCE((SELECT zodiac FROM achievement_preferences WHERE user_id=$1),''),
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
+ 'checkin_credit',(SELECT jsonb_build_object('available',sum(sum(remaining)) OVER (),
+     'next_amount',sum(remaining),'next_expiry',expires_at) FROM checkin_balance_credits
+     WHERE user_id=$1 AND remaining>0 AND expires_at>statement_timestamp()
+     GROUP BY expires_at ORDER BY expires_at LIMIT 1),
  'card_balance',achievement_card_balance($1),
  'card_min_date',GREATEST((u.created_at AT TIME ZONE 'Asia/Shanghai')::date,d.today-30),'card_max_date',d.today-1,
  'card_history',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY id DESC) FROM (SELECT * FROM achievement_card_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 20)l),'[]'::jsonb),
@@ -152,7 +156,7 @@ func (r *userRepository) AdminAchievementSnapshot(ctx context.Context, id int64)
 	if e != nil {
 		return nil, e
 	}
-	return r.achievementJSON(ctx, `SELECT $2::jsonb||jsonb_build_object('user',jsonb_build_object('id',u.id,'email',u.email,'username',u.username,'balance',u.balance,'status',u.status,'created_at',u.created_at),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(o) - 'request' ORDER BY id DESC) FROM (SELECT * FROM achievement_operations WHERE user_id=$1 ORDER BY id DESC LIMIT 50)o),'[]'::jsonb)) FROM users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id, string(snapshot))
+	return r.achievementJSON(ctx, `SELECT $2::jsonb||jsonb_build_object('user',jsonb_build_object('id',u.id,'email',u.email,'username',u.username,'balance',(SELECT balance FROM checkin_available_balance(u.id)),'status',u.status,'created_at',u.created_at),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(o) - 'request' ORDER BY id DESC) FROM (SELECT * FROM achievement_operations WHERE user_id=$1 ORDER BY id DESC LIMIT 50)o),'[]'::jsonb)) FROM users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id, string(snapshot))
 }
 func (r *userRepository) AchievementBackfillPreview(ctx context.Context, id int64, date string) (json.RawMessage, error) {
 	return r.achievementJSON(ctx, `SELECT achievement_backfill_preview($1,$2::date)`, id, date)

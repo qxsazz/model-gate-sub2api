@@ -827,6 +827,12 @@ func ProvideSettingService(scopedKeys ScopedAdminKeyRepository, settingRepo Sett
 	return svc
 }
 
+func ProvideUserService(repo UserRepository, settings SettingRepository, auth APIKeyAuthCacheInvalidator, cache BillingCache, timers *TimingWheelService) *UserService {
+	svc := NewUserService(repo, settings, auth, cache)
+	timers.ScheduleRecurring("checkin-credit-expiry", time.Minute, svc.expireCheckinBalances)
+	return svc
+}
+
 // ProvideBillingCacheService wires BillingCacheService with its RPM dependencies.
 func ProvideBillingCacheService(
 	cache BillingCache,
@@ -872,7 +878,7 @@ var ProviderSet = wire.NewSet(
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,
-	NewUserService,
+	ProvideUserService,
 	NewMCPOAuthService,
 	ProvideAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,

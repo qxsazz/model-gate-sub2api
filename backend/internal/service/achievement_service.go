@@ -9,6 +9,7 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
 type AchievementConfig struct {
@@ -113,6 +114,31 @@ func (s *UserService) ChangeAchievement(ctx context.Context, id int64, action, k
 		s.invalidateAchievementBalanceCaches(ctx, id)
 	}
 	return result, e
+}
+
+func (s *UserService) expireCheckinBalances() {
+	repo, ok := s.userRepo.(interface {
+		ExpireCheckinBalances(context.Context, int) ([]int64, error)
+	})
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	const batchSize = 200
+	for ctx.Err() == nil {
+		ids, err := repo.ExpireCheckinBalances(ctx, batchSize)
+		if err != nil {
+			logger.LegacyPrintf("service.achievement", "settle expired check-in balances: %v", err)
+			return
+		}
+		for _, id := range ids {
+			s.invalidateAchievementBalanceCaches(ctx, id)
+		}
+		if len(ids) < batchSize {
+			return
+		}
+	}
 }
 
 func (s *UserService) invalidateAchievementBalanceCaches(ctx context.Context, id int64) {

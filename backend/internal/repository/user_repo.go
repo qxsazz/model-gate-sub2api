@@ -24,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -183,6 +184,12 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	}
 
 	out := userEntityToService(m)
+	if r.client.Driver().Dialect() == dialect.Postgres {
+		out.Balance, _, err = r.GetBillingBalance(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+	}
 	groups, err := r.loadAllowedGroups(ctx, []int64{id})
 	if err != nil {
 		return nil, err
@@ -862,19 +869,20 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 		SET balance = GREATEST(balance + $1, 0), updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL
 	`
-	client := clientFromContext(ctx, r.client)
-	result, err := client.ExecContext(ctx, updateSQL, delta, id)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
+	return r.withSettledBalance(ctx, id, func(client *dbent.Client) error {
+		result, err := client.ExecContext(ctx, updateSQL, delta, id)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			return service.ErrUserNotFound
+		}
+		return nil
+	})
 }
 
 // DeductBalance 扣除用户余额
@@ -882,28 +890,28 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 // 中间件会阻止余额 <= 0 的用户发起后续请求
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().
-		Where(dbuser.IDEQ(id), dbuser.BalanceGTE(amount)).
-		AddBalance(-amount).
-		Save(ctx)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
+	if client.Driver().Dialect() != dialect.Postgres {
+		n, err := client.User.Update().Where(dbuser.IDEQ(id)).AddBalance(-amount).Save(ctx)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return service.ErrUserNotFound
+		}
 		return nil
 	}
-
-	n, err = client.User.Update().
-		Where(dbuser.IDEQ(id)).
-		AddBalance(-amount).
-		Save(ctx)
+	rows, err := client.QueryContext(ctx, chargeUsageBalanceSQL, id, amount)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return service.ErrUserNotFound
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		return rows.Close()
 	}
-	return nil
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return service.ErrUserNotFound
 }
 
 // DeductAvailableBalance atomically deducts min(amount, max(balance, 0)).
@@ -913,6 +921,14 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 	if amount < 0 {
 		return 0, fmt.Errorf("deduction amount must be nonnegative")
 	}
+	err = r.withSettledBalance(ctx, id, func(client *dbent.Client) error {
+		var deductErr error
+		deducted, deductErr = deductAvailableBalance(ctx, client, id, amount)
+		return deductErr
+	})
+	return deducted, err
+}
+func deductAvailableBalance(ctx context.Context, client *dbent.Client, id int64, amount float64) (deducted float64, err error) {
 	const updateSQL = `
 		WITH target AS (
 			SELECT id, balance
@@ -928,7 +944,7 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 		)
 		SELECT deducted FROM updated
 	`
-	rows, err := clientFromContext(ctx, r.client).QueryContext(ctx, updateSQL, amount, id)
+	rows, err := client.QueryContext(ctx, updateSQL, amount, id)
 	if err != nil {
 		return 0, err
 	}
@@ -968,7 +984,7 @@ func (r *userRepository) AdjustBalance(ctx context.Context, id int64, delta floa
  RETURNING id)
  SELECT old_balance,new_balance FROM changed
 	`
-	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, delta, id)
+	change, ok, err := r.changeSettledBalance(ctx, id, delta, updateSQL)
 	if err != nil {
 		return service.BalanceChange{}, err
 	}
@@ -1007,7 +1023,7 @@ func (r *userRepository) SetBalance(ctx context.Context, id int64, value float64
  RETURNING id)
  SELECT old_balance,new_balance FROM changed
 	`
-	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, value, id)
+	change, ok, err := r.changeSettledBalance(ctx, id, value, updateSQL)
 	if err != nil {
 		return service.BalanceChange{}, err
 	}
@@ -1019,26 +1035,8 @@ func (r *userRepository) SetBalance(ctx context.Context, id int64, value float64
 
 // currentBalance 读取用户当前余额，用户不存在时返回 ErrUserNotFound。
 func (r *userRepository) currentBalance(ctx context.Context, id int64) (balance float64, err error) {
-	rows, err := clientFromContext(ctx, r.client).QueryContext(ctx,
-		`SELECT balance FROM users WHERE id = $1 AND deleted_at IS NULL`, id)
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-	if !rows.Next() {
-		if rowsErr := rows.Err(); rowsErr != nil {
-			return 0, rowsErr
-		}
-		return 0, service.ErrUserNotFound
-	}
-	if err := rows.Scan(&balance); err != nil {
-		return 0, err
-	}
-	return balance, rows.Err()
+	balance, _, err = r.GetBillingBalance(ctx, id)
+	return balance, err
 }
 
 // scanBalanceChange 执行一条 RETURNING 旧余额、新余额的语句。ok 为 false 表示语句未命中任何行。

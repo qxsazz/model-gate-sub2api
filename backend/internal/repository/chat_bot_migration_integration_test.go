@@ -43,6 +43,7 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 		"264_admin_recharge_principal.sql":             true,
 		"265_webchat_sessions.sql":                     true,
 		"266_webchat_attachments.sql":                  true,
+		"267_checkin_credit_expiry.sql":                true,
 	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)
@@ -81,7 +82,12 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "claimed", claim.Status)
 
+	// This reward was already mixed with cash under the previous deployment.
+	addCheckinBalanceFixture(t, db, uid, "2026-01-01", 2, time.Now().AddDate(0, -2, 0))
 	require.NoError(t, ApplyMigrations(ctx, db))
+	var pastLots int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM checkin_balance_credits WHERE user_id=$1`, uid).Scan(&pastLots))
+	require.Zero(t, pastLots)
 	require.NoError(t, ApplyMigrations(ctx, db)) // startup retry validates checksums and does not reapply
 	require.Equal(t, 10.0, achievementAccessResult(t, db, uid)["qualified_recharge_cny"])
 	var unmarked bool

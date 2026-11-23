@@ -366,13 +366,7 @@ func applyUsageBillingBatchBalance(ctx context.Context, tx *sql.Tx, userID int64
 	}
 
 	var newBalance decimal.Decimal
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance
-	`, group.sum, userID).Scan(&newBalance)
+	err := tx.QueryRowContext(ctx, `SELECT balance FROM checkin_charge_balance($1, $2)`, userID, group.sum).Scan(&newBalance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return service.ErrUserNotFound
 	}
