@@ -43,6 +43,10 @@ async function render() {
   await flushPromises()
 }
 const control = (name: string) => view.get(`[data-testid="chat-${name}"]`)
+async function chooseKey(id: number) {
+  await control('settings').trigger('click')
+  await control('key').setValue(String(id))
+}
 const sendMessage = async (text: string) => {
   await control('draft').setValue(text)
   await view.get('form').trigger('submit')
@@ -86,14 +90,57 @@ describe('user web chat', () => {
     await render()
     expect(api.models).not.toHaveBeenCalled()
     expect(view.text()).toContain(webChat.selectKeyHint)
-    await control('key').setValue(String(k1.id))
-    await control('key').setValue(String(k2.id))
+    await chooseKey(k1.id)
+    await chooseKey(k2.id)
     await flushPromises()
     old.resolve([model])
     await flushPromises()
     expect((control('model').element as HTMLSelectElement).value).toBe('personal-model')
     expect(view.text()).not.toContain('Saved thread')
     expect(api.models.mock.calls[0][1].aborted).toBe(true)
+  })
+
+  it('puts the key in settings and groups only its own models beside Send, preserving public IDs', async () => {
+    api.keys.mockResolvedValue([k1, k2])
+    const ids = ['openai/gpt-4o', 'gemini-2.5-flash', 'Claude-Sonnet-4', 'team-alias']
+    api.models.mockImplementation(async id => (id === k1.id ? ids : ['gemini-personal']).map(id => ({ id })))
+    const session = makeSession()
+    api.send.mockResolvedValue(session)
+    await render()
+    expect(view.find('[data-testid="chat-key"]').exists()).toBe(false)
+    expect(control('model').attributes('disabled')).toBeDefined()
+    expect(control('model').element.closest('label')?.nextElementSibling).toBe(control('send').element)
+    await chooseKey(k1.id)
+    await flushPromises()
+    expect(view.find('[role="dialog"]').exists()).toBe(false)
+    expect(control('settings').text()).toContain(k1.name)
+    expect(control('model').findAll('optgroup').map(el => el.attributes('label'))).toEqual(['GPT', 'Gemini', 'Claude', 'Other models'])
+    for (const id of ids) {
+      await control('model').setValue(id)
+      await sendMessage('Hello')
+      expect(api.send.mock.lastCall?.[0]).toMatchObject({ key_id: k1.id, model: id })
+    }
+    await chooseKey(k2.id)
+    await flushPromises()
+    expect(view.find('article').exists()).toBe(false)
+    expect(control('model').findAll('optgroup option').map(el => el.text())).toEqual(['gemini-personal'])
+    await sendMessage('Hello again')
+    expect(api.send.mock.lastCall?.[0]).toEqual({ key_id: k2.id, model: 'gemini-personal', content: 'Hello again' })
+  })
+
+  it('removes a model revoked since discovery and keeps the draft for another allowed model', async () => {
+    api.models.mockResolvedValue([model, { id: 'still-available' }])
+    api.send.mockRejectedValueOnce({ reason: 'WEBCHAT_MODEL_UNAVAILABLE', status: 403 }).mockResolvedValue(makeSession())
+    await render()
+    await sendMessage('Saved draft')
+    expect(view.get('[role="alert"]').text()).toContain(webChat.errors.modelUnavailable)
+    expect(control('model').text()).not.toContain(model.id)
+    expect(control('send').attributes('disabled')).toBeDefined()
+    expect((control('draft').element as HTMLTextAreaElement).value).toBe('Saved draft')
+    await control('model').setValue('still-available')
+    await view.get('form').trigger('submit')
+    await flushPromises()
+    expect(api.send.mock.lastCall?.[0]).toEqual({ key_id: k1.id, model: 'still-available', content: 'Saved draft' })
   })
 
   it('sends once, renders replies as text, and continues under the same key and server session', async () => {
@@ -264,7 +311,7 @@ describe('user web chat', () => {
     api.models.mockResolvedValue([model, vision])
     api.send.mockResolvedValue(makeSession())
     await render()
-    await control('key').setValue(String(k2.id))
+    await chooseKey(k2.id)
     await flushPromises()
     await control('model').setValue(vision.id)
     await pickFiles(png('sample.png'))
@@ -312,12 +359,12 @@ describe('user web chat', () => {
     const reader = vi.spyOn(chatFiles, 'readChatFile').mockReturnValueOnce(late.promise)
     try {
       await render()
-      await control('key').setValue(String(k1.id))
+      await chooseKey(k1.id)
       await flushPromises()
       const image = png('private.png')
       await pickFiles(image)
       expect(control('send').attributes('disabled')).toBeDefined()
-      await control('key').setValue(String(k2.id))
+      await chooseKey(k2.id)
       expect(reader.mock.calls[0][1].aborted).toBe(true)
       late.resolve({ name: image.name, mime_type: image.type, data: pngData, size: image.size, imageSrc: 'data:image/png;base64,' + pngData })
       await flushPromises()
@@ -377,7 +424,7 @@ describe('user web chat', () => {
     const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     try {
       await render()
-      await control('key').setValue(String(k2.id))
+      await chooseKey(k2.id)
       await flushPromises()
       await view.get('.history-list button').trigger('click')
       await flushPromises()
@@ -391,7 +438,7 @@ describe('user web chat', () => {
       expect(download.mock.contexts[0]).toMatchObject({ download: document.name, href: 'blob:legacy-pdf' })
       await vi.advanceTimersByTimeAsync(1000)
       expect(revoke).toHaveBeenCalledWith('blob:legacy-pdf')
-      await control('key').setValue(String(k1.id))
+      await chooseKey(k1.id)
       await flushPromises()
       expect(view.text()).not.toContain(document.name)
     } finally { download.mockRestore(); vi.unstubAllGlobals() }

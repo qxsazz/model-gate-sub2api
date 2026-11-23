@@ -29,8 +29,9 @@ export function useWebChat() {
   const needsReload = ref(false)
   const mutating = computed(() => operation.value === 'send' || operation.value === 'delete')
   const tooLong = computed(() => encoder.encode(draft.value.trim()).byteLength > maxMessageBytes)
+  const chatReady = computed(() => Boolean(keyId.value && optionsLoaded.value && models.value.some(item => item.id === model.value)))
   const canSend = computed(() => Boolean(
-    keyId.value && model.value && optionsLoaded.value && !operation.value && !needsReload.value &&
+    chatReady.value && !operation.value && !needsReload.value &&
     (!selectedId.value || selectedId.value === session.value?.id) &&
     (draft.value.trim() || attachments.value.length) && !tooLong.value && !readingFiles.value
   ))
@@ -46,7 +47,7 @@ export function useWebChat() {
   }
 
   async function addFiles(files: File[]) {
-    if (!files.length || !keyId.value || !model.value || !optionsLoaded.value || needsReload.value || operation.value || readingFiles.value) return
+    if (!files.length || !chatReady.value || needsReload.value || operation.value || readingFiles.value) return
     fileError.value = validateChatFiles(attachments.value, files)
     if (fileError.value) return
     const controller = new AbortController()
@@ -107,6 +108,11 @@ export function useWebChat() {
         return
       case 'WEBCHAT_MODEL_ERROR':
         errorKey.value = 'model'
+        return
+      case 'WEBCHAT_MODEL_UNAVAILABLE':
+        models.value = models.value.filter(item => item.id !== model.value)
+        model.value = ''
+        errorKey.value = 'modelUnavailable'
         return
       case 'WEBCHAT_UPSTREAM_ERROR':
         errorKey.value = 'service'
@@ -285,6 +291,6 @@ export function useWebChat() {
   onMounted(refresh)
   onBeforeUnmount(() => { request?.abort(); clearFiles(); clearTimeout(expirationTimer) })
   return { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
-    operation, keysLoaded, optionsLoaded, mutating, tooLong, canSend, needsReload,
+    operation, keysLoaded, optionsLoaded, mutating, tooLong, chatReady, canSend, needsReload,
     refresh, chooseKey, newChat, openSession, send, remove }
 }

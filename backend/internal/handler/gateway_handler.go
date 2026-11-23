@@ -1194,6 +1194,26 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
+	if c.Query("endpoint") == service.CompositeRouteEndpointChatCompletions && apiKey != nil && apiKey.Group != nil {
+		group := apiKey.Group
+		if platform == service.PlatformTypeSafe || (group.ClaudeCodeOnly && group.FallbackGroupID == nil) {
+			writeModelsList(c, platform, nil)
+			return
+		}
+		if platform == service.PlatformComposite {
+			ctx := c.Request.Context()
+			models := h.compositeAvailableModels(ctx, groupID, service.CompositeRouteEndpointChatCompletions, false)
+			models = group.ModelAllowlist.FilterForListing(models)
+			models, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, service.CompositeRouteEndpointChatCompletions)
+			if err != nil {
+				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Chat models are temporarily unavailable")
+				return
+			}
+			writeModelsList(c, platform, models)
+			return
+		}
+	}
+
 	if platform == service.PlatformOpenAI && apiKey != nil && apiKey.Group != nil &&
 		apiKey.Group.Platform == service.PlatformOpenAI && apiKey.Group.CodexModelsManifestConfig.Enabled {
 		h.pinnedOpenAIModels(c, apiKey.Group)
@@ -1325,7 +1345,7 @@ func (h *GatewayHandler) codexModelIDsForGroup(ctx context.Context, group *servi
 		if group.ModelAllowlistEnabled() {
 			models = group.ModelAllowlist.FilterForListing(models)
 		}
-		if filtered, err := h.gatewayService.FilterCompositeCodexModels(ctx, group.ID, models); err == nil {
+		if filtered, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, service.CompositeRouteEndpointResponses); err == nil {
 			return filtered
 		}
 		return models

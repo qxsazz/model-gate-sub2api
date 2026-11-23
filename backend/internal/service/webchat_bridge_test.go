@@ -79,7 +79,8 @@ func TestWebchatBridgeTurn(t *testing.T) {
 				assert.Empty(t, r.Header.Get(webchatTicketHeader))
 				assert.Empty(t, r.Header.Get("X-Forwarded-For"))
 				if r.URL.Path == "/v1/models" {
-					_, _ = io.WriteString(w, `{"data":[{"id":"group-model"},{"id":"group-model"},{"id":"gpt-image-2"},{"id":"sora-2"},{"id":"tts-1"}]}`)
+					assert.Equal(t, CompositeRouteEndpointChatCompletions, r.URL.Query().Get("endpoint"))
+					_, _ = io.WriteString(w, `{"data":[{"id":"group-model"},{"id":"group-model"},{"id":"gpt-image-2"},{"id":"sora-2"},{"id":"tts-1"},{"id":"gpt-*"},{"id":"gemini-embedding-001"},{"id":"omni-moderation-latest"},{"id":"gpt-realtime"}]}`)
 					return
 				}
 				assert.Equal(t, "/v1/chat/completions", r.URL.Path)
@@ -217,6 +218,10 @@ func TestWebchatBridgeTurn(t *testing.T) {
 			require.Equal(t, []string{"group-model"}, models)
 			_, mediaErr := sender.Complete(ctx, key, clientIP, "gpt-image-2", messages)
 			require.EqualError(t, mediaErr, "chat service returned HTTP 400")
+			_, missingErr := sender.Complete(ctx, key, clientIP, "other-keys-model", messages)
+			require.ErrorIs(t, missingErr, ErrWebchatModelUnavailable)
+			require.Zero(t, logins.Load())
+			require.Zero(t, calls.Load())
 			answer, err := sender.Complete(ctx, key, clientIP, "group-model", messages)
 			switch mode {
 			case "ok", "replay", "sidecar restarted", "attachments":
@@ -333,7 +338,10 @@ func TestWebchatAttachmentAdmission(t *testing.T) {
 	bridge.url = server.URL
 	bridge.email = "example"
 	bridge.password = "test"
-	bridge.AttachGateway(http.NotFoundHandler())
+	bridge.AttachGateway(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/models", r.URL.Path)
+		_, _ = io.WriteString(w, `{"data":[{"id":"chat"}]}`)
+	}))
 	msgs := []WebchatMessage{{Role: "user", Content: "image", Attachments: []WebchatAttachment{webchatTestImage(t)}}}
 	small, err := webchatAttachmentWeight(msgs)
 	require.Nil(t, err)
@@ -341,7 +349,7 @@ func TestWebchatAttachmentAdmission(t *testing.T) {
 	require.True(t, bridge.sendBudget.TryAcquire(WebchatMaxSessionAttachmentBytes))
 	defer bridge.sendBudget.Release(WebchatMaxSessionAttachmentBytes)
 	call := func(id int64, inputs []WebchatMessage) error {
-		_, err := bridge.Complete(context.Background(), &APIKey{ID: id, UserID: id, Status: StatusActive}, "127.0.0.1", "chat", inputs)
+		_, err := bridge.Complete(context.Background(), &APIKey{ID: id, UserID: id, Status: StatusActive, Key: "test-key"}, "127.0.0.1", "chat", inputs)
 		return err
 	}
 	wait := func() {

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,8 @@ func (e *WebchatUpstreamError) Error() string {
 }
 
 func webchatError(status int) *WebchatUpstreamError { return &WebchatUpstreamError{Status: status} }
+
+var ErrWebchatModelUnavailable = errors.New("model is absent from the selected key's chat catalog")
 
 type webchatKeyLookup interface {
 	GetByID(context.Context, int64) (*APIKey, error)
@@ -182,7 +185,7 @@ func (b *WebchatBridge) Models(ctx context.Context, key *APIKey, clientIP string
 	if !b.configured() {
 		return nil, webchatError(503)
 	}
-	body, err := b.dispatch(ctx, key, clientIP, http.MethodGet, "/v1/models", nil)
+	body, err := b.dispatch(ctx, key, clientIP, http.MethodGet, "/v1/models?endpoint="+CompositeRouteEndpointChatCompletions, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -197,12 +200,26 @@ func (b *WebchatBridge) Models(ctx context.Context, key *APIKey, clientIP string
 	names := make([]string, 0, len(result.Data))
 	seen := map[string]bool{}
 	for _, m := range result.Data {
-		if ValidWebchatText(m.ID, WebchatMaxModelBytes) && keyModelPurpose(m.ID) == "text" && !seen[m.ID] {
+		if webchatModelSelectable(m.ID) && !seen[m.ID] {
 			names = append(names, m.ID)
 			seen[m.ID] = true
 		}
 	}
 	return names, nil
+}
+
+func webchatModelSelectable(id string) bool {
+	if !ValidWebchatText(id, WebchatMaxModelBytes) || strings.Contains(id, "*") || keyModelPurpose(id) != "text" {
+		return false
+	}
+	// These model families use dedicated endpoints and cannot return a chat reply.
+	name := strings.ToLower(id[strings.LastIndexByte(id, '/')+1:])
+	for _, prefix := range []string{"text-embedding-", "textembedding-", "gemini-embedding-", "embedding-", "rerank-", "bge-reranker-", "omni-moderation-", "text-moderation-"} {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+	return !(strings.HasPrefix(name, "gpt-") && strings.Contains(name, "-realtime"))
 }
 
 func (b *WebchatBridge) configured() bool {
@@ -353,12 +370,19 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 	if ip == nil || key == nil || key.ID <= 0 || key.UserID <= 0 || !key.IsActive() || key.IsExpired() || key.IsQuotaExhausted() {
 		return "", webchatError(403)
 	}
-	if !ValidWebchatText(model, WebchatMaxModelBytes) || keyModelPurpose(model) != "text" {
+	if !webchatModelSelectable(model) {
 		return "", webchatError(http.StatusBadRequest)
 	}
 	weight, inputErr := webchatAttachmentWeight(messages)
 	if inputErr != nil {
 		return "", inputErr
+	}
+	available, err := b.Models(ctx, key, clientIP)
+	if err != nil {
+		return "", err
+	}
+	if !slices.Contains(available, model) {
+		return "", ErrWebchatModelUnavailable
 	}
 	if weight > 0 {
 		if !b.sendBudget.TryAcquire(weight) {

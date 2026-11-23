@@ -255,6 +255,10 @@ func webchatStoreError(c *gin.Context, err error) {
 // Keep sidecar responses inside the standard API envelope. A gateway 401 describes
 // the selected API key; returning a site-login 401 would sign the user out.
 func webchatBridgeError(c *gin.Context, err error) {
+	if errors.Is(err, service.ErrWebchatModelUnavailable) {
+		response.ErrorWithDetails(c, http.StatusForbidden, "当前密钥无法选择此模型，请刷新列表", "WEBCHAT_MODEL_UNAVAILABLE", nil)
+		return
+	}
 	var upstream *service.WebchatUpstreamError
 	if !errors.As(err, &upstream) {
 		response.ErrorWithDetails(c, http.StatusBadGateway, "对话服务暂时不可用", "WEBCHAT_UPSTREAM_ERROR", nil)

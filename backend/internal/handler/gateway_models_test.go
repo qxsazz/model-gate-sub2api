@@ -1782,6 +1782,37 @@ func TestDefaultModelIDsForPlatform_CompositeFallbackExcludesTypeSafe(t *testing
 	require.NotContains(t, defaultCodexModelIDsForPlatform(service.PlatformComposite), "jev-latest")
 }
 
+func TestGatewayModels_ChatPickerUsesKeyGroupAndChatRoutes(t *testing.T) {
+	const groupID = 7784
+	routes := &gatewayModelsRouteRepoStub{routes: []service.CompositeModelRoute{
+		{PublicModel: "shared-gpt", TargetPlatform: service.PlatformOpenAI, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointChatCompletions, Enabled: true},
+		{PublicModel: "gemini-alias", TargetPlatform: service.PlatformGemini, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+		{PublicModel: "claude-alias", TargetPlatform: service.PlatformAnthropic, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+		{PublicModel: "responses-only", TargetPlatform: service.PlatformOpenAI, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointResponses, Enabled: true},
+		{PublicModel: "system-only", TargetPlatform: service.PlatformTypeSafe, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+	}}
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{}, routes)
+	for _, tc := range []struct {
+		group service.Group
+		want  []string
+	}{
+		{service.Group{ID: groupID, Platform: service.PlatformComposite}, []string{"shared-gpt", "gemini-alias", "claude-alias"}},
+		{service.Group{ID: groupID, Platform: service.PlatformComposite, ModelAllowlist: service.GroupModelAllowlist{Enabled: true, Models: []string{"claude-alias", "system-only", "responses-only"}}}, []string{"claude-alias"}},
+		{service.Group{ID: groupID, Platform: service.PlatformTypeSafe}, nil},
+		{service.Group{ID: groupID, Platform: service.PlatformAnthropic, ClaudeCodeOnly: true}, nil},
+	} {
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models?endpoint=chat_completions", nil)
+		ctx.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: &tc.group})
+		h.Models(ctx)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var models gatewayModelsResponseForTest
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &models))
+		require.ElementsMatch(t, tc.want, modelIDsForTest(models.Data))
+	}
+}
+
 func TestGatewayModels_CompositeExactRoutesRespectTypeSafeIsolation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const groupID int64 = 7784

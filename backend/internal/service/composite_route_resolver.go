@@ -72,7 +72,7 @@ func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, grou
 	return models, nil
 }
 
-func (r *CompositeRouteResolver) FilterCodexModels(ctx context.Context, groupID int64, models []string) ([]string, error) {
+func (r *CompositeRouteResolver) FilterEndpointModels(ctx context.Context, groupID int64, models []string, endpoint string) ([]string, error) {
 	if r == nil || r.repo == nil || groupID <= 0 {
 		return models, nil
 	}
@@ -80,7 +80,7 @@ func (r *CompositeRouteResolver) FilterCodexModels(ctx context.Context, groupID 
 	if err != nil {
 		return nil, err
 	}
-	return filterSystemOneRouteModels(routes, models, CompositeRouteEndpointResponses), nil
+	return filterSystemOneRouteModels(routes, models, endpoint), nil
 }
 
 func filterSystemOneRouteModels(routes []CompositeModelRoute, models []string, endpoint string) []string {
