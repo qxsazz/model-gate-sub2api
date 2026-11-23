@@ -143,6 +143,18 @@ describe('user web chat', () => {
     expect(api.send.mock.lastCall?.[0]).toEqual({ key_id: k1.id, model: 'still-available', content: 'Saved draft' })
   })
 
+  it('shows the gateway diagnostic as text and keeps the failed draft', async () => {
+    const message = '【模型不可用｜404】claude-haiku-5-5 <b>not available</b>'
+    api.send.mockRejectedValueOnce({ reason: 'WEBCHAT_GATEWAY_ERROR', status: 404, message })
+    await render()
+    await sendMessage('你好')
+    const alert = view.get('[role="alert"]')
+    expect(alert.text()).toContain(message)
+    expect(alert.find('b').exists()).toBe(false)
+    expect((control('draft').element as HTMLTextAreaElement).value).toBe('你好')
+    expect(control('model').text()).toContain(model.id)
+  })
+
   it('sends once, renders replies as text, and continues under the same key and server session', async () => {
     const first = delayed<ChatSession>()
     const session = makeSession()

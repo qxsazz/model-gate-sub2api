@@ -71,7 +71,7 @@ export default {
     expired: 'This conversation expired or was deleted. You can start a new chat.',
     conflict: 'This conversation is busy or has a new reply. Refresh its history before sending again.',
     limit: 'This conversation or key reached its storage limit. Start a new chat or remove an old conversation.',
-    model: 'The model could not process this message. For images, select a model that supports vision. For long conversations, try a new chat.',
+    model: 'The model rejected this request without further details.',
     service: 'The chat service is temporarily unavailable. Refresh to try again.',
     timeout: 'The model took too long to reply. Refresh the conversation before sending again.',
     quota: 'Insufficient balance or quota. Check billing for the selected key.',

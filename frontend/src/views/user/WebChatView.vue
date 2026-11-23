@@ -2,7 +2,7 @@
   <AppLayout>
     <div class="webchat" :aria-label="t('webChat.title')">
       <div v-if="errorKey" class="chat-error" role="alert">
-        <span>{{ t('webChat.errors.' + errorKey) }}</span>
+        <span>{{ errorKey === 'gateway' ? gatewayMessage : t('webChat.errors.' + errorKey) }}</span>
         <button type="button" :disabled="!!operation" @click="refresh">{{ t('webChat.reload') }}</button>
       </div>
 
@@ -165,7 +165,7 @@ import { chatFileAccept, isChatImage } from '@/utils/webChatAttachments'
 import { useWebChat } from '@/composables/useWebChat'
 
 const { t, locale } = useI18n()
-const { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
+const { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey, gatewayMessage,
   operation, keysLoaded, optionsLoaded, mutating, tooLong, chatReady, canSend, needsReload,
   refresh, chooseKey, newChat, openSession, send, remove } = useWebChat()
 const activeKeyName = computed(() => {

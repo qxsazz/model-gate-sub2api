@@ -93,7 +93,7 @@ func SetupRouter(
 	registerRoutes(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 
 	if handlers.WebchatBridge != nil {
-		handlers.WebchatBridge.AttachGateway(r)
+		handlers.WebchatBridge.AttachGateway(r, compositeResolver)
 		r.POST("/api/internal/webchat/v1/chat/completions", gin.WrapF(handlers.WebchatBridge.Callback))
 	}
 	if handlers.Canvas != nil {

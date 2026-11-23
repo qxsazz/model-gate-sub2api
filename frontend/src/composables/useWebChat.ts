@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { extractApiErrorCode } from '@/utils/apiError'
+import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import { webChatAPI, type ChatKey, type ChatModel, type ChatSession, type ChatSessionSummary } from '@/api/webChat'
 import { readChatFile, validateChatFiles, type DraftChatFile } from '@/utils/webChatAttachments'
 
@@ -23,6 +23,7 @@ export function useWebChat() {
   const draft = ref('')
   const pending = ref('')
   const errorKey = ref('')
+  const gatewayMessage = ref('')
   const operation = ref<Operation | ''>('')
   const keysLoaded = ref(false)
   const optionsLoaded = ref(false)
@@ -106,6 +107,10 @@ export function useWebChat() {
         needsReload.value = true
         errorKey.value = 'conflict'
         return
+      case 'WEBCHAT_GATEWAY_ERROR':
+        gatewayMessage.value = extractApiErrorMessage(error, '')
+        errorKey.value = gatewayMessage.value ? 'gateway' : 'failed'
+        return
       case 'WEBCHAT_MODEL_ERROR':
         errorKey.value = 'model'
         return
@@ -145,6 +150,7 @@ export function useWebChat() {
     const controller = new AbortController()
     request = controller
     operation.value = action
+    gatewayMessage.value = ''
     errorKey.value = ''
     try {
       await work(controller.signal)
@@ -290,7 +296,7 @@ export function useWebChat() {
   watch(sessions, expireHistory)
   onMounted(refresh)
   onBeforeUnmount(() => { request?.abort(); clearFiles(); clearTimeout(expirationTimer) })
-  return { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey,
+  return { attachments, pendingFiles, readingFiles, fileError, addFiles, removeFile, keys, models, sessions, keyId, model, selectedId, session, draft, pending, errorKey, gatewayMessage,
     operation, keysLoaded, optionsLoaded, mutating, tooLong, chatReady, canSend, needsReload,
     refresh, chooseKey, newChat, openSession, send, remove }
 }

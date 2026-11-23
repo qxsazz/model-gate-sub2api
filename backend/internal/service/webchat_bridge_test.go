@@ -52,7 +52,7 @@ func (s webchatTestTickets) Pending(_ context.Context, id string) (bool, error) 
 }
 
 func TestWebchatBridgeTurn(t *testing.T) {
-	for _, mode := range []string{"ok", "tamper", "replay", "revoked", "reassigned", "quota", "no callback", "expired ticket", "sidecar restarted", "attachments", "tamper-image", "same-size image", "tamper-document", "callback busy"} {
+	for _, mode := range []string{"ok", "tamper", "replay", "revoked", "reassigned", "quota", "gateway message", "knowledge", "no callback", "expired ticket", "sidecar restarted", "attachments", "tamper-image", "same-size image", "tamper-document", "callback busy"} {
 		t.Run(mode, func(t *testing.T) {
 			cache := miniredis.RunT(t)
 			rc := webchatTestTickets{cache}
@@ -69,7 +69,16 @@ func TestWebchatBridgeTurn(t *testing.T) {
 				messages[0].Attachments = []WebchatAttachment{doc, img}
 				messages[2].Content = "Tell me about the earlier report and image."
 			}
-			expected, _ := json.Marshal(webchatWireMessages(messages))
+			if mode == "knowledge" {
+				messages[2].Content = "codex-pro2 的 VIP3 倍率是多少？"
+			}
+			wire := webchatWireMessages(messages)
+			if mode == "knowledge" {
+				reference := webchatKnowledgeForTurn(messages)
+				require.Contains(t, reference, "codex-pro2：0.4 / 0.385 / 0.37 / 0.355")
+				wire = append([]webchatWireMessage{{Role: "system", Content: reference}}, wire...)
+			}
+			expected, _ := json.Marshal(wire)
 			var calls, logins atomic.Int32
 
 			gateway := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +88,7 @@ func TestWebchatBridgeTurn(t *testing.T) {
 				assert.Empty(t, r.Header.Get(webchatTicketHeader))
 				assert.Empty(t, r.Header.Get("X-Forwarded-For"))
 				if r.URL.Path == "/v1/models" {
-					assert.Equal(t, CompositeRouteEndpointChatCompletions, r.URL.Query().Get("endpoint"))
+					assert.Equal(t, WebchatCatalogScope, r.URL.Query().Get("endpoint"))
 					_, _ = io.WriteString(w, `{"data":[{"id":"group-model"},{"id":"group-model"},{"id":"gpt-image-2"},{"id":"sora-2"},{"id":"tts-1"},{"id":"gpt-*"},{"id":"gemini-embedding-001"},{"id":"omni-moderation-latest"},{"id":"gpt-realtime"}]}`)
 					return
 				}
@@ -94,6 +103,11 @@ func TestWebchatBridgeTurn(t *testing.T) {
 					http.Error(w, key.Key, http.StatusTooManyRequests)
 					return
 				}
+				if mode == "gateway message" {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = fmt.Fprintf(w, `{"error":{"message":"【模型不可用｜404】此分组不可用。%s"}}`, key.Key)
+					return
+				}
 				_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"actual gateway reply"}}],"sensitive_provider_metadata":"redacted"}`)
 			})
 			// Callback arrives on another ModelGate replica sharing only Redis.
@@ -102,7 +116,7 @@ func TestWebchatBridgeTurn(t *testing.T) {
 			receiver.url = "http://sidecar"
 			receiver.email = "service"
 			receiver.password = "secret"
-			receiver.AttachGateway(gateway)
+			receiver.AttachGateway(gateway, nil)
 			callback := httptest.NewServer(http.HandlerFunc(receiver.Callback))
 			defer callback.Close()
 			sidecar := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +226,7 @@ func TestWebchatBridgeTurn(t *testing.T) {
 			sender.url = sidecar.URL
 			sender.email = "service@example.test"
 			sender.password = "test-pass"
-			sender.AttachGateway(gateway)
+			sender.AttachGateway(gateway, nil)
 			models, err := sender.Models(ctx, key, clientIP)
 			require.NoError(t, err)
 			require.Equal(t, []string{"group-model"}, models)
@@ -224,7 +238,7 @@ func TestWebchatBridgeTurn(t *testing.T) {
 			require.Zero(t, calls.Load())
 			answer, err := sender.Complete(ctx, key, clientIP, "group-model", messages)
 			switch mode {
-			case "ok", "replay", "sidecar restarted", "attachments":
+			case "ok", "replay", "sidecar restarted", "attachments", "knowledge":
 				require.NoError(t, err)
 				assert.Equal(t, "actual gateway reply", answer)
 				assert.EqualValues(t, 1, calls.Load())
@@ -239,10 +253,13 @@ func TestWebchatBridgeTurn(t *testing.T) {
 					assert.Equal(t, 502, upstream.Status)
 				case "quota":
 					assert.Equal(t, http.StatusTooManyRequests, upstream.Status)
+				case "gateway message":
+					assert.Equal(t, http.StatusNotFound, upstream.Status)
+					assert.Equal(t, "【模型不可用｜404】此分组不可用。[redacted]", upstream.Message)
 				default:
 					assert.Equal(t, 403, upstream.Status)
 				}
-				if mode == "quota" {
+				if mode == "quota" || mode == "gateway message" {
 					assert.EqualValues(t, 1, calls.Load())
 				} else {
 					assert.Zero(t, calls.Load())
@@ -341,7 +358,7 @@ func TestWebchatAttachmentAdmission(t *testing.T) {
 	bridge.AttachGateway(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/models", r.URL.Path)
 		_, _ = io.WriteString(w, `{"data":[{"id":"chat"}]}`)
-	}))
+	}), nil)
 	msgs := []WebchatMessage{{Role: "user", Content: "image", Attachments: []WebchatAttachment{webchatTestImage(t)}}}
 	small, err := webchatAttachmentWeight(msgs)
 	require.Nil(t, err)
@@ -405,7 +422,7 @@ func TestWebchatLargeImageCallbackUsesRequestBudget(t *testing.T) {
 	b.AttachGateway(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Greater(t, r.ContentLength, int64(webchatResponseLimit))
 		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"received image"}}]}`)
-	}))
+	}), nil)
 	ticket := strings.Repeat("a", 64)
 	record, _ := json.Marshal(webchatTicket{UserID: 21, KeyID: 31, IP: "127.0.0.1", Model: "chat", MessageHash: sha256.Sum256(wire), Receipt: "receipt", AttachmentWeight: weight, CallbackLimit: int64(len(wire) + 1024)})
 	issued, err := rc.Issue(context.Background(), ticket, record, webchatTicketTTL)

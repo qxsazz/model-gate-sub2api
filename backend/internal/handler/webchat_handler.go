@@ -264,6 +264,14 @@ func webchatBridgeError(c *gin.Context, err error) {
 		response.ErrorWithDetails(c, http.StatusBadGateway, "对话服务暂时不可用", "WEBCHAT_UPSTREAM_ERROR", nil)
 		return
 	}
+	if upstream.Message != "" {
+		status := upstream.Status
+		if status == http.StatusUnauthorized {
+			status = http.StatusForbidden
+		}
+		response.ErrorWithDetails(c, status, upstream.Message, "WEBCHAT_GATEWAY_ERROR", nil)
+		return
+	}
 	switch upstream.Status {
 	case http.StatusUnauthorized:
 		response.ErrorWithDetails(c, http.StatusForbidden, "所选密钥不可用于对话，请重新选择", "WEBCHAT_KEY_UNAVAILABLE", nil)
@@ -272,7 +280,7 @@ func webchatBridgeError(c *gin.Context, err error) {
 	case http.StatusRequestEntityTooLarge:
 		response.ErrorWithDetails(c, upstream.Status, "模型请求超过大小限制，请减少附件或新建会话", "WEBCHAT_PAYLOAD_TOO_LARGE", nil)
 	case http.StatusBadRequest, http.StatusNotFound, http.StatusUnprocessableEntity:
-		response.ErrorWithDetails(c, http.StatusBadRequest, "当前模型未能处理该消息，请检查模型支持的输入类型和上下文长度", "WEBCHAT_MODEL_ERROR", nil)
+		response.ErrorWithDetails(c, upstream.Status, "模型拒绝了这次请求，未返回具体原因。", "WEBCHAT_MODEL_ERROR", nil)
 	case http.StatusTooManyRequests:
 		response.ErrorWithDetails(c, upstream.Status, "请求已达到使用限制，请稍后再试", "WEBCHAT_RATE_LIMITED", nil)
 	case http.StatusServiceUnavailable:

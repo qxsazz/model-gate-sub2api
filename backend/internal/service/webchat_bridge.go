@@ -38,7 +38,10 @@ const (
 	webchatAttachmentBudget = 18 << 20
 )
 
-type WebchatUpstreamError struct{ Status int }
+type WebchatUpstreamError struct {
+	Status  int    `json:"status"`
+	Message string `json:"message,omitempty"`
+}
 
 func (e *WebchatUpstreamError) Error() string {
 	return fmt.Sprintf("chat service returned HTTP %d", e.Status)
@@ -76,6 +79,7 @@ type WebchatBridge struct {
 	tickets                    WebchatTicketCache
 	keys                       webchatKeyLookup
 	gateway                    http.Handler
+	resolver                   *CompositeRouteResolver
 	url, email, password       string
 	client                     *http.Client
 	tokenMu                    sync.Mutex
@@ -111,7 +115,10 @@ func NewWebchatBridge(cache WebchatTicketCache, keys *APIKeyService) *WebchatBri
 
 // AttachGateway installs the same authenticated, metered routes used by API clients.
 // Call before the server starts accepting requests.
-func (b *WebchatBridge) AttachGateway(gateway http.Handler) { b.gateway = gateway }
+func (b *WebchatBridge) AttachGateway(gateway http.Handler, resolver *CompositeRouteResolver) {
+	b.gateway = gateway
+	b.resolver = resolver
+}
 
 type webchatResponse struct {
 	header   http.Header
@@ -160,13 +167,23 @@ func (b *WebchatBridge) dispatch(ctx context.Context, key *APIKey, clientIP, met
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	if path == "/v1/messages" {
+		req.Header.Set("Anthropic-Version", "2023-06-01")
+	}
 	closed := make(chan bool)
 	stop := context.AfterFunc(ctx, func() { close(closed) })
 	defer stop()
 	w := &webchatResponse{header: make(http.Header), closed: closed}
 	b.gateway.ServeHTTP(w, req)
 	if w.status < 200 || w.status >= 300 {
-		return nil, webchatError(webchatStatus(w.status))
+		gatewayErr := webchatError(webchatStatus(w.status))
+		if !w.oversize {
+			gatewayErr.Message = webchatGatewayMessage(w.body.Bytes(), key)
+		}
+		if gatewayErr.Message == "" {
+			gatewayErr.Message = fmt.Sprintf("HTTP %d %s", gatewayErr.Status, http.StatusText(gatewayErr.Status))
+		}
+		return nil, gatewayErr
 	}
 	if w.oversize {
 		return nil, webchatError(502)
@@ -185,7 +202,7 @@ func (b *WebchatBridge) Models(ctx context.Context, key *APIKey, clientIP string
 	if !b.configured() {
 		return nil, webchatError(503)
 	}
-	body, err := b.dispatch(ctx, key, clientIP, http.MethodGet, "/v1/models?endpoint="+CompositeRouteEndpointChatCompletions, nil)
+	body, err := b.dispatch(ctx, key, clientIP, http.MethodGet, "/v1/models?endpoint="+WebchatCatalogScope, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +407,11 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 		}
 		defer b.sendBudget.Release(weight)
 	}
-	contextBytes, err := json.Marshal(webchatWireMessages(messages))
+	wire := webchatWireMessages(messages)
+	if reference := webchatKnowledgeForTurn(messages); reference != "" {
+		wire = append([]webchatWireMessage{{Role: "system", Content: reference}}, wire...)
+	}
+	contextBytes, err := json.Marshal(wire)
 	if err != nil || len(contextBytes) > webchatRequestLimit-1024 {
 		return "", webchatError(http.StatusRequestEntityTooLarge)
 	}
@@ -432,20 +453,32 @@ func (b *WebchatBridge) Complete(ctx context.Context, key *APIKey, clientIP, mod
 		return "", err
 	}
 	var result webchatCompletion
-	if json.Unmarshal(data, &result) != nil || result.Receipt != receipt || result.text() == "" {
+	if json.Unmarshal(data, &result) != nil || result.Receipt != receipt {
+		return "", webchatError(502)
+	}
+	if result.GatewayError != nil {
+		result.GatewayError.Status = webchatStatus(result.GatewayError.Status)
+		return "", result.GatewayError
+	}
+	if result.text() == "" {
 		return "", webchatError(502)
 	}
 	return result.text(), nil
 }
 
+type webchatReply struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type webchatChoice struct {
+	Message webchatReply `json:"message"`
+}
+
 type webchatCompletion struct {
-	Choices []struct {
-		Message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Receipt string `json:"modelgate_receipt,omitempty"`
+	Choices      []webchatChoice       `json:"choices"`
+	Receipt      string                `json:"modelgate_receipt,omitempty"`
+	GatewayError *WebchatUpstreamError `json:"modelgate_error,omitempty"`
 }
 
 func (c *webchatCompletion) text() string {
@@ -533,16 +566,11 @@ func (b *WebchatBridge) Callback(w http.ResponseWriter, r *http.Request) {
 		reject(403)
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{"model": state.Model, "messages": json.RawMessage(body), "stream": false})
-	out, gatewayErr := b.dispatch(r.Context(), key, state.IP, http.MethodPost, "/v1/chat/completions", payload)
+	result, gatewayErr := b.forwardWebchat(r.Context(), key, state.IP, state.Model, body)
 	if gatewayErr != nil {
-		reject(gatewayErr.Status)
-		return
-	}
-	var result webchatCompletion
-	if json.Unmarshal(out, &result) != nil || result.text() == "" {
-		reject(502)
-		return
+		// Open WebUI can rewrite non-2xx bodies. Only a consumed ticket may return
+		// a gateway failure in this private envelope; Complete restores the HTTP error.
+		result = webchatCompletion{GatewayError: gatewayErr}
 	}
 	// The sidecar simply relays this envelope. A stale or misrouted provider
 	// connection cannot produce a successful chat without using this user's key.

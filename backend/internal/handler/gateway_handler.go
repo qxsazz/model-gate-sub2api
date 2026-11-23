@@ -1194,7 +1194,8 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
-	if c.Query("endpoint") == service.CompositeRouteEndpointChatCompletions && apiKey != nil && apiKey.Group != nil {
+	catalog := c.Query("endpoint")
+	if (catalog == service.WebchatCatalogScope || catalog == service.CompositeRouteEndpointChatCompletions) && apiKey != nil && apiKey.Group != nil {
 		group := apiKey.Group
 		if platform == service.PlatformTypeSafe || (group.ClaudeCodeOnly && group.FallbackGroupID == nil) {
 			writeModelsList(c, platform, nil)
@@ -1202,9 +1203,9 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		}
 		if platform == service.PlatformComposite {
 			ctx := c.Request.Context()
-			models := h.compositeAvailableModels(ctx, groupID, service.CompositeRouteEndpointChatCompletions, false)
+			models := h.compositeAvailableModels(ctx, groupID, catalog, false)
 			models = group.ModelAllowlist.FilterForListing(models)
-			models, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, service.CompositeRouteEndpointChatCompletions)
+			models, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, catalog)
 			if err != nil {
 				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Chat models are temporarily unavailable")
 				return
