@@ -202,8 +202,8 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 	require.NotContains(t, logs[0].RequestBody, "audit-canary")
 }
 
-// Private media must remain in the seven-day asset store, never in general audit bodies.
-func TestCanvasAuditOmitsPrivatePayloadButPreservesOperationAndHandlerBody(t *testing.T) {
+// Private media and chat transcripts have shorter retention than the operation log.
+func TestAuditOmitsPrivatePayloadButPreservesOperationAndHandlerBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &auditCaptureRepository{}
 	svc := service.NewAuditLogService(repo, nil)
@@ -222,7 +222,8 @@ func TestCanvasAuditOmitsPrivatePayloadButPreservesOperationAndHandlerBody(t *te
 	router.PUT("/api/v1/canvas/tasks/:task_id/:key_id/*path", handle)
 	router.POST("/api/v1/canvas/gateway/:key_id/*path", handle)
 	router.PUT("/api/v1/canvas/state/:name", handle)
-	for _, tc := range []struct{ method, path string }{{"PUT", "/api/v1/canvas/tasks/task/3/images/edits"}, {"POST", "/api/v1/canvas/gateway/3/gemini/models/image:generateContent"}, {"PUT", "/api/v1/canvas/state/workspace"}} {
+	router.POST("/api/v1/webchat/messages", handle)
+	for _, tc := range []struct{ method, path string }{{"PUT", "/api/v1/canvas/tasks/task/3/images/edits"}, {"POST", "/api/v1/canvas/gateway/3/gemini/models/image:generateContent"}, {"PUT", "/api/v1/canvas/state/workspace"}, {"POST", "/api/v1/webchat/messages"}} {
 		req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(`{"inlineData":{"data":"PRIVATE_IMAGE_CANARY"}}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -230,12 +231,16 @@ func TestCanvasAuditOmitsPrivatePayloadButPreservesOperationAndHandlerBody(t *te
 		require.Equal(t, http.StatusAccepted, rec.Code)
 	}
 	svc.Stop()
-	require.Equal(t, 3, seen)
+	require.Equal(t, 4, seen)
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	require.Len(t, repo.logs, 3)
+	require.Len(t, repo.logs, 4)
 	for _, entry := range repo.logs {
-		require.Equal(t, "<private canvas payload omitted>", entry.RequestBody)
+		if entry.Path == "/api/v1/webchat/messages" {
+			require.Equal(t, "<private conversation omitted>", entry.RequestBody)
+		} else {
+			require.Equal(t, "<private canvas payload omitted>", entry.RequestBody)
+		}
 		require.NotContains(t, entry.RequestBody, "PRIVATE_IMAGE_CANARY")
 		require.Equal(t, int64(77), *entry.ActorUserID)
 		require.Equal(t, http.StatusAccepted, entry.StatusCode)

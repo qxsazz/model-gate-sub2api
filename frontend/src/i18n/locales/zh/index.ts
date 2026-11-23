@@ -8,8 +8,10 @@ import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
 import contact from './contact'
+import webChat from './webChat'
 
 export default {
+  webChat,
   adminAccessKeys,
   mcp,
   ...landing,

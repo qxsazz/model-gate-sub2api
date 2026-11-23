@@ -55,6 +55,10 @@ configure_environment() {
     echo "refusing unexpected production path: $root" >&2
     exit 2
   fi
+  webchat_compose="$root/docker-compose.webchat.yml"
+  if [ -f "$webchat_compose" ]; then
+    compose_args="$compose_args -f $webchat_compose"
+  fi
   env_file="$root/.env"
   release_dir="$root/releases"
   backup_dir="$root/backups"
@@ -64,6 +68,25 @@ compose() {
   # shellcheck disable=SC2086
   docker compose --project-name "$project" --env-file "$env_file" $compose_args "$@"
 }
+
+# Compose mounts the file into two non-root containers. The enclosing private
+# directory restricts host access, while the mounted file is readable by both UIDs.
+prepare_webchat_secret() (
+  directory="$root/.webchat"
+  secret="$directory/service-password"
+  umask 077
+  mkdir -p "$directory" || exit 1
+  [ ! -L "$directory" ] && chmod 700 "$directory" || exit 1
+  if [ ! -f "$secret" ]; then
+    temporary=$(mktemp "$directory/password.XXXXXX") || exit 1
+    trap 'rm -f "$temporary"' EXIT
+    trap 'exit 1' HUP INT TERM
+    openssl rand -hex 32 > "$temporary" && chmod 444 "$temporary" || exit 1
+    # Concurrent releases must observe the same completed secret.
+    ln "$temporary" "$secret" 2>/dev/null || [ -f "$secret" ] || exit 1
+  fi
+  [ ! -L "$secret" ] && [ -s "$secret" ]
+)
 
 # Replace only the image assignment, preserving credentials and file permissions.
 # A same-directory rename ensures readers never see a partially written .env.
@@ -161,7 +184,7 @@ backup_postgres() {
   fi
   mkdir -p "$backup_dir"
   backup_file="$backup_dir/postgres-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  docker exec "$database_container" sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup_file"
+  docker exec "$database_container" sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --exclude-table-data=public.webchat_sessions --exclude-table-data=public.webchat_start_leases' > "$backup_file"
   chmod 600 "$backup_file"
 }
 
@@ -200,6 +223,9 @@ deploy() {
   [ "$environment" = "staging" ] && database_container="sub2api-staging-postgres"
 
   export SUB2API_IMAGE="$target"
+  if [ -f "$webchat_compose" ]; then
+    prepare_webchat_secret
+  fi
   compose config --quiet
   previous_image_archive=""
   if [ "$environment" = production ] && [ "$previous" != "$target" ]; then
@@ -235,11 +261,21 @@ EOF
     fi
   }
 
+  # Bring up the internal provider before switching the running site image.
+  if [ -f "$webchat_compose" ]; then
+    compose up -d --no-deps --wait --wait-timeout 180 open-webui
+  fi
   if ! compose up -d --no-deps --force-recreate sub2api; then
     rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
     exit 1
   fi
   if ! healthcheck; then
+    rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
+    exit 1
+  fi
+
+  if [ -f "$webchat_compose" ] && ! compose exec -T open-webui python - < "$root/verify-webchat.py"; then
+    echo "webchat deployment verification failed" >&2
     rollback || echo "rollback failed; verify the running image and persistent configuration" >&2
     exit 1
   fi

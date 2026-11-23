@@ -100,6 +100,15 @@ func RegisterUserRoutes(
 			}
 		}
 
+		if h.Webchat != nil {
+			chat := authenticated.Group("/webchat")
+			chat.GET("/keys", h.Webchat.Keys)
+			chat.GET("/models", h.Webchat.Models)
+			chat.GET("/sessions", h.Webchat.Sessions)
+			chat.GET("/sessions/:id", h.Webchat.Session)
+			chat.DELETE("/sessions/:id", h.Webchat.DeleteSession)
+			chat.POST("/messages", h.Webchat.SendMessage)
+		}
 		if h.Canvas != nil {
 			canvas := authenticated.Group("/canvas")
 			canvas.GET("/capabilities", h.Canvas.Capabilities)

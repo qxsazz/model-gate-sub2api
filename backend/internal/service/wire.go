@@ -859,8 +859,16 @@ func ProvideAPIKeyService(
 	return svc
 }
 
+func ProvideWebchatStore(db *sql.DB) *WebchatStore {
+	store := NewWebchatStore(db)
+	store.Start()
+	return store
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
+	ProvideWebchatStore,
+	NewWebchatBridge,
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,

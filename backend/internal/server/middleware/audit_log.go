@@ -199,6 +199,8 @@ func NewAuditLogMiddleware(auditService *service.AuditLogService) AuditLogMiddle
 		var bodyRedacted string
 		if strings.HasPrefix(c.FullPath(), "/api/v1/canvas/") {
 			bodyRedacted = "<private canvas payload omitted>"
+		} else if strings.HasPrefix(c.FullPath(), "/api/v1/webchat/") {
+			bodyRedacted = "<private conversation omitted>"
 		} else if _, omit := auditBodyOmittedRoutes[routeKey]; omit {
 			bodyRedacted = "<credential-bearing body omitted>"
 		} else if c.Request.Body != nil && c.Request.Method != "GET" {

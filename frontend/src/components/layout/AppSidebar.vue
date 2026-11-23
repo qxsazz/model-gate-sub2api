@@ -742,6 +742,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
   items.push(
+    { path: '/chat', label: t('webChat.title'), icon: { render: () => h(Icon, { name: 'chatBubble' }) } },
     { path: '/infinite-canvas', label: '无限画布', icon: BatchImageIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
       { path: '/vip', label: 'VIP 中心', icon: CreditCardIcon, hideInSimpleMode: true },
