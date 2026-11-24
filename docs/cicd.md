@@ -7,7 +7,7 @@ compiled inside the Docker build and embedded into the Go binary.
 ## Flow
 
 ```text
-feature branch -> pull request -> staging
+candidate CI passes -> push to staging
                          |
                          +-> CI checks
                          +-> GHCR staging-<commit> image
@@ -15,7 +15,7 @@ feature branch -> pull request -> staging
 
 staging -> pull request -> main
                          |
-                         +-> production Environment approval
+                         +-> manually dispatch Deploy Production
                          +-> verify the same staging image digest
                          +-> production deployment on 8080
 ```
@@ -52,13 +52,11 @@ STAGING_DEPLOY_PATH=/opt/sub2api-staging
 PRODUCTION_DEPLOY_PATH=/opt/sub2api
 ```
 
-If the repository is later moved to a plan that enforces repository rules, the
-repository should configure branch rules for `main` and `staging`:
-
-- Pull requests are required.
-- The CI, Frontend CI, and Security Scan checks are required.
-- At least one approval is required.
-- Force pushes, branch deletion, and bypassing required checks are disabled.
+Push the checked candidate directly to `staging`. The shared staging deployment
+runs on that push. Production promotion goes through a reviewed PR to `main`.
+The required checks are `test`, `golangci-lint`, `checks`, `backend-security`
+and `frontend-security`. See the [branch guide](branch-development.md#测试环境)
+for test selection and shared inputs.
 
 ## Manual production release
 
@@ -69,7 +67,7 @@ confirmation field. The workflow resolves the immutable GHCR digest, verifies
 that the same image is running in staging, and only then updates production.
 
 Do not enter the `main` merge commit unless staging was separately built from
-that exact commit. The normal value is the feature or upgrade commit SHA shown
+that exact commit. Use the staging push SHA shown
 by the successful `Deploy Staging / build` run.
 
 ## Staging runtime
