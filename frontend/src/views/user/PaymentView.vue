@@ -47,7 +47,7 @@
                   <div class="recharge-wallet-label"><Icon name="creditCard" size="sm" />{{ t('payment.rechargePage.balance') }}
                     <span v-if="user?.username" class="recharge-owner" :title="user.username">{{ user.username }}</span>
                   </div>
-                  <div class="recharge-balance"><strong><small>$</small>{{ user?.balance?.toFixed(2) ?? '—' }}</strong><span>USD</span></div>
+                  <div class="recharge-balance"><strong class="mg-balance-figure">${{ user?.balance?.toFixed(2) ?? '—' }}</strong><span>USD</span></div>
                   <div class="recharge-wallet-tier">
                     <span v-if="effectiveLevel != null" class="recharge-tier-tag"><Icon name="badge" size="xs" />VIP {{ effectiveLevel }} · {{ t(`payment.rechargePage.tier${effectiveLevel}`) }}</span>
                     <span v-if="checkout.vip_recharge_bonus_enabled">{{ t('payment.rechargePage.thisBonus', { percent: checkoutBonusPercent }) }}</span>

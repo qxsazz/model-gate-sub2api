@@ -12,7 +12,7 @@
           </div>
           <p class="redeem-eyebrow">MODEL-GATE / REDEMPTION</p>
           <p class="mt-3 text-sm font-medium text-white">{{ t('redeem.currentBalance') }}</p>
-          <p class="redeem-balance mt-2 text-4xl font-bold">
+          <p class="redeem-balance mg-balance-figure mt-2">
             ${{ user?.balance?.toFixed(2) || '0.00' }}
           </p>
           <p class="redeem-meta mt-2 text-sm">
@@ -628,8 +628,6 @@ onMounted(async () => {
 
 .redeem-balance {
   color: var(--mg-pearl-50, #f5f1e7);
-  font-family: 'Bodoni Moda', Georgia, serif;
-  letter-spacing: 0;
 }
 
 .redeem-meta {

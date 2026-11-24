@@ -36,9 +36,9 @@
   --recharge-edge: #e6e1d6;
   --recharge-paper: #fff;
   --recharge-tint: #f7f3e9;
-  --recharge-ui: 'MG Recharge Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --recharge-heading: 'MG Recharge Serif', 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
-  --recharge-number: 'MG Recharge Mono', 'DM Mono', Consolas, var(--recharge-ui);
+  --recharge-ui: 'MG Bodoni Figures', 'MG Recharge Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --recharge-heading: 'MG Bodoni Figures', 'MG Recharge Serif', 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+  --recharge-number: 'MG Bodoni Figures', 'MG Recharge Mono', 'DM Mono', Consolas, var(--recharge-ui);
   --recharge-brand: 'MG Recharge Brand', 'Bodoni Moda', Didot, Georgia, serif;
   color: var(--recharge-ink);
   font-family: var(--recharge-ui);
@@ -67,8 +67,7 @@
 .recharge-wallet-label svg, .recharge-wallet-tier svg { flex: none; }
 .recharge-owner { overflow: hidden; padding-left: 9px; border-left: 1px solid currentColor; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .recharge-balance { display: flex; align-items: baseline; gap: 8px; margin: 5px 0 12px; }
-.recharge-balance strong { font: 400 clamp(32px, 3.25vw, 51px)/1.12 var(--recharge-number); letter-spacing: -.045em; overflow-wrap: anywhere; }
-.recharge-balance small { font-size: .62em; }
+.recharge-balance strong { min-width: 0; overflow-wrap: anywhere; }
 .recharge-balance > span { font: 500 11px var(--recharge-number); letter-spacing: .1em; }
 .recharge-wallet-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; }
 .recharge-tier-tag { border: 1px solid color-mix(in srgb, var(--vip-ink) 40%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--vip-surface) 50%, transparent); padding: 2px 7px; font-weight: 500; }
