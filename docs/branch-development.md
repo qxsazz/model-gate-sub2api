@@ -38,7 +38,7 @@ gh pr list --repo qxsazz/model-gate-sub2api --state open
 | --- | --- |
 | Go 后端 | 单元测试、集成测试、golangci-lint |
 | 前端应用 | ESLint、完整 Vitest、类型检查和生产构建。翻译完整性包含在 Vitest 中 |
-| 仅站内手册正文或目录注册表 | ESLint、文档与翻译用例、类型检查和生产构建 |
+| 仅站内手册正文、目录注册表及对应文档用例 | ESLint、文档与翻译用例、类型检查和生产构建 |
 | 画布 | 画布测试、类型检查、构建，以及引用画布代码的主站前端检查 |
 | 部署脚本 | Linux 验证 Compose、运行资源和 Caddy。Apple 容器脚本、测试夹具和共用环境模板触发 macOS 验证 |
 | CI 工作流或无法识别的改动 | 完整检查 |

@@ -12,7 +12,8 @@ from ci_scope import changed_paths, select
 class ScopeTests(unittest.TestCase):
     def test_docs_and_mixed_changes(self):
         doc = "frontend/src/content/docs/tutorial/api-key.md"
-        self.assertEqual(select([doc])["frontend"], "docs")
+        docs = [doc, "frontend/src/docs/registry.ts", "frontend/src/views/docs/__tests__/DocsView.spec.ts"]
+        self.assertEqual(select(docs)["frontend"], "docs")
         self.assertEqual(select([doc])["backend"], "false")
         mixed = select([doc, "backend/go.mod", "frontend/src/main.ts"])
         self.assertEqual((mixed["frontend"], mixed["backend"]), ("full", "true"))

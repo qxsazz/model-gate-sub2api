@@ -18,8 +18,13 @@ def suites_for(path):
         return suites
     if path == "frontend/src/constants/platformCatalog.builtin.json":
         return {"backend", "frontend"}
-    if (path.startswith("frontend/src/content/docs/") and path.endswith(".md")
-            or path == "frontend/src/docs/registry.ts"):
+    doc_test_dirs = ("frontend/src/docs/__tests__/", "frontend/src/components/docs/__tests__/",
+                     "frontend/src/views/docs/__tests__/")
+    if (path == "frontend/src/docs/registry.ts"
+            or path.startswith("frontend/src/content/docs/") and path.endswith(".md")
+            or path.startswith(doc_test_dirs) and path.endswith(".spec.ts")
+            or path in ("frontend/src/router/__tests__/docs-route.spec.ts",
+                        "frontend/src/components/layout/__tests__/docUrlSanitization.spec.ts")):
         return {"docs"}
     if path.startswith(("frontend/", "docs/legal/")):
         return {"frontend"}
