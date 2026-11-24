@@ -83,45 +83,54 @@
                     <PaymentMethodSelector :methods="methodOptions" :selected="selectedMethod" @select="selectedMethod = $event" />
                   </div>
                 </section>
-                <section class="recharge-panel recharge-summary" aria-labelledby="recharge-summary-title">
-                  <div class="recharge-section-head">
-                    <h2 id="recharge-summary-title"><Icon name="document" size="sm" />{{ t('payment.rechargePage.summary') }}</h2>
-                    <RouterLink to="/orders" class="recharge-orders"><Icon name="clock" size="sm" />{{ t('payment.rechargePage.orders') }}</RouterLink>
-                  </div>
-                  <template v-if="enabledMethods.length">
-                    <dl class="recharge-sum-list">
-                      <div><dt>{{ t('payment.rechargePage.principal') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(validAmount) : '—' }}</dd></div>
-                      <div v-if="discountAmount > 0" data-testid="recharge-discount-row">
-                        <dt>{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
-                        <dd>−{{ formatSelectedPaymentAmount(discountAmount) }}</dd>
-                      </div>
-                      <div v-if="checkout.vip_recharge_bonus_enabled">
-                        <dt>{{ t('payment.vipRechargeBonus', { level: checkout.vip_recharge_bonus_level ?? 0 }) }} ({{ checkoutBonusPercent }}%)</dt>
-                        <dd class="recharge-gold">{{ validAmount ? '+$' + (bonusQuote.base - validAmount).toFixed(2) : '—' }}</dd>
-                      </div>
-                      <div v-if="showBonusRow" data-testid="recharge-bonus-row">
-                        <dt>{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
-                        <dd class="recharge-gold">+${{ bonusQuote.bonus.toFixed(2) }}</dd>
-                      </div>
-                      <div v-if="feeRate > 0"><dt>{{ t('payment.fee') }} ({{ feeRate }}%)</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(feeAmount) : '—' }}</dd></div>
-                      <div class="recharge-credit" data-testid="recharge-credited-row">
-                        <dt>{{ t('payment.creditedBalance') }}</dt><dd>{{ validAmount ? '$' + creditedAmount.toFixed(2) : '—' }} <small>USD</small></dd>
-                      </div>
-                      <div class="recharge-total"><dt>{{ t('payment.actualPay') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(totalAmount) : '—' }}</dd></div>
-                    </dl>
-                    <p v-if="validAmount && balanceRechargeMultiplier !== 1" class="recharge-note">{{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}</p>
-                    <button type="button" class="btn payment-submit-button recharge-submit" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-                      <span v-if="submitting" class="flex items-center gap-2">
-                        <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        {{ t('common.processing') }}
-                      </span>
-                      <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
-                    </button>
-                  </template>
-                  <RechargeVIPBenefits v-model:show="showBenefits" :amount="validAmount" :currency="selectedCurrency"
-                    :growth-rates="checkout.vip_growth_rates" :current-multiplier="balanceRechargeMultiplier"
-                    :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" @snapshot="vipSnapshot = $event" />
-                </section>
+                <div class="recharge-aside">
+                  <section class="recharge-panel recharge-summary" aria-labelledby="recharge-summary-title">
+                    <div class="recharge-section-head">
+                      <h2 id="recharge-summary-title"><Icon name="document" size="sm" />{{ t('payment.rechargePage.summary') }}</h2>
+                      <RouterLink to="/orders" class="recharge-orders"><Icon name="clock" size="sm" />{{ t('payment.rechargePage.orders') }}</RouterLink>
+                    </div>
+                    <template v-if="enabledMethods.length">
+                      <dl class="recharge-sum-list">
+                        <div><dt>{{ t('payment.rechargePage.principal') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(validAmount) : '—' }}</dd></div>
+                        <div v-if="discountAmount > 0" data-testid="recharge-discount-row">
+                          <dt>{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                          <dd>−{{ formatSelectedPaymentAmount(discountAmount) }}</dd>
+                        </div>
+                        <div v-if="checkout.vip_recharge_bonus_enabled">
+                          <dt>{{ t('payment.vipRechargeBonus', { level: checkout.vip_recharge_bonus_level ?? 0 }) }} ({{ checkoutBonusPercent }}%)</dt>
+                          <dd class="recharge-gold">{{ validAmount ? '+$' + (bonusQuote.base - validAmount).toFixed(2) : '—' }}</dd>
+                        </div>
+                        <div v-if="showBonusRow" data-testid="recharge-bonus-row">
+                          <dt>{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                          <dd class="recharge-gold">+${{ bonusQuote.bonus.toFixed(2) }}</dd>
+                        </div>
+                        <div v-if="feeRate > 0"><dt>{{ t('payment.fee') }} ({{ feeRate }}%)</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(feeAmount) : '—' }}</dd></div>
+                        <div class="recharge-credit" data-testid="recharge-credited-row">
+                          <dt>{{ t('payment.creditedBalance') }}</dt><dd>{{ validAmount ? '$' + creditedAmount.toFixed(2) : '—' }} <small>USD</small></dd>
+                        </div>
+                        <div class="recharge-total"><dt>{{ t('payment.actualPay') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(totalAmount) : '—' }}</dd></div>
+                      </dl>
+                      <p v-if="validAmount && balanceRechargeMultiplier !== 1" class="recharge-note">{{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}</p>
+                      <button type="button" class="btn payment-submit-button recharge-submit" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+                        <span v-if="submitting" class="flex items-center gap-2">
+                          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          {{ t('common.processing') }}
+                        </span>
+                        <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
+                      </button>
+                    </template>
+                    <RechargeVIPBenefits v-model:show="showBenefits" :current-multiplier="balanceRechargeMultiplier"
+                      :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" @snapshot="vipSnapshot = $event" />
+                  </section>
+                  <RechargeVIPGrowth
+                    v-if="vipSnapshot?.enabled"
+                    :snapshot="vipSnapshot"
+                    :amount="validAmount"
+                    :growth-rate="checkout.vip_growth_rates?.[selectedCurrency]"
+                    :bonus-percent="checkout.vip_recharge_bonus_enabled ? checkoutBonusPercent : undefined"
+                    @show-benefits="showBenefits = true"
+                  />
+                </div>
               </div>
             </div>
           </template>
@@ -293,6 +302,7 @@ import { ref, shallowRef, computed, onMounted, watch } from 'vue'
 import '@/styles/recharge.css'
 import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
 import RechargeVIPBenefits from '@/components/payment/RechargeVIPBenefits.vue'
+import RechargeVIPGrowth from '@/components/payment/RechargeVIPGrowth.vue'
 import { getVIP, type VIPSnapshot } from '@/api/vip'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
@@ -1262,7 +1272,7 @@ onMounted(async () => {
   position: relative;
   max-width: 1140px;
 }
-.payment-page-inner.with-vip { max-width: none; }
+.payment-page-inner.with-vip { max-width: 60rem; }
 .payment-loading{padding-top:8px}.loading-account{height:110px;background:var(--payment-line);opacity:.4;border-radius:5px}.loading-workspace{display:grid;grid-template-columns:1.12fr 1fr;gap:36px;margin-top:28px}.loading-control{height:540px;border-radius:5px;background:var(--payment-line);opacity:.35}.loading-levels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:28px}.loading-levels span{display:block;height:148px;background:var(--payment-line);opacity:.35;border-radius:5px}
 @media (max-width: 760px) {
   .loading-workspace { grid-template-columns: 1fr; }

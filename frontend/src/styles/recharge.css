@@ -79,6 +79,7 @@
 .recharge-theme :is(.vip-card-latin, .vip-card-numeric, .vip-thumbnail-level) { font-family: var(--recharge-number); }
 
 .recharge-workspace { display: grid; grid-template-columns: minmax(0, 1.46fr) minmax(285px, .94fr); align-items: start; gap: 19px; }
+.recharge-aside { display: grid; min-width: 0; gap: 14px; }
 .recharge-panel { min-width: 0; padding: 23px; border: 1px solid var(--recharge-edge); border-radius: 13px; background: var(--recharge-paper); box-shadow: 0 2px 8px #34301b06; }
 .recharge-section-head { margin-bottom: 16px; }
 .recharge-section-head :is(h2, h3) { margin: 0; color: var(--recharge-ink); font: 600 18px/1.4 var(--recharge-heading); }
@@ -101,18 +102,19 @@
 .recharge-sum-list .recharge-total dd { font-size: 25px; }
 .recharge-note { margin-top: 9px; font-size: 12px; line-height: 1.6; }
 .recharge-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 13px; }
-.recharge-order-perks, .recharge-growth { margin-top: 19px; padding-top: 16px; border-top: 1px solid var(--recharge-edge); }
-.recharge-order-perks .recharge-section-head, .recharge-growth .recharge-section-head { margin-bottom: 11px; }
+.recharge-order-perks { margin-top: 19px; padding-top: 16px; border-top: 1px solid var(--recharge-edge); }
+.recharge-order-perks .recharge-section-head { margin-bottom: 11px; }
 .recharge-section-head h3 { font-size: 16px; }
 .recharge-perk-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
 .recharge-perk-list dt, .recharge-perk-list small { color: var(--recharge-muted); font-size: 12px; }
 .recharge-perk-list dd { margin-top: 2px; color: var(--recharge-ink); font: 500 14px/1.5 var(--recharge-number); overflow-wrap: anywhere; }
 .recharge-perk-list small { display: block; font: 400 11px/1.5 var(--recharge-ui); }
 .recharge-text-link, .recharge-benefit-links a { color: var(--recharge-gold); font-size: 12px; }
-.recharge-growth-line, .recharge-progress-label { font-size: 12px; }
-.recharge-progress { height: 5px; margin: 9px 0 6px; border-radius: 5px; overflow: hidden; background: var(--recharge-edge); }
-.recharge-progress span { display: block; height: 100%; background: var(--recharge-gold); }
-.recharge-estimate { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--recharge-edge); color: var(--recharge-muted); font-size: 12px; }
+.recharge-growth-line, .recharge-progress-label { color: var(--recharge-muted); font-size: 13px; }
+.recharge-growth-line strong { color: var(--recharge-ink); font-weight: 600; }
+.recharge-progress { height: 6px; margin: 10px 0 8px; border-radius: 5px; overflow: hidden; background: var(--recharge-edge); }
+.recharge-progress span { display: block; height: 100%; border-radius: inherit; background: var(--recharge-gold); }
+.recharge-estimate { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--recharge-edge); color: var(--recharge-muted); font-size: 12px; }
 .recharge-estimate strong { color: var(--recharge-ink); font-size: 12px; }
 .recharge-unavailable { text-align: center; color: var(--recharge-muted); }
 

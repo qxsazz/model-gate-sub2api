@@ -30,32 +30,6 @@
     </p>
     <p v-else class="recharge-note">{{ t('payment.rechargePage.vipOff') }}</p>
   </section>
-  <section v-if="state?.enabled" class="recharge-growth" aria-labelledby="recharge-growth-title">
-    <div class="recharge-section-head"><h3 id="recharge-growth-title">{{ t('payment.rechargePage.growth') }}</h3></div>
-    <div class="recharge-growth-line"><span>{{ t('payment.rechargePage.accumulated') }}</span><strong>{{ usd(state.total) }}</strong></div>
-    <div class="recharge-progress" role="progressbar" :aria-label="t('payment.rechargePage.growth')"
-      aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(progress)">
-      <span :style="{ width: progress + '%' }" />
-    </div>
-    <div class="recharge-progress-label">
-      <template v-if="nextGrowthTier">
-        <span>VIP {{ nextGrowthTier.level }} · {{ tierName(nextGrowthTier.level) }}</span>
-        <span>{{ t('payment.rechargePage.remaining', { amount: usd(nextGrowthTier.threshold - state.total) }) }}</span>
-      </template>
-      <span v-else>{{ t('payment.rechargePage.topGrowth') }}</span>
-    </div>
-    <p v-if="state.tier_source === 'manual'" class="recharge-note">{{ t('payment.rechargePage.manual', { level: state.tier.level }) }}</p>
-    <div v-if="amount > 0" aria-live="polite" class="recharge-estimate">
-      <template v-if="projected && futureTotal !== null">
-        {{ t('payment.rechargePage.afterPayment') }} <strong data-future-total>{{ usd(futureTotal) }}</strong> · <span data-projected-tier>VIP {{ projected.level }}</span>
-        <p v-if="bonusEnabled && projected.level !== state.tier.level">
-          {{ t('payment.rechargePage.thisOrder') }} <span data-current-bonus>{{ currentBonus }}%</span> ·
-          {{ t('payment.rechargePage.nextOrder') }} <span data-projected-bonus>{{ projected.recharge_bonus_percent ?? 0 }}%</span>
-        </p>
-      </template>
-      <template v-else>{{ t('payment.rechargePage.unknownGrowth') }}</template>
-    </div>
-  </section>
 
   <BaseDialog v-if="state?.enabled" :show="show" :title="t('payment.rechargePage.allBenefits')" width="extra-wide" @close="emit('update:show', false)">
     <div class="recharge-theme recharge-benefits">
@@ -127,9 +101,6 @@ import { formatRechargeBonusNumber } from '@/utils/rechargeBonus'
 
 const props = defineProps<{
   show: boolean
-  amount: number
-  currency: string
-  growthRates?: Record<string, number>
   currentMultiplier: number
   bonusEnabled: boolean
   initialRequest?: Promise<VIPSnapshot | null>
@@ -146,24 +117,6 @@ const selectedLevel = ref(0)
 
 const baseTier: VIPTier = { level: 0, threshold: 0, concurrency: 0, rpm: 0, rebate_percent: 0, recharge_bonus_percent: 0 }
 const tiers = computed(() => [baseTier, ...(state.value?.rules.tiers ?? [])])
-const nextGrowthTier = computed(() => tiers.value.find(tier => tier.threshold > (state.value?.total ?? 0)))
-const progress = computed(() => {
-  if (!state.value || !nextGrowthTier.value) return 100
-  const total = state.value.total
-  const start = tiers.value.filter(tier => tier.threshold <= total).at(-1)?.threshold ?? 0
-  return Math.max(0, Math.min(100, (total - start) / (nextGrowthTier.value.threshold - start) * 100))
-})
-const futureTotal = computed(() => {
-  const rate = props.growthRates?.[props.currency]
-  if (!state.value || !rate || rate <= 0 || !Number.isFinite(rate) || !Number.isFinite(props.amount) || props.amount < 0) return null
-  return Math.round((state.value.total + props.amount * rate) * 1e8) / 1e8
-})
-const projected = computed(() => {
-  const total = futureTotal.value
-  if (!state.value || total === null) return null
-  if (state.value.tier_source === 'manual') return state.value.tier
-  return tiers.value.filter(tier => tier.threshold <= total).at(-1) ?? baseTier
-})
 const currentBonus = computed(() => formatRechargeBonusNumber((props.currentMultiplier - 1) * 100))
 const selectedTier = computed(() => tiers.value.find(tier => tier.level === selectedLevel.value))
 const isCurrent = computed(() => selectedLevel.value === state.value?.tier.level)

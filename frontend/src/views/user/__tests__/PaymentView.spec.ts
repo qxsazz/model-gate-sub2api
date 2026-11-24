@@ -6,6 +6,7 @@ import { formatPaymentAmount } from '@/components/payment/currency'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
 import RechargeVIPBenefits from '@/components/payment/RechargeVIPBenefits.vue'
+import RechargeVIPGrowth from '@/components/payment/RechargeVIPGrowth.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
@@ -419,7 +420,9 @@ describe('PaymentView recharge rate preview', () => {
     getCheckoutInfo.mockResolvedValueOnce(checkoutInfoFixture({ vip_recharge_bonus_enabled: false, vip_recharge_bonus_level: 0 }))
     const wrapper = shallowMount(PaymentView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
     await flushPromises()
-    wrapper.getComponent(RechargeVIPBenefits).vm.$emit('snapshot', { enabled: true, tier: { level: 4 }, badge_level: 1 })
+    expect(wrapper.findComponent(RechargeVIPGrowth).exists()).toBe(false)
+    const membership = { enabled: true, tier: { level: 4 }, badge_level: 1 }
+    wrapper.getComponent(RechargeVIPBenefits).vm.$emit('snapshot', membership)
     await flushPromises()
     expect(wrapper.getComponent(VIPMembershipCard).props()).toMatchObject({ variant: 'banner', level: 4 })
     const amountInput = wrapper.getComponent(AmountInput)
@@ -430,8 +433,15 @@ describe('PaymentView recharge rate preview', () => {
     expect(pay.text()).toBe('payment.createOrder ' + formatPaymentAmount(0, 'CNY'))
     expect(wrapper.find('.recharge-page h1').exists()).toBe(false)
     expect(summary.findComponent(RechargeVIPBenefits).exists()).toBe(true)
+    const growth = wrapper.getComponent(RechargeVIPGrowth)
+    expect(growth.element.parentElement).toBe(summary.element.parentElement)
+    expect(growth.props('snapshot')).toEqual(membership)
+    expect(growth.props('bonusPercent')).toBeUndefined()
+    growth.vm.$emit('show-benefits')
     amountInput.vm.$emit('update:modelValue', 100)
     await flushPromises()
+    expect(wrapper.getComponent(RechargeVIPBenefits).props('show')).toBe(true)
+    expect(growth.props('amount')).toBe(100)
     expect(pay.attributes('disabled')).toBeUndefined()
     expect(pay.text()).toBe('payment.createOrder ' + formatPaymentAmount(100, 'CNY'))
     expect(summary.get('[data-testid="recharge-credited-row"]').text()).toContain('$100.00')
