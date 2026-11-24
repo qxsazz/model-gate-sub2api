@@ -9,7 +9,12 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    uses: ./.github/workflows/ci-scope.yml
+
   checks:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'none' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -34,21 +39,27 @@ jobs:
         working-directory: frontend
         run: pnpm run lint:check
 
-      - name: Typecheck
-        working-directory: frontend
-        run: pnpm run typecheck
-
-      - name: Check i18n
-        working-directory: frontend
-        run: pnpm run check:i18n
-
-      - name: Run frontend tests
+      - name: Run frontend tests (includes locale completeness)
+        if: needs.changes.outputs.frontend != 'docs'
         working-directory: frontend
         run: pnpm run test:run
 
+      - name: Test documentation and locale completeness
+        if: needs.changes.outputs.frontend == 'docs'
+        working-directory: frontend
+        run: >-
+          pnpm exec vitest run src/docs src/components/docs src/views/docs
+          src/router/__tests__/docs-route.spec.ts
+          src/components/layout/__tests__/docUrlSanitization.spec.ts
+          src/i18n/__tests__/localeKeyCompleteness.spec.ts
+
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm exec vue-tsc -b
+
       - name: Build frontend
         working-directory: frontend
-        run: pnpm run build
+        run: pnpm exec vite build
 
   frontend-boundary:
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'frontend')
@@ -70,6 +81,8 @@ jobs:
           fi
 
   canvas:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.canvas != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

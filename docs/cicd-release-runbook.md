@@ -5,10 +5,10 @@
 ## 1. 当前架构
 
 ```text
-feature / upgrade
+候选提交通过所需 CI
         |
         v
-Pull Request -> staging
+push -> staging
         |
         +-> CI 检查
         +-> Docker 构建完整镜像
@@ -134,46 +134,22 @@ ghcr.io/qxsazz/model-gate-sub2api:latest
 
 ## 4. 日常前端发布流程
 
-### 4.1 创建功能分支
+### 4.1 准备候选提交
 
-从最新 `staging` 创建分支：
+小型串行修改可在本地 `staging` 完成。并行开发或上游升级沿用对应的任务分支。可以给准备推送的提交加 `ci/<主题>-<短SHA>` 标签以触发检查。标记为前端改动的 PR 仍执行前后端边界检查。
 
-```text
-feature/frontend-<description>
-```
+### 4.2 直接推送到 staging
 
-前端改动应集中在：
+在候选提交上确认 `test`、`golangci-lint`、`checks`、`backend-security` 和 `frontend-security` 满足分支规则。CI 根据改动选择测试，具体覆盖范围见[分支开发规范](branch-development.md#测试环境)。
 
-```text
-frontend/**
-```
+将已验证的提交直接推送至 `staging`，此时 `Deploy Staging` 会执行以下步骤。
 
-如果 PR 标记为前端改动，前端边界检查会拒绝同时修改 `backend/**`。
-
-### 4.2 创建 staging PR
-
-将功能分支创建 Pull Request，目标分支选择：
-
-```text
-staging
-```
-
-等待以下检查完成：
-
-- `CI / test`
-- `CI / golangci-lint`
-- `Frontend CI / checks`
-- `Security Scan / backend-security`
-- `Security Scan / frontend-security`
-
-`Deploy Staging` 会在 PR 事件触发后：
-
-1. 使用 PR 提交构建完整 Docker 镜像。
+1. 使用此次推送的提交构建完整 Docker 镜像。
 2. 将镜像推送到 GHCR。
 3. 上传 staging Compose 和部署脚本。
 4. 保持 staging PostgreSQL 和 Redis 运行。
-5. 只更新 staging 应用容器。
-6. 检查 `/health` 和首页。
+5. 更新 staging 应用容器。
+6. 检查健康状态及相关业务配置。
 
 ### 4.3 验收 staging
 
@@ -219,9 +195,7 @@ compare: staging
 Deploy Staging / build
 ```
 
-记录该运行使用的 staging commit SHA。
-
-不要默认填写 `main` 的合并提交 SHA。正常情况下应该填写成功 staging 构建对应的功能分支或升级分支提交 SHA。
+记录这次成功推送并部署到 `staging` 的提交 SHA，生产晋级使用此值。
 
 ### 5.3 手动运行 production workflow
 
@@ -380,7 +354,7 @@ docker compose --project-name sub2api \
 ## 9. 当前已知边界
 
 - 私人仓库免费方案不依赖 GitHub Environment 审批人，生产发布依靠手动 workflow 和 `DEPLOY` 确认。
-- `staging` 分支没有配置与 `main` 同等严格的保护规则，发布前需要人工确认 PR 和检查结果。
+- `staging` 接受通过所需检查的直接推送，生产晋级通过指向 `main` 的 PR。
 - 当前部署脚本检查服务器本机健康接口；生产域名和 Caddy 需要额外进行发布后检查。
 - 当前没有自动化数据库备份恢复演练。
 - 当前上游检查 workflow 可以创建升级 PR，但上游升级仍需人工验收 staging 后才能进入 main 和 production。
@@ -388,9 +362,9 @@ docker compose --project-name sub2api \
 ## 10. 日常最短操作流程
 
 ```text
-1. 从 staging 创建 feature / upgrade 分支
-2. 创建 PR 到 staging
-3. 等待 CI 和 Deploy Staging 通过
+1. 在本地 staging 或已有任务分支准备候选提交
+2. 候选 CI 通过后直接推送同一提交到 staging
+3. 等待 Deploy Staging 完成
 4. 验收 https://staging.model-gate.cc
 5. 创建 staging -> main PR
 6. 检查通过后合并

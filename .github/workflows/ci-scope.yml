@@ -1,0 +1,38 @@
+name: Select CI suites
+
+on:
+  workflow_call:
+    outputs:
+      backend:
+        value: ${{ jobs.scope.outputs.backend }}
+      frontend:
+        value: ${{ jobs.scope.outputs.frontend }}
+      canvas:
+        value: ${{ jobs.scope.outputs.canvas }}
+      apple:
+        value: ${{ jobs.scope.outputs.apple }}
+      compose:
+        value: ${{ jobs.scope.outputs.compose }}
+      release:
+        value: ${{ jobs.scope.outputs.release }}
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.select.outputs.backend }}
+      frontend: ${{ steps.select.outputs.frontend }}
+      canvas: ${{ steps.select.outputs.canvas }}
+      apple: ${{ steps.select.outputs.apple }}
+      compose: ${{ steps.select.outputs.compose }}
+      release: ${{ steps.select.outputs.release }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          sparse-checkout: .github/ci
+      - id: select
+        run: python3 .github/ci/ci_scope.py
