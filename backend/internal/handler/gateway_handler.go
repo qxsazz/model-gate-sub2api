@@ -1194,6 +1194,27 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
+	catalog := c.Query("endpoint")
+	if (catalog == service.WebchatCatalogScope || catalog == service.CompositeRouteEndpointChatCompletions) && apiKey != nil && apiKey.Group != nil {
+		group := apiKey.Group
+		if platform == service.PlatformTypeSafe || (group.ClaudeCodeOnly && group.FallbackGroupID == nil) {
+			writeModelsList(c, platform, nil)
+			return
+		}
+		if platform == service.PlatformComposite {
+			ctx := c.Request.Context()
+			models := h.compositeAvailableModels(ctx, groupID, catalog, false)
+			models = group.ModelAllowlist.FilterForListing(models)
+			models, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, catalog)
+			if err != nil {
+				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Chat models are temporarily unavailable")
+				return
+			}
+			writeModelsList(c, platform, models)
+			return
+		}
+	}
+
 	if platform == service.PlatformOpenAI && apiKey != nil && apiKey.Group != nil &&
 		apiKey.Group.Platform == service.PlatformOpenAI && apiKey.Group.CodexModelsManifestConfig.Enabled {
 		h.pinnedOpenAIModels(c, apiKey.Group)
@@ -1220,6 +1241,22 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	// Get available models from account configurations for the selected group platform.
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
+	if platform == service.PlatformAnthropic {
+		var group *service.Group
+		if apiKey != nil {
+			group = apiKey.Group
+		}
+		source := availableModels
+		if group != nil && group.ModelAllowlistEnabled() {
+			source = modelListingSource(platform, availableModels, defaultModelIDsForPlatform(platform))
+		} else if len(source) == 0 {
+			source = defaultModelIDsForPlatform(platform)
+		}
+		expanded := h.gatewayService.ExpandAnthropicLongContextModels(c.Request.Context(), group, source)
+		if len(availableModels) > 0 || len(expanded) > len(source) || (group != nil && group.ModelAllowlistEnabled()) {
+			availableModels = expanded
+		}
+	}
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
 		source := modelListingSource(platform, availableModels, defaultModelIDsForPlatform(platform))
 		writeAllowlistedModelsList(c, platform, apiKey.Group.ModelAllowlist.FilterForListing(source))
@@ -1309,7 +1346,7 @@ func (h *GatewayHandler) codexModelIDsForGroup(ctx context.Context, group *servi
 		if group.ModelAllowlistEnabled() {
 			models = group.ModelAllowlist.FilterForListing(models)
 		}
-		if filtered, err := h.gatewayService.FilterCompositeCodexModels(ctx, group.ID, models); err == nil {
+		if filtered, err := h.gatewayService.FilterCompositeEndpointModels(ctx, group.ID, models, service.CompositeRouteEndpointResponses); err == nil {
 			return filtered
 		}
 		return models

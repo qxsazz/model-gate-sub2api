@@ -88,6 +88,7 @@ type cacheWriteTask struct {
 	groupID          int64
 	apiKeyID         int64
 	balance          float64
+	balanceExpiry    time.Time
 	amount           float64
 	subscriptionData *subscriptionCacheData
 }
@@ -220,7 +221,7 @@ func (s *BillingCacheService) cacheWriteWorker(ch <-chan cacheWriteTask) {
 		ctx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 		switch task.kind {
 		case cacheWriteSetBalance:
-			s.setBalanceCache(ctx, task.userID, task.balance)
+			s.setBalanceCache(ctx, task.userID, task.balance, task.balanceExpiry)
 		case cacheWriteSetSubscription:
 			s.setSubscriptionCache(ctx, task.userID, task.groupID, task.subscriptionData)
 		case cacheWriteUpdateSubscriptionUsage:
@@ -312,7 +313,8 @@ func (s *BillingCacheService) logCacheWriteDrop(task cacheWriteTask, reason stri
 func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
 	if s.cache == nil {
 		// Redis不可用，直接查询数据库
-		return s.getUserBalanceFromDB(ctx, userID)
+		balance, _, err := s.getUserBalanceFromDB(ctx, userID)
+		return balance, err
 	}
 
 	// 尝试从缓存读取
@@ -326,16 +328,17 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 		loadCtx, cancel := context.WithTimeout(context.Background(), balanceLoadTimeout)
 		defer cancel()
 
-		balance, err := s.getUserBalanceFromDB(loadCtx, userID)
+		balance, expiry, err := s.getUserBalanceFromDB(loadCtx, userID)
 		if err != nil {
 			return nil, err
 		}
 
 		// 异步建立缓存
 		_ = s.enqueueCacheWrite(cacheWriteTask{
-			kind:    cacheWriteSetBalance,
-			userID:  userID,
-			balance: balance,
+			kind:          cacheWriteSetBalance,
+			userID:        userID,
+			balance:       balance,
+			balanceExpiry: expiry,
 		})
 		return balance, nil
 	})
@@ -350,20 +353,33 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 }
 
 // getUserBalanceFromDB 从数据库获取用户余额
-func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID int64) (float64, error) {
+func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID int64) (float64, time.Time, error) {
+	if repo, ok := s.userRepo.(interface {
+		GetBillingBalance(context.Context, int64) (float64, time.Time, error)
+	}); ok {
+		return repo.GetBillingBalance(ctx, userID)
+	}
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return 0, fmt.Errorf("get user balance: %w", err)
+		return 0, time.Time{}, fmt.Errorf("get user balance: %w", err)
 	}
-	return user.Balance, nil
+	return user.Balance, time.Time{}, nil
 }
 
 // setBalanceCache 设置余额缓存
-func (s *BillingCacheService) setBalanceCache(ctx context.Context, userID int64, balance float64) {
+func (s *BillingCacheService) setBalanceCache(ctx context.Context, userID int64, balance float64, expiry time.Time) {
 	if s.cache == nil {
 		return
 	}
-	if err := s.cache.SetUserBalance(ctx, userID, balance); err != nil {
+	var err error
+	if expiry.IsZero() {
+		err = s.cache.SetUserBalance(ctx, userID, balance)
+	} else if timed, ok := s.cache.(interface {
+		SetUserBalanceUntil(context.Context, int64, float64, time.Time) error
+	}); ok {
+		err = timed.SetUserBalanceUntil(ctx, userID, balance, expiry)
+	}
+	if err != nil {
 		logger.LegacyPrintf("service.billing_cache", "Warning: set balance cache failed for user %d: %v", userID, err)
 	}
 }

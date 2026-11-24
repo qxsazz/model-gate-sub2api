@@ -67,6 +67,7 @@ export interface AchievementState extends AchievementAccessSnapshot {
   timezone: string
   tier: number
   daily_amount: number
+  checkin_credit?: { available: number; next_amount: number; next_expiry: string } | null
   daily_rewards: number[]
   cash_reason: string
   milestone_cash_enabled: boolean

@@ -10,6 +10,16 @@ This directory contains files for deploying Sub2API on Linux servers and Apple-s
 | **Apple container** | Native local stack on macOS 26 | Not needed (auto-setup) |
 | **Binary Install** | Production servers, systemd | Web-based wizard |
 
+## ModelGate 在线对话
+
+测试和生产发布流程会安装 `docker-compose.webchat.yml`。该文件在项目专属的内部网络运行官方 Open WebUI v0.13.4-slim，镜像固定到摘要。浏览器从 ModelGate 的「在线对话」进入，使用当前用户在本站创建的密钥。Open WebUI 的服务密码只用于容器间登录，由发布脚本按环境生成并保存在站点目录 `.webchat/service-password`。
+
+发送框支持上传 PNG、JPEG 和 WebP 图片，每轮最多 3 张，合计不超过 4 MiB。发送图片需选择支持视觉输入的模型。升级前已保存的文档仍可在原会话中继续引用。原用户可使用原密钥下载原件，直至会话删除或到期。
+
+会话在 ModelGate 的 PostgreSQL 中保存。最后一次成功对话后满 5 天即到期，后台定时清理。附件随所属会话到期或删除。数据库逻辑备份保留表结构，并排除会话、附件和临时预留记录。Open WebUI 的数据目录使用 tmpfs。容器重启后会凭环境专用密码重建服务身份，用户继续从 ModelGate 读取有效会话。
+
+手动执行已启用站点的 Compose 命令时，在既有 `-f` 参数后追加 `-f docker-compose.webchat.yml`。手动回退到引入在线对话之前的镜像时，可先用这组文件执行 `stop open-webui`，再将这个附加文件移出发布目录并用原有发布脚本恢复上一镜像。重新发布在线对话时，工作流会恢复附加文件。原有的生产镜像归档和数据库备份继续用于回退。
+
 ## Files
 
 | File | Description |

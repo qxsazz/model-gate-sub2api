@@ -1,0 +1,69 @@
+# Optional overlay for the ModelGate chat page. The managed release scripts install it
+# alongside the site's base Compose file and create a separate credential per site.
+services:
+  sub2api:
+    environment:
+      WEBCHAT_OPEN_WEBUI_URL: http://open-webui:8080
+      WEBCHAT_OPEN_WEBUI_EMAIL: webchat@modelgate.internal
+      WEBCHAT_OPEN_WEBUI_PASSWORD_FILE: /run/secrets/webchat_password
+    networks:
+      webchat:
+      sub2api-network:
+    secrets:
+      - webchat_password
+
+  open-webui:
+    # Open WebUI v0.13.4-slim, official multi-platform image.
+    image: ghcr.io/open-webui/open-webui:v0.13.4-slim@sha256:0c4439e78c24c85e3e7a41936771d3b02f0df38daf28a086cd83ca74804f7676
+    restart: unless-stopped
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: '1.0'
+    networks: [webchat]
+    secrets: [webchat_password]
+    tmpfs:
+      - /app/backend/data:size=128m,mode=0700,uid=1000,gid=1000
+      - /tmp:size=64m,mode=1777
+    environment:
+      # All sidecar traffic is local to this Compose network, including callback tickets.
+      NO_PROXY: "*"
+      no_proxy: "*"
+      HOME: /tmp
+      WEBUI_SECRET_KEY_FILE: /app/backend/data/.webui_secret_key
+      STATIC_DIR: /app/backend/data/static
+      WEBUI_ADMIN_EMAIL: webchat@modelgate.internal
+      WEBUI_AUTH: 'true'
+      ENABLE_SIGNUP: 'false'
+      ENABLE_PERSISTENT_CONFIG: 'false'
+      ENABLE_OLLAMA_API: 'false'
+      ENABLE_MEMORIES: 'false'
+      ENABLE_VERSION_UPDATE_CHECK: 'false'
+      OFFLINE_MODE: 'true'
+      AUDIT_LOG_LEVEL: NONE
+      OPENAI_API_BASE_URL: http://sub2api:8080/api/internal/webchat/v1
+      OPENAI_API_CONFIGS: '{"0":{"enable":true,"auth_type":"none","model_ids":["modelgate-chat"],"headers":{"X-ModelGate-Ticket":"{{MESSAGE_ID}}"}}}'
+    command:
+      - bash
+      - -euc
+      - |
+        WEBUI_ADMIN_PASSWORD="$$(cat /run/secrets/webchat_password)"
+        test -n "$$WEBUI_ADMIN_PASSWORD"
+        export WEBUI_ADMIN_PASSWORD
+        exec bash start.sh
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/health]
+      interval: 5s
+      timeout: 3s
+      start_period: 60s
+      retries: 6
+
+networks:
+  webchat:
+    internal: true
+
+secrets:
+  webchat_password:
+    file: ./.webchat/service-password

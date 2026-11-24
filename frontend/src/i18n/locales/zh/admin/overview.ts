@@ -705,6 +705,8 @@ export default {
       withdraw: '退款',
       depositAmount: '充值金额',
       withdrawAmount: '退款金额',
+      depositPrincipalHint: '每充 1 个余额单位，签到与成就的有效充值增加 ¥1。',
+      withdrawPrincipalHint: '退款会冲减本规则启用后累计的后台充值本金，最多扣至零。',
       withdrawAll: '全部',
       depositNotesPlaceholder: '例如：新用户注册奖励、活动充值、补偿充值等',
       withdrawNotesPlaceholder: '例如：服务问题退款、错误充值退回、账户注销退款等',

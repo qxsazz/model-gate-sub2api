@@ -86,6 +86,8 @@ jobs:
             "$target:$STAGING_DEPLOY_PATH/docker-compose.base.yml"
           scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
             deploy/docker-compose.staging.yml \
+            deploy/docker-compose.webchat.yml \
+            deploy/scripts/verify-webchat.py \
             deploy/scripts/sub2api-staging-init.sh \
             deploy/scripts/sub2api-deploy.sh \
             deploy/scripts/configure-staging-bot.py \
@@ -150,16 +152,16 @@ jobs:
             "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T sub2api sh" \
             < deploy/scripts/verify-gateway-recovery.sh
 
-      - name: Verify achievement recharge admission with rolled-back synthetic data
+      - name: Verify achievement recharge admission and check-in credit expiry
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           STAGING_DEPLOY_PATH: ${{ vars.STAGING_DEPLOY_PATH || '/opt/sub2api-staging' }}
         run: |
           set -euo pipefail
-          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'" \
-            < deploy/sql/verify-achievement-recharge-access.sql
+          cat deploy/sql/verify-achievement-recharge-access.sql deploy/sql/verify-checkin-credit-expiry.sql | \
+            ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose --project-name sub2api-staging --env-file '$STAGING_DEPLOY_PATH/.env' -f '$STAGING_DEPLOY_PATH/docker-compose.base.yml' -f '$STAGING_DEPLOY_PATH/docker-compose.staging.yml' exec -T postgres sh -c 'psql -X -A -t -v ON_ERROR_STOP=1 -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
 
       - name: Verify Bot integration over staging HTTPS with disposable QQ and WeChat events
         env:

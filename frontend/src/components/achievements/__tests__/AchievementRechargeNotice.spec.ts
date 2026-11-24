@@ -25,6 +25,7 @@ describe('achievement recharge guidance', () => {
     expect(wrapper.text()).toContain('¥12.00')
     expect(wrapper.text()).toContain('¥9.99')
     expect(wrapper.text()).toContain('¥2.01')
+    expect(wrapper.text()).toContain('后台每充 1 个余额单位计 ¥1')
     expect(wrapper.text()).toContain('正常消费余额不会影响资格')
     expect(wrapper.text()).not.toContain('$')
     expect(wrapper.get('a').attributes('href')).toBe('/purchase')

@@ -73,7 +73,7 @@ func TestCompositeRouteResolverCodexFilteringMatchesProductionPriority(t *testin
 				scenario.routes[index].GroupID = 7
 			}
 			resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: scenario.routes})
-			models, err := resolver.FilterCodexModels(context.Background(), 7, []string{"alias", "unrouted"})
+			models, err := resolver.FilterEndpointModels(context.Background(), 7, []string{"alias", "unrouted"}, CompositeRouteEndpointResponses)
 			require.NoError(t, err)
 			require.Equal(t, scenario.want, models)
 			decision, err := resolver.Resolve(context.Background(), 7, "alias", CompositeRouteEndpointResponses)

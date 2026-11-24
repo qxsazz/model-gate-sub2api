@@ -205,6 +205,8 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	webchat *WebchatHandler,
+	webchatBridge *service.WebchatBridge,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -212,6 +214,8 @@ func ProvideHandlers(
 	cfg *config.Config,
 ) *Handlers {
 	return &Handlers{
+		Webchat:          webchat,
+		WebchatBridge:    webchatBridge,
 		Canvas:           NewCanvasHandler(db, apiKeyHandler.apiKeyService, cfg),
 		Auth:             authHandler,
 		User:             userHandler,
@@ -241,6 +245,7 @@ func ProvideHandlers(
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
 	// Top-level handlers
+	NewWebchatHandler,
 	NewAuthHandler,
 	NewUserHandler,
 	NewMCPOAuthHandler,

@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import AchievementsView from '@/views/user/AchievementsView.vue'
+import { calendarEntryFor, calendarStatusFor } from '@/components/achievements/calendarContent'
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -179,12 +180,41 @@ describe('achievement checkin', () => {
     const count = mocks.previewCard.mock.calls.length
     await w.get('[data-testid="calendar-day-2026-10-07"]').trigger('click')
     expect(w.get('.card-dialog').text()).toContain('这一天的签到')
-    expect(w.get('.card-dialog').text()).toContain('还未到来的日子，也值得期待')
+    const day = calendarEntryFor('2026-10-07')
+    expect(w.get('.day-record-status').text()).toContain('4 天')
+    expect(w.get('.day-inline-tip h3').text()).toBe(day.question)
+    expect(w.get('.day-inline-tip .daily-tip').text()).toContain(day.tip)
+    expect(w.get('.day-letter').text()).toContain(day.recommended)
+    expect(w.get('.token-inspiration h4').text()).toBe(day.title)
     expect(w.get('.card-dialog').text()).toContain('2026-10-07')
     expect(w.get('.card-dialog').find('.day-inline-tip svg').exists()).toBe(
       true,
     )
     expect(mocks.previewCard.mock.calls.length).toBe(count)
+  })
+  it('preserves signed and pre-registration status and explains blocked dates in the backfill window', async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn()
+    mocks.get.mockResolvedValue({
+      ...state, date: '2026-10-10', joined_date: '2026-10-03', calendar: ['2026-10-05'],
+      card_min_date: '2026-10-03', card_max_date: '2026-10-09',
+      access_unlocked: false, access_reason: 'recharge_required', minimum_recharge_cny: 10,
+      qualified_recharge_cny: 0, remaining_recharge_cny: 10,
+    })
+    const w = render()
+    await flushPromises()
+    const select = (date: string) => w.get(`[data-testid="calendar-day-${date}"]`).trigger('click')
+    const previews = mocks.previewCard.mock.calls.length
+    await select('2026-10-05')
+    expect(w.get('.day-record-status').text()).toBe(calendarStatusFor('2026-10-05', 'signed'))
+    await select('2026-10-02')
+    expect(w.get('.day-record-status').text()).toBe(calendarStatusFor('2026-10-02', 'beforeJoin'))
+    await select('2026-10-09')
+    expect(w.get('.day-record-status').text()).toContain('有效充值')
+    await select('2026-10-10')
+    expect(w.get('.day-record-status').text()).toContain('有效充值')
+    expect(w.get('.card-dialog .primary').attributes('disabled')).toBeDefined()
+    expect(mocks.previewCard.mock.calls.length).toBe(previews)
+    w.unmount()
   })
   it('keeps poetic introductions in details and hides the next goal after completion', async () => {
     HTMLDialogElement.prototype.showModal = vi.fn()
@@ -375,6 +405,20 @@ describe('achievement checkin', () => {
     )
     expect(w.text()).toContain('已领取 1 张补签卡')
   })
+  it('shows spendable check-in credit and the next expiry in Beijing time', async () => {
+    mocks.get.mockResolvedValue({ ...state, checkin_credit: {
+      available: 1.0015, next_amount: 0.0015, next_expiry: '2027-02-28T10:15:24Z',
+    } })
+    const w = render()
+    await flushPromises()
+    const policy = w.get('[data-testid="checkin-credit-policy"]')
+    expect(policy.text()).toContain('$1.0015')
+    expect(policy.text()).toContain('$0.0015')
+    expect(policy.get('time').text()).toContain('18:15:24')
+    expect(policy.get('time').attributes('datetime')).toBe('2027-02-28T10:15:24Z')
+    w.unmount()
+  })
+
   it('shows the current cash policy separately from an earlier zero-reward receipt', async () => {
     mocks.get.mockResolvedValue({
       ...state,

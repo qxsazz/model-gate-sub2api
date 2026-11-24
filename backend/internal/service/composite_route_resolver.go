@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -59,8 +60,10 @@ func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, grou
 	}
 	models := make([]string, 0, len(routes))
 	for _, route := range routes {
+		scope := normalizeCompositeRouteEndpoint(route.Endpoint)
 		if route.Enabled && route.MatchType == CompositeRouteMatchExact &&
-			(endpoint == "" || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny || normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint) {
+			(endpoint == "" || scope == CompositeRouteEndpointAny || scope == endpoint ||
+				(endpoint == WebchatCatalogScope && slices.Contains(webchatEndpoints, scope))) {
 			if model := strings.TrimSpace(route.PublicModel); model != "" {
 				models = append(models, model)
 			}
@@ -72,7 +75,7 @@ func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, grou
 	return models, nil
 }
 
-func (r *CompositeRouteResolver) FilterCodexModels(ctx context.Context, groupID int64, models []string) ([]string, error) {
+func (r *CompositeRouteResolver) FilterEndpointModels(ctx context.Context, groupID int64, models []string, endpoint string) ([]string, error) {
 	if r == nil || r.repo == nil || groupID <= 0 {
 		return models, nil
 	}
@@ -80,12 +83,18 @@ func (r *CompositeRouteResolver) FilterCodexModels(ctx context.Context, groupID 
 	if err != nil {
 		return nil, err
 	}
-	return filterSystemOneRouteModels(routes, models, CompositeRouteEndpointResponses), nil
+	return filterSystemOneRouteModels(routes, models, endpoint), nil
 }
 
 func filterSystemOneRouteModels(routes []CompositeModelRoute, models []string, endpoint string) []string {
 	filtered := make([]string, 0, len(models))
 	for _, model := range models {
+		if endpoint == WebchatCatalogScope {
+			if chosen, matched := matchWebchatRoute(routes, model); !matched || chosen != "" {
+				filtered = append(filtered, model)
+			}
+			continue
+		}
 		route, matched := matchCompositeRoute(routes, model, normalizeCompositeRouteEndpoint(endpoint))
 		if !matched || route.TargetPlatform != PlatformTypeSafe {
 			filtered = append(filtered, model)
@@ -130,6 +139,11 @@ func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, mod
 		}
 	}
 
+	return r.resolveUnroutedModel(ctx, decision)
+}
+
+func (r *CompositeRouteResolver) resolveUnroutedModel(ctx context.Context, decision CompositeRouteDecision) (CompositeRouteDecision, error) {
+	groupID, model, endpoint := decision.GroupID, decision.PublicModel, decision.Endpoint
 	if r != nil && r.modelOwnershipResolver != nil && groupID > 0 {
 		ownership, err := r.modelOwnershipResolver(ctx, groupID, model)
 		if err != nil {

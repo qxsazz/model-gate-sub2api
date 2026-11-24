@@ -85,6 +85,8 @@ jobs:
             deploy/docker-compose.production.override.yml \
             "$target:$PRODUCTION_DEPLOY_PATH/docker-compose.cicd.yml"
           scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            deploy/docker-compose.webchat.yml \
+            deploy/scripts/verify-webchat.py \
             deploy/scripts/sub2api-deploy.sh \
             "$target:$PRODUCTION_DEPLOY_PATH/"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$target" \

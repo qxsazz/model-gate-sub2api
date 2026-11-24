@@ -54,6 +54,7 @@ pnpm-debug.log*
 .env.*.local
 *.env
 !.env.example
+.webchat/
 docker-compose.override.yml
 
 # ===================

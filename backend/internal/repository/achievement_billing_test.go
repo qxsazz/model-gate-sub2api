@@ -17,7 +17,7 @@ func TestAchievementGrowthSharesBillingTransaction(t *testing.T) {
 	m.ExpectBegin()
 	tx, e := db.BeginTx(context.Background(), nil)
 	require.NoError(t, e)
-	m.ExpectQuery(conditionalBalanceDeductSQL).WithArgs(.01, int64(42)).WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(9.99))
+	m.ExpectQuery(chargeBalanceSQL).WithArgs(int64(42), .01).WillReturnRows(sqlmock.NewRows([]string{"balance", "sufficient"}).AddRow(9.99, true))
 	m.ExpectExec("INSERT INTO achievement_growth").WithArgs(int64(42), int64(150), true).WillReturnResult(sqlmock.NewResult(0, 1))
 	m.ExpectCommit()
 	e = (&usageBillingRepository{}).applyUsageBillingEffects(context.Background(), tx, &service.UsageBillingCommand{UserID: 42, BalanceCost: .01, InputTokens: 100, OutputTokens: 50}, &service.UsageBillingApplyResult{})

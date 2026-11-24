@@ -153,9 +153,9 @@
                 </p>
                 <section class="token-inspiration" aria-label="Token 使用灵感">
                   <div>
-                    <span class="eyebrow">TOKEN · 今日使用灵感</span>
-                    <h4>{{ tokenTheme.name }}</h4>
-                    <p>{{ tokenTheme.text }}</p>
+                    <span class="eyebrow">TOKEN · {{ companionDate === state.date ? '今日使用灵感' : '当日使用灵感' }}</span>
+                    <h4>{{ dailyEntry.title }}</h4>
+                    <p>{{ dailyEntry.question }}</p>
                   </div>
                   <button
                     class="text-link"
@@ -218,6 +218,14 @@
                   {{ recordedCashReason(state.today.reason) }}
                 </p></template
               >
+              <div class="quiet-note flex-col" data-testid="checkin-credit-policy">
+                <p>新发的签到奖励自到账起有效 1 个月。消费时先用最早到期的签到金额，到期剩余部分自动清零。</p>
+                <p v-if="state.checkin_credit">
+                  可用签到金额 <strong>${{ creditAmount.format(state.checkin_credit.available) }}</strong>，
+                  其中 ${{ creditAmount.format(state.checkin_credit.next_amount) }} 将于
+                  <time :datetime="state.checkin_credit.next_expiry">{{ formatDateTime(state.checkin_credit.next_expiry, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
+                </p>
+              </div>
               <div class="sign-stats day-stats">
                 <div>
                   <strong>{{ state.streak }}</strong
@@ -529,7 +537,11 @@
           </p>
           <div class="day-inline-tip">
             <AchievementIcon name="sun" />
-            <p>{{ dayTip }}</p>
+            <div>
+              <p class="eyebrow">每日一问</p>
+              <h3>{{ dailyEntry.question }}</h3>
+              <p class="daily-tip"><strong>小提示</strong> · {{ dailyEntry.tip }}</p>
+            </div>
           </div>
           <p v-if="actionError" class="quiz-error" role="alert">
             {{ actionError }}
@@ -767,7 +779,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { formatMoneyFixed as money } from '@/utils/format'
+import { formatDateTime, formatMoneyFixed as money } from '@/utils/format'
 import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
 import '@/components/achievements/achievement-ui.css'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -776,12 +788,8 @@ import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
 import AchievementRechargeNotice from '@/components/achievements/AchievementRechargeNotice.vue'
 import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
-import {
-  dayIndex,
-  tokenThemes,
-  dayWhispers,
-  lunarDate,
-} from '@/components/achievements/companion'
+import { lunarDate } from '@/components/achievements/companion'
+import { calendarEntryFor, calendarFutureStatus, calendarStatusFor } from '@/components/achievements/calendarContent'
 import {
   getAchievements,
   changeAchievement,
@@ -803,6 +811,11 @@ const auth = useAuthStore(),
   tab = ref('sign'),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
+const creditAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
+const creditDateFormat: Intl.DateTimeFormatOptions = {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+}
 const requestKey = ref(crypto.randomUUID())
 const accessRefreshing = ref(false)
 const requireAccessConfirmation = ref(false)
@@ -913,15 +926,10 @@ const nextActivityMedal = computed(
     visible.value.find((m) => !m.unlocked) ??
     visible.value.at(-1),
 )
-const tokenTheme = computed(
-  () =>
-    tokenThemes[
-      dayIndex(companionDate.value || '2026-01-01') % tokenThemes.length
-    ],
-)
+const dailyEntry = computed(() => calendarEntryFor(companionDate.value || '2026-01-01'))
 async function copyPrompt() {
   try {
-    await navigator.clipboard.writeText(tokenTheme.value.prompt)
+    await navigator.clipboard.writeText(dailyEntry.value.prompt)
     message.value = '提问示例已复制，把括号里的内容换成你的问题即可。'
   } catch {
     message.value = '复制暂不可用，请稍后重试。'
@@ -1269,26 +1277,23 @@ const claimed = (m: Medal) => !!(m.card_reward ? m.card_claim : m.claim)
 const cardEligible = computed(
   () => !!state.value && canBackfillDate(cardDay.value),
 )
-const dayTip = computed(
-  () =>
-    dayWhispers[
-      dayIndex(cardDay.value || state.value?.date || '2026-01-01') %
-        dayWhispers.length
-    ][0],
-)
 const dayRecord = computed(() =>
   state.value?.history.find((h) => h.day === cardDay.value),
 )
 const dayStatus = computed(() => {
   const s = state.value
-  if (!s) return ''
-  if (s.calendar.includes(cardDay.value)) return '这一天已签到，记录已保留。'
-  if (cardDay.value === s.date) return '今天还未签到，收下今天的奖励吧。'
-  if (cardDay.value > s.date) return '还未到来的日子，也值得期待。'
-  if (cardEligible.value) return '这一天留了个空位，可使用补签卡补上。'
-  if (s.joined_date && cardDay.value < s.joined_date)
-    return '这一天还未与你相遇，可以看看这一天的小笺。'
-  return '该日期已超过补签范围，可以看看这一天的小笺。'
+  const day = cardDay.value
+  if (!s || !day) return ''
+  if (s.calendar.includes(day) || (day === s.date && s.today)) return calendarStatusFor(day, 'signed')
+  if (day > s.date) return calendarFutureStatus(day, s.date)
+  if (s.joined_date && day < s.joined_date) return calendarStatusFor(day, 'beforeJoin')
+  if (day === s.date) {
+    return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'today')
+  }
+  if (s.card_min_date && s.card_max_date && day >= s.card_min_date && day <= s.card_max_date) {
+    return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'makeup')
+  }
+  return calendarStatusFor(day, 'archived')
 })
 const joinedDateLabel = computed(() => {
   if (!state.value?.joined_date) return '初次相遇'

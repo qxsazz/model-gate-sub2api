@@ -36,17 +36,21 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 		"262_chat_binding_decline.sql":                   true,
 		"263_chat_trial_credit.sql":                      true,
 	}
-	upstreamUpdates := map[string]bool{
+	laterMigrations := map[string]bool{
 		"251_group_force_openai_ultrafast.sql":         true,
 		"251_group_usage_rollup_nonblocking_build.sql": true,
 		"252_channel_pricing_ultrafast_multiplier.sql": true,
+		"264_admin_recharge_principal.sql":             true,
+		"265_webchat_sessions.sql":                     true,
+		"266_webchat_attachments.sql":                  true,
+		"267_checkin_credit_expiry.sql":                true,
 	}
 	names, err := fs.Glob(migrations.FS, "*.sql")
 	require.NoError(t, err)
 	old := fstest.MapFS{}
 	staging := fstest.MapFS{}
 	for _, name := range names {
-		if upstreamUpdates[name] {
+		if laterMigrations[name] {
 			continue
 		}
 		data, err := migrations.FS.ReadFile(name)
@@ -59,6 +63,9 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 	require.NoError(t, applyMigrationsFS(ctx, db, old))
 	uid := achievementAccessUser(t, db)
 	seedAchievementRecharge(t, db, uid, 10)
+	_, err = db.ExecContext(ctx, `INSERT INTO vip_recharge_ledger(user_id,source,source_id,amount,reason)
+		VALUES($1,'admin_balance','before-admin-principal',100,'Backend balance adjustment')`, uid)
+	require.NoError(t, err)
 	require.NoError(t, applyMigrationsFS(ctx, db, staging))
 	_, err = db.ExecContext(ctx, `SELECT chat_configure_trial_credit(true,3)`)
 	require.NoError(t, err)
@@ -75,8 +82,18 @@ func TestChatBotUpgradeKeepsEveryHistoricalMigrationChecksum(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "claimed", claim.Status)
 
+	// This reward was already mixed with cash under the previous deployment.
+	addCheckinBalanceFixture(t, db, uid, "2026-01-01", 2, time.Now().AddDate(0, -2, 0))
 	require.NoError(t, ApplyMigrations(ctx, db))
+	var pastLots int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM checkin_balance_credits WHERE user_id=$1`, uid).Scan(&pastLots))
+	require.Zero(t, pastLots)
 	require.NoError(t, ApplyMigrations(ctx, db)) // startup retry validates checksums and does not reapply
+	require.Equal(t, 10.0, achievementAccessResult(t, db, uid)["qualified_recharge_cny"])
+	var unmarked bool
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT admin_principal_delta_cny IS NULL FROM vip_recharge_ledger
+		WHERE source='admin_balance' AND source_id='before-admin-principal'`).Scan(&unmarked))
+	require.True(t, unmarked)
 	var policyPreserved bool
 	require.NoError(t, db.QueryRowContext(ctx, `SELECT enabled AND amount=3 AND eligible_after=$1
 		FROM chat_trial_credit_policy`, cutoff).Scan(&policyPreserved))

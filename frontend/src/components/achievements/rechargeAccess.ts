@@ -56,7 +56,7 @@ export function achievementRechargeAccess(
     const refunded = snapshot.access_reason === 'recharge_refunded'
     return { supported: true, blocked: true, kind: refunded ? 'refunded' : 'required', ...amounts,
       message: refunded ? '当前有效充值已扣除确认退款，尚未达到充值门槛。相关操作暂不可用，历史记录保留。' :
-        `累计有效在线余额充值满 ¥${amounts.minimum} 后，可使用签到、答题活动、成就领奖和补签卡。` }
+        `累计有效充值满 ¥${amounts.minimum} 后，可使用签到、答题活动、成就领奖和补签卡。` }
   }
   return unavailable
 }

@@ -45,7 +45,7 @@ describe('documentation registry', () => {
     expect(next?.slug).toBe('codex')
   })
 
-  it('documents actual VIP rules and the staging achievement rollout', () => {
+  it('documents VIP benefits and the available achievement activities', () => {
     const vip = resolveDocument('membership', 'vip')
     expect(vip?.document.source).toContain('0.40 − 0.03 = 0.37')
     expect(vip?.document.source).toContain('0.075')
@@ -59,9 +59,12 @@ describe('documentation registry', () => {
     expect(activities.articles.length).toBeGreaterThanOrEqual(4)
     for (const entry of activities.articles) {
       expect(entry).toMatchObject({ status: 'available' })
-      expect(entry.source).toContain('测试环境')
     }
-    expect(resolveDocument('achievements', 'overview')?.document.source).toContain('21 枚')
+    const overview = resolveDocument('achievements', 'overview')?.document.source || ''
+    expect(overview).toContain('21 枚')
+    for (const entry of activities.articles.filter(article => article.slug !== 'overview')) {
+      expect(overview).toContain(`/docs?cat=achievements&page=${entry.slug}`)
+    }
     expect(resolveDocument('achievements', 'token')?.document.source).toContain('100 万')
     expect(resolveDocument('achievements', 'check-in')?.document.source).toContain('北京时间')
     expect(resolveDocument('achievements', 'activities')?.document.source).toContain('10 题')

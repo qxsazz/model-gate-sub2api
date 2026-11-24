@@ -102,6 +102,7 @@ func provideCleanup(
 	claudeCodeVersionSync *service.ClaudeCodeVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
+	webchatStore *service.WebchatStore,
 	usageCleanup *service.UsageCleanupService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
 	geminiCachedContent *service.GeminiCachedContentService,
@@ -246,6 +247,10 @@ func provideCleanup(
 				if schedulerSnapshot != nil {
 					schedulerSnapshot.Stop()
 				}
+				return nil
+			}},
+			{"WebchatStore", func() error {
+				webchatStore.Stop()
 				return nil
 			}},
 			{"UsageCleanupService", func() error {

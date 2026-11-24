@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
@@ -47,6 +48,8 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	Webchat          *WebchatHandler
+	WebchatBridge    *service.WebchatBridge
 	Canvas           *CanvasHandler
 	Auth             *AuthHandler
 	User             *UserHandler

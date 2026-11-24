@@ -16,9 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newGatewayRoutesTestRouterWithGroup(group *service.Group) *gin.Engine {
+func newGatewayRoutesTestRouterWithGroup(group *service.Group, beforeRoutes ...gin.HandlerFunc) *gin.Engine {
+	return newGatewayGroupRouterWithLimits(group, config.GatewayConfig{MaxBodySize: 1 << 20, TextMaxBodySize: 1 << 20}, beforeRoutes...)
+}
+
+func newGatewayGroupRouterWithLimits(group *service.Group, limits config.GatewayConfig, beforeRoutes ...gin.HandlerFunc) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(beforeRoutes...)
 	RegisterGatewayRoutes(
 		router,
 		&handler.Handlers{
@@ -39,12 +44,7 @@ func newGatewayRoutesTestRouterWithGroup(group *service.Group) *gin.Engine {
 		nil,
 		nil,
 		nil,
-		&config.Config{
-			Gateway: config.GatewayConfig{
-				MaxBodySize:     1024 * 1024,
-				TextMaxBodySize: 1024 * 1024,
-			},
-		},
+		&config.Config{Gateway: limits},
 	)
 	return router
 }
@@ -69,7 +69,7 @@ func TestGatewayRoutesGroupModelAllowlistMountedOnEveryGatewayRoute(t *testing.T
 	source := string(routeSource)
 
 	// rootRoute helper：apiKeyAuth 之后、compositeTarget 之前。
-	rootHelper := regexp.MustCompile(regexp.QuoteMeta(`r.Handle(method, path, handler.GatewayClientErrorMessages(), limit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic, next)`))
+	rootHelper := regexp.MustCompile(regexp.QuoteMeta(`r.Handle(method, path, handler.GatewayClientErrorMessages(), limit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, rejectConflictingFields, compositeTarget, requireGroupAnthropic, next)`))
 	require.Regexp(t, rootHelper, source,
 		"root alias helper must place the allowlist between apiKeyAuth and compositeTarget")
 
@@ -94,7 +94,7 @@ func TestGatewayRoutesGroupModelAllowlistMountedOnEveryGatewayRoute(t *testing.T
 	}
 
 	// codexDirect 链是一条 Use 调用，直接断言顺序。
-	codexDirect := regexp.MustCompile(regexp.QuoteMeta(`codexDirect.Use(handler.GatewayClientErrorMessages(), bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic)`))
+	codexDirect := regexp.MustCompile(regexp.QuoteMeta(`codexDirect.Use(handler.GatewayClientErrorMessages(), groupBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, rejectConflictingFields, compositeTarget, requireGroupAnthropic)`))
 	require.Regexp(t, codexDirect, source, "codexDirect chain must mount the allowlist after auth and before compositeTarget")
 
 	// 所有带 apiKeyAuth 的根路径路由必须收敛到 rootRoute，避免漏挂。

@@ -464,4 +464,9 @@ func TestChatBotWebsiteQQWechatConcurrentOneReward(t *testing.T) {
 	require.Greater(t, gross, 0.0)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, uid).Scan(&balance))
 	require.Equal(t, gross, balance)
+	var lots int
+	var available float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT count(*),COALESCE(sum(remaining),0) FROM checkin_balance_credits WHERE user_id=$1`, uid).Scan(&lots, &available))
+	require.Equal(t, 1, lots)
+	require.Equal(t, gross, available)
 }

@@ -249,6 +249,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/chat',
+    name: 'WebChat',
+    component: () => import('@/views/user/WebChatView.vue'),
+    meta: { requiresAuth: true, title: 'Chat', titleKey: 'webChat.title' }
+  },
+  {
     path: '/infinite-canvas',
     name: 'InfiniteCanvas',
     component: () => import('@/views/user/InfiniteCanvasView.vue'),

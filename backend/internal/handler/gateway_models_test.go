@@ -23,6 +23,82 @@ type gatewayModelsAccountRepoStub struct {
 	byGroup map[int64][]service.Account
 }
 
+func TestGatewayModelsAnthropicLongContextVariants(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const groupID int64 = 8880
+	for _, test := range []struct {
+		name          string
+		platform      string
+		mapping       map[string]any
+		metadata      map[string]service.UpstreamModelMetadata
+		allowlist     []string
+		routing       map[string][]int64
+		otherAccounts []service.Account
+		wantVariants  []string
+		absent        []string
+	}{
+		{name: "mapped target and threshold", mapping: map[string]any{"public": "upstream", "short": "short", "max-only": "max-only"},
+			metadata:     map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 900_000}, "short": {ContextWindow: 899_999}, "max-only": {MaxContextWindow: 1_000_000}, "hidden": {ContextWindow: 1_000_000}},
+			wantVariants: []string{"public[1m]"}, absent: []string{"upstream", "upstream[1m]", "hidden", "hidden[1m]", "short[1m]", "max-only[1m]", claude.DefaultModels[0].ID}},
+		{name: "wildcard mappings are not concrete variants", mapping: map[string]any{"public*": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, absent: []string{"public*[1m]"}},
+		{name: "source metadata cannot override mapped target", mapping: map[string]any{"public": "short"},
+			metadata: map[string]service.UpstreamModelMetadata{"public": {ContextWindow: 1_000_000}, "short": {ContextWindow: 200_000}}, absent: []string{"public[1m]"}},
+		{name: "no duplicate suffix", mapping: map[string]any{"public": "upstream", "public[1m]": "upstream", "other[1M]": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, wantVariants: []string{"public[1m]", "other[1M]"}, absent: []string{"public[1m][1m]", "other[1M][1m]"}},
+		{name: "allowlist filters variants", mapping: map[string]any{"public": "upstream", "private": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, allowlist: []string{"public"}, absent: []string{"public[1m]", "private", "private[1m]"}},
+		{name: "allowlist can select variant", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, allowlist: []string{"public[1m]"}, wantVariants: []string{"public[1m]"}, absent: []string{"public"}},
+		{name: "routing excludes metadata account", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, routing: map[string][]int64{"public": {2}}, absent: []string{"public[1m]"}},
+		{name: "routing includes metadata account", mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, routing: map[string][]int64{"pub*": {1}}, wantVariants: []string{"public[1m]"}},
+		{name: "non-Anthropic listing", platform: service.PlatformOpenAI, mapping: map[string]any{"public": "upstream"},
+			metadata: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}, absent: []string{"public[1m]"}},
+		{name: "unmapped defaults", metadata: map[string]service.UpstreamModelMetadata{claude.DefaultModels[0].ID: {ContextWindow: 1_000_000}, "hidden": {ContextWindow: 1_000_000}},
+			wantVariants: []string{claude.DefaultModels[0].ID + "[1m]"}, absent: []string{"hidden", "hidden[1m]"}},
+		{name: "other platform account metadata", mapping: map[string]any{"public": "upstream"},
+			otherAccounts: []service.Account{{ID: 2, Platform: service.PlatformOpenAI, Extra: map[string]any{service.UpstreamModelMetadataExtraKey: service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}}}}}, absent: []string{"public[1m]"}},
+		{name: "unsupported model metadata", mapping: map[string]any{"public": "upstream"},
+			otherAccounts: []service.Account{{ID: 2, Platform: service.PlatformAnthropic, Credentials: map[string]any{"model_mapping": map[string]any{"private": "private"}}, Extra: map[string]any{service.UpstreamModelMetadataExtraKey: service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"public": {ContextWindow: 1_000_000}}}}}}, absent: []string{"public[1m]"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			platform := test.platform
+			if platform == "" {
+				platform = service.PlatformAnthropic
+			}
+			account := service.Account{ID: 1, Platform: platform, Type: service.AccountTypeOAuth, Credentials: map[string]any{"model_mapping": test.mapping}}
+			account.SetUpstreamModelMetadataSnapshot(service.UpstreamModelMetadataSnapshot{Models: test.metadata})
+			outsideAccount := service.Account{ID: 3, Platform: service.PlatformAnthropic}
+			outsideAccount.SetUpstreamModelMetadataSnapshot(service.UpstreamModelMetadataSnapshot{Models: map[string]service.UpstreamModelMetadata{"upstream": {ContextWindow: 1_000_000}}})
+			h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{
+				groupID: append([]service.Account{account}, test.otherAccounts...), groupID + 1: {outsideAccount},
+			}})
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			ctx.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{
+				ID: groupID, Platform: platform,
+				ModelAllowlist:      service.GroupModelAllowlist{Enabled: test.allowlist != nil, Models: test.allowlist},
+				ModelRoutingEnabled: test.routing != nil, ModelRouting: test.routing,
+			}})
+			h.Models(ctx)
+			require.Equal(t, http.StatusOK, rec.Code)
+			var response gatewayModelsResponseForTest
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+			ids := modelIDsForTest(response.Data)
+			for _, variant := range test.wantVariants {
+				require.Contains(t, ids, variant)
+			}
+			for _, absent := range test.absent {
+				require.NotContains(t, ids, absent)
+			}
+			require.Len(t, mergeModelIDs(ids, nil), len(ids))
+		})
+	}
+}
+
 type gatewayModelsRouteRepoStub struct {
 	service.CompositeModelRouteRepository
 	routes []service.CompositeModelRoute
@@ -1704,6 +1780,43 @@ func TestGatewayModels_CompositeTypeSafeListingScope(t *testing.T) {
 func TestDefaultModelIDsForPlatform_CompositeFallbackExcludesTypeSafe(t *testing.T) {
 	require.NotContains(t, defaultModelIDsForPlatform(service.PlatformComposite), "jev-latest")
 	require.NotContains(t, defaultCodexModelIDsForPlatform(service.PlatformComposite), "jev-latest")
+}
+
+func TestGatewayModels_ChatPickerUsesKeyGroupAndChatRoutes(t *testing.T) {
+	const groupID = 7784
+	routes := &gatewayModelsRouteRepoStub{routes: []service.CompositeModelRoute{
+		{PublicModel: "shared-gpt", TargetPlatform: service.PlatformOpenAI, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointChatCompletions, Enabled: true},
+		{PublicModel: "gemini-alias", TargetPlatform: service.PlatformGemini, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+		{PublicModel: "claude-alias", TargetPlatform: service.PlatformAnthropic, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+		{PublicModel: "responses-only", TargetPlatform: service.PlatformOpenAI, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointResponses, Enabled: true},
+		{PublicModel: "messages-only", TargetPlatform: service.PlatformAnthropic, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointMessages, Enabled: true},
+		{PublicModel: "gemini-only", TargetPlatform: service.PlatformGemini, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointGemini, Enabled: true},
+		{PublicModel: "images-only", TargetPlatform: service.PlatformOpenAI, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointImages, Enabled: true},
+		{PublicModel: "system-only", TargetPlatform: service.PlatformTypeSafe, MatchType: service.CompositeRouteMatchExact, Endpoint: service.CompositeRouteEndpointAny, Enabled: true},
+	}}
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{}, routes)
+	for _, tc := range []struct {
+		scope string
+		group service.Group
+		want  []string
+	}{
+		{service.CompositeRouteEndpointChatCompletions, service.Group{ID: groupID, Platform: service.PlatformComposite}, []string{"shared-gpt", "gemini-alias", "claude-alias"}},
+		{service.CompositeRouteEndpointChatCompletions, service.Group{ID: groupID, Platform: service.PlatformComposite, ModelAllowlist: service.GroupModelAllowlist{Enabled: true, Models: []string{"claude-alias", "system-only", "responses-only"}}}, []string{"claude-alias"}},
+		{service.WebchatCatalogScope, service.Group{ID: groupID, Platform: service.PlatformComposite}, []string{"shared-gpt", "gemini-alias", "claude-alias", "responses-only", "messages-only", "gemini-only"}},
+		{service.WebchatCatalogScope, service.Group{ID: groupID, Platform: service.PlatformComposite, ModelAllowlist: service.GroupModelAllowlist{Enabled: true, Models: []string{"claude-alias", "system-only", "responses-only"}}}, []string{"claude-alias", "responses-only"}},
+		{service.WebchatCatalogScope, service.Group{ID: groupID, Platform: service.PlatformTypeSafe}, nil},
+		{service.WebchatCatalogScope, service.Group{ID: groupID, Platform: service.PlatformAnthropic, ClaudeCodeOnly: true}, nil},
+	} {
+		rec := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(rec)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models?endpoint="+tc.scope, nil)
+		ctx.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: &tc.group})
+		h.Models(ctx)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var models gatewayModelsResponseForTest
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &models))
+		require.ElementsMatch(t, tc.want, modelIDsForTest(models.Data))
+	}
 }
 
 func TestGatewayModels_CompositeExactRoutesRespectTypeSafeIsolation(t *testing.T) {

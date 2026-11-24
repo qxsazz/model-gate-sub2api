@@ -96,11 +96,49 @@ describe('DocsView', () => {
     expect(writeText.mock.calls[0]?.[0]).not.toContain('curl https://model-gate.cc')
   })
 
-  it('searches navigation and shows the available staging achievement documentation', async () => {
+  it('keeps check-in expiry visible and secondary instructions collapsed', async () => {
+    const { wrapper } = await mountDocs('/docs?cat=achievements&page=check-in')
+    const article = wrapper.get('[data-testid="docs-article"]')
+    expect(article.get('strong').text()).toBe('1 个自然月')
+    expect(article.get('strong').element.closest('details')).toBeNull()
+    const groupGuide = article.findAll('details').find(detail => detail.text().includes('/绑定'))
+    expect(groupGuide?.get('summary').text()).toContain('在群里签到')
+    expect(groupGuide?.element.open).toBe(false)
+  })
+
+  it('links from quick start to the chat guide and both product entry points', async () => {
+    const { wrapper } = await mountDocs('/docs?cat=tutorial&page=quick-start')
+    await wrapper.get('[data-testid="docs-article"] a[href="/docs?cat=tutorial&page=web-chat"]').trigger('click')
+    await flushPromises()
+    const article = wrapper.get('[data-testid="docs-article"]')
+    expect(article.get('a[href="/chat"]').text()).toBe('在线对话')
+    expect(article.get('a[href="/keys"]').text()).toBe('API 密钥')
+    expect(article.text()).toContain('5 天')
+  })
+
+  it('opens the image guide and distinguishes chat retention from canvas retention', async () => {
+    const { wrapper } = await mountDocs('/docs?cat=tutorial&page=quick-start')
+    const prose = () => wrapper.get('[data-testid="docs-article"] .docs-prose')
+
+    await prose().get('a[href="/docs?cat=tutorial&page=image-generation"]').trigger('click')
+    await flushPromises()
+    expect(prose().get('a[href="/infinite-canvas"]').text()).toBe('无限画布')
+    expect(prose().get('a[href="/batch-image"]').text()).toBe('打开批量生图')
+
+    await prose().get('a[href="/docs?cat=about&page=security"]').trigger('click')
+    await flushPromises()
+    const chat = prose().get('a[href="/docs?cat=tutorial&page=web-chat"]').element.closest('li')
+    const canvas = prose().get('a[href="/docs?cat=tutorial&page=image-generation"]').element.closest('li')
+    expect(chat?.textContent).toContain('5 天')
+    expect(chat?.textContent).toContain('删除对话')
+    expect(canvas?.textContent).toContain('7 天')
+  })
+
+  it('searches navigation and shows the achievement collection', async () => {
     const { wrapper, router } = await mountDocs('/docs?cat=achievements&page=overview')
     expect(wrapper.find('[data-testid="docs-coming-soon"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="docs-article"]').text()).toContain('21 枚')
-    expect(wrapper.get('[data-testid="docs-article"]').text()).toContain('测试环境')
+    expect(wrapper.get('[data-testid="docs-article"] a[href="/achievements"]').text()).toBe('成就与签到')
     await wrapper.get('[aria-label="搜索文档"]').setValue('累充')
     expect(wrapper.get('[aria-label="文档目录"]').text()).toContain('累充奖励')
     expect(wrapper.get('[aria-label="文档目录"]').text()).not.toContain('Cursor 接入')

@@ -81,6 +81,12 @@ export default {
     allStatus: 'All Status',
     columnSettings: 'Column Settings',
     columnAlwaysVisible: 'This column is always visible',
+    checkinNotice: {
+      title: 'Daily check-in',
+      description: 'Check in and view your streak in Achievements.',
+      action: 'Check in',
+      newTab: 'opens in a new tab'
+    },
     createKey: 'Create API Key',
     editKey: 'Edit API Key',
     bulkEdit: {
@@ -679,6 +685,7 @@ export default {
     },
     table: {
       model: 'Model',
+      copyModelId: 'Copy model ID {model}',
       input: 'Input',
       output: 'Output',
       cache: 'Cache',

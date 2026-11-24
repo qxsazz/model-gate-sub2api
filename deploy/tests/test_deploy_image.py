@@ -58,6 +58,10 @@ elif args[0]=='compose':
         if os.environ.get('FAIL_VERIFY') and d['image']==os.environ['TARGET'] and 'SUB2API_IMAGE' not in os.environ: image='wrong-image'
         print(image or 'missing-image')
         print('postgres:18-alpine')
+    elif 'up' in args and args[-1]=='open-webui':
+        sys.exit(1 if os.environ.get('FAIL_WEBCHAT_START') else 0)
+    elif 'exec' in args and 'open-webui' in args:
+        sys.exit(1 if os.environ.get('FAIL_WEBCHAT_PROBE') else 0)
     elif 'up' in args:
         if os.environ.get('FAIL_START') and image==os.environ['TARGET']: sys.exit(1)
         d['image']=image;state.write_text(json.dumps(d))
@@ -114,6 +118,35 @@ class DeploymentImageTests(unittest.TestCase):
                 calls=[x for x in self.trace_calls() if '--images' in x[1]]
                 self.assertTrue(calls)
                 self.assertTrue(all(x[2] is None for x in calls),'persistent verification must not inherit the override')
+
+    def enable_webchat(self):
+        (self.stage/'docker-compose.webchat.yml').touch()
+        (self.stage/'verify-webchat.py').touch()
+
+    def test_webchat_starts_before_site_and_secret_survives_redeploy(self):
+        self.enable_webchat()
+        initial = None
+        for attempt in range(2):
+            result = self.run_script('deploy', 'staging', TARGET)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            secret = self.stage/'.webchat'/'service-password'
+            self.assertEqual(stat.S_IMODE(secret.parent.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(secret.stat().st_mode), 0o444)
+            self.assertRegex(secret.read_text().strip(), r'^[a-f0-9]{64}$')
+            if attempt == 0:
+                initial = secret.read_text()
+            self.assertEqual(secret.read_text(), initial)
+        self.assertNotIn(initial.strip(), self.trace.read_text())
+        starts = [a[-1] for _, a, _ in self.trace_calls() if 'up' in a]
+        self.assertEqual(starts, ['open-webui', 'sub2api'] * 2)
+
+    def test_webchat_failure_preserves_previous_image(self):
+        self.enable_webchat()
+        for failure in ('FAIL_WEBCHAT_START', 'FAIL_WEBCHAT_PROBE'):
+            with self.subTest(failure=failure):
+                result = self.run_script('deploy', 'staging', TARGET, **{failure: '1'})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.image(), PREVIOUS)
 
     def test_health_failure_rolls_back_running_and_persistent_image(self):
         r=self.run_script('deploy','production',TARGET,FAIL_HEALTH='1')
