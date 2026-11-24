@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div data-testid="payment-luxury-page" class="payment-luxury-page">
-      <div class="payment-page-inner with-vip mx-auto max-w-4xl space-y-6">
+      <div class="payment-page-inner mx-auto space-y-6" :class="{ 'with-vip': activeTab === 'recharge' && paymentPhase === 'select' }">
       <div v-if="loading" class="payment-loading" aria-busy="true" aria-label="正在加载充值信息">
         <div class="loading-account" /><div class="loading-workspace"><div class="loading-control" /><div class="loading-control" /></div><div class="loading-levels"><span v-for="n in 6" :key="n" /></div>
       </div>
@@ -41,10 +41,6 @@
           <!-- Top-up Tab -->
           <template v-else-if="activeTab === 'recharge'">
             <div class="recharge-theme recharge-page">
-              <header class="recharge-page-heading">
-                <div><h1>{{ t('payment.rechargePage.title') }}</h1><p>{{ t('payment.rechargePage.intro') }}</p></div>
-                <RouterLink to="/orders" class="recharge-orders"><Icon name="clock" size="sm" />{{ t('payment.rechargePage.orders') }}</RouterLink>
-              </header>
               <VIPMembershipCard class="recharge-wallet" variant="banner" :level="effectiveLevel ?? 0"
                 :name="t('payment.rechargePage.wallet')" threshold-label="" :benefits="[]">
                 <div class="recharge-wallet-inner">
@@ -65,7 +61,7 @@
                 <section v-if="!enabledMethods.length" class="recharge-panel recharge-unavailable">
                   {{ t('payment.notAvailable') }}
                 </section>
-                <section v-else class="recharge-panel recharge-form">
+                <section v-else class="recharge-form" :aria-label="t('payment.amountLabel')">
                   <div
                     v-if="renderedBonusNotice"
                     class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 [&_a]:font-medium [&_a]:underline [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:ml-5 [&_ul]:list-disc"
@@ -84,12 +80,15 @@
                   />
                   <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
                   <div class="recharge-methods">
-                    <PaymentMethodSelector recharge :methods="methodOptions" :selected="selectedMethod" @select="selectedMethod = $event" />
+                    <PaymentMethodSelector :methods="methodOptions" :selected="selectedMethod" @select="selectedMethod = $event" />
                   </div>
                 </section>
-                <div class="recharge-aside">
-                  <section v-if="enabledMethods.length" class="recharge-panel recharge-summary">
-                    <div class="recharge-section-head"><h2><Icon name="document" size="sm" />{{ t('payment.rechargePage.summary') }}</h2></div>
+                <section class="recharge-panel recharge-summary" aria-labelledby="recharge-summary-title">
+                  <div class="recharge-section-head">
+                    <h2 id="recharge-summary-title"><Icon name="document" size="sm" />{{ t('payment.rechargePage.summary') }}</h2>
+                    <RouterLink to="/orders" class="recharge-orders"><Icon name="clock" size="sm" />{{ t('payment.rechargePage.orders') }}</RouterLink>
+                  </div>
+                  <template v-if="enabledMethods.length">
                     <dl class="recharge-sum-list">
                       <div><dt>{{ t('payment.rechargePage.principal') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(validAmount) : '—' }}</dd></div>
                       <div v-if="discountAmount > 0" data-testid="recharge-discount-row">
@@ -112,13 +111,17 @@
                     </dl>
                     <p v-if="validAmount && balanceRechargeMultiplier !== 1" class="recharge-note">{{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}</p>
                     <button type="button" class="btn payment-submit-button recharge-submit" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-                      {{ t(submitting ? 'common.processing' : 'payment.rechargePage.createOrder') }} <Icon v-if="!submitting" name="arrowRight" size="sm" />
+                      <span v-if="submitting" class="flex items-center gap-2">
+                        <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        {{ t('common.processing') }}
+                      </span>
+                      <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
                     </button>
-                  </section>
+                  </template>
                   <RechargeVIPBenefits v-model:show="showBenefits" :amount="validAmount" :currency="selectedCurrency"
                     :growth-rates="checkout.vip_growth_rates" :current-multiplier="balanceRechargeMultiplier"
                     :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" @snapshot="vipSnapshot = $event" />
-                </div>
+                </section>
               </div>
             </div>
           </template>
@@ -1232,12 +1235,6 @@ onMounted(async () => {
         }
       }
     }
-    // Preselect the standard amount only when the chosen method can accept it.
-    if (paymentPhase.value === 'select' && activeTab.value === 'recharge' && !checkout.value.balance_disabled && enabledMethods.value.length && amount.value === null
-        && globalMinAmount.value <= 100 && (!globalMaxAmount.value || globalMaxAmount.value >= 100)) {
-      amount.value = 100
-      if (!canSubmit.value) amount.value = null
-    }
   } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { loading.value = false }
   // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
@@ -1263,8 +1260,9 @@ onMounted(async () => {
 
 .payment-page-inner {
   position: relative;
+  max-width: 1140px;
 }
-.payment-page-inner.with-vip{max-width:1140px}
+.payment-page-inner.with-vip { max-width: none; }
 .payment-loading{padding-top:8px}.loading-account{height:110px;background:var(--payment-line);opacity:.4;border-radius:5px}.loading-workspace{display:grid;grid-template-columns:1.12fr 1fr;gap:36px;margin-top:28px}.loading-control{height:540px;border-radius:5px;background:var(--payment-line);opacity:.35}.loading-levels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:28px}.loading-levels span{display:block;height:148px;background:var(--payment-line);opacity:.35;border-radius:5px}
 @media (max-width: 760px) {
   .loading-workspace { grid-template-columns: 1fr; }

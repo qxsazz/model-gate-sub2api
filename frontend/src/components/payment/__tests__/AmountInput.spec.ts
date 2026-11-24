@@ -15,6 +15,15 @@ function mountInput(value: number | null = null) {
 }
 
 describe('recharge amount input', () => {
+  it('displays every eligible preset without an extra action', async () => {
+    const wrapper = mountInput()
+    const buttons = () => wrapper.get('[role="group"]').findAll('button')
+    expect(buttons().map(button => button.text())).toEqual(['10', '20', '50', '100', '200', '500', '1000', '2000', '5000'])
+    await wrapper.setProps({ min: 200, max: 2000, modelValue: 1000 })
+    expect(buttons().map(button => button.text())).toEqual(['200', '500', '1000', '2000'])
+    expect(wrapper.get('[aria-pressed="true"]').text()).toBe('1000')
+  })
+
   it('uses the selected payment currency without changing the principal', async () => {
     const wrapper = mount(AmountInput, { props: { modelValue: 200, currency: 'CNY' } })
     expect(wrapper.text()).toContain('¥')

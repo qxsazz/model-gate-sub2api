@@ -12,6 +12,7 @@ const tiers = [100, 300, 600, 1500, 3000].map((threshold, index) => ({
 }))
 const snapshot = () => ({
   enabled: true, total: 400, tier: tiers[1], tier_source: 'growth',
+  concurrency: 18, rpm: 75, rebate_percent: 4.5, groups: [{ exclusive: true, granted: true }],
   rules: { access_threshold: 100, tiers, daily_rewards: [.01, .05, .1, .25, .5, 1] },
 })
 const render = (extra = {}) => mount(RechargeVIPBenefits, {
@@ -25,7 +26,10 @@ const render = (extra = {}) => mount(RechargeVIPBenefits, {
 describe('recharge VIP benefits', () => {
   beforeEach(() => {
     api.getVIP.mockReset().mockResolvedValue(snapshot())
-    api.getVIPMembership.mockReset().mockResolvedValue({ discount_summaries: { 5: [.075] }, rewards: [{ level: 5, amount: 63, status: 'locked' }] })
+    api.getVIPMembership.mockReset().mockResolvedValue({
+      discount_summaries: { 2: [.03], 5: [.075] },
+      rewards: [{ level: 2, amount: 6, status: 'available' }, { level: 5, amount: 63, status: 'locked' }],
+    })
   })
 
   it('reuses the parallel checkout snapshot and reserves growth space while it loads', async () => {
@@ -37,7 +41,12 @@ describe('recharge VIP benefits', () => {
     expect(api.getVIP).not.toHaveBeenCalled()
     expect(wrapper.find('[data-vip-skeleton]').exists()).toBe(false)
     expect(wrapper.emitted('snapshot')?.[0]).toEqual([snapshot()])
-    expect(api.getVIPMembership).not.toHaveBeenCalled()
+    expect(api.getVIPMembership).toHaveBeenCalledTimes(1)
+    const rights = wrapper.get('.recharge-perk-list')
+    expect(rights.findAll('dt')).toHaveLength(8)
+    expect(rights.findAll('dd').map(node => node.text().replace(/\s+/g, ''))).toEqual([
+      '2%', '$0.10符合签到资格时', '4.5%', '$6.00可在VIP中心领取', '18', '75', '倍率最高减免0.03', '已开放',
+    ])
   })
 
   it('browses six original cards independently of the account tier and uses actual benefit configuration', async () => {
@@ -54,6 +63,8 @@ describe('recharge VIP benefits', () => {
     await choices[5].trigger('click')
     expect(wrapper.get('.recharge-benefit-figures').text()).toContain('$63.00')
     expect(wrapper.get('.recharge-usage').text()).toContain('0.075')
+    expect(wrapper.get('.recharge-perk-list').text()).toContain('$6.00')
+    expect(wrapper.get('.recharge-perk-list').text()).not.toContain('$63.00')
     expect(wrapper.get('.recharge-tier-detail').text()).toContain('22.62%')
     expect(wrapper.get('[data-current-bonus]').text()).toBe('2%')
     expect(wrapper.get('[data-vip-center]').attributes('to')).toBe('/vip')
@@ -90,6 +101,18 @@ describe('recharge VIP benefits', () => {
     expect(wrapper.get('[data-projected-tier]').text()).toBe('VIP 5')
     expect(wrapper.get('[data-future-total]').text()).toBe('$600.00')
     expect(wrapper.text()).toContain('管理员指定')
+  })
+
+  it('shows account benefits when details fail and retries only the missing membership request', async () => {
+    api.getVIPMembership.mockRejectedValueOnce(new Error('unavailable'))
+    const wrapper = render({ bonusEnabled: false })
+    await flushPromises()
+    expect(wrapper.get('.recharge-perk-list').text()).toContain('未启用')
+    expect(wrapper.get('.recharge-perk-list').text()).toContain('4.5%')
+    await wrapper.get('[role="status"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.recharge-perk-list').text()).toContain('$6.00')
+    expect(api.getVIP).toHaveBeenCalledTimes(1)
   })
 
   it('keeps checkout usable and can recover from a failed snapshot', async () => {
