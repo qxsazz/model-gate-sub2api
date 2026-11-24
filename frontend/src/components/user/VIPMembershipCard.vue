@@ -1,17 +1,20 @@
 <template>
-  <article class="vip-membership-card" :class="'palette-' + level" :data-material="material" :aria-label="'VIP ' + level + ' ' + memberTitle" @pointermove="reflect" @pointerleave="resetReflection">
+  <component :is="variant === 'thumbnail' ? 'span' : 'article'" class="vip-membership-card" :class="['palette-' + level, variant && 'vip-card-' + variant]" :data-material="material" :aria-label="variant === 'banner' ? name : 'VIP ' + level + ' ' + memberTitle" @pointermove="reflect" @pointerleave="resetReflection">
     <img class="vip-card-artwork" src="/mg-vip-b-engraving.png" alt="" width="1644" height="956" />
-    <div class="vip-card-grain" aria-hidden="true" />
-    <div class="vip-card-reflection" aria-hidden="true" />
-    <div class="vip-card-edge" aria-hidden="true" />
-    <div class="vip-card-brand"><span>MODEL-GATE</span><small>PRIVATE MEMBERSHIP</small></div>
-    <span v-if="current" class="vip-card-current">当前等级</span>
-    <div class="vip-card-rule" />
-    <h3 class="vip-card-heading"><span class="vip-card-latin">VIP <span class="vip-card-number">{{ level }}</span></span><span class="vip-card-divider">·</span>{{ memberTitle }}</h3>
-    <div class="vip-card-description"><p v-for="(line, index) in [thresholdLabel, ...benefits]" :key="index"><span v-for="(part, partIndex) in textParts(line)" :key="partIndex" :class="{ 'vip-card-numeric': part.numeric }">{{ part.value }}</span></p></div>
-    <footer v-if="ownerName" class="vip-card-footer member-owner"><strong :title="ownerName">{{ ownerName }}</strong><span v-if="ownerId != null">UID {{ ownerId }}</span></footer>
-    <footer v-else class="vip-card-footer"><span>MODEL-GATE MEMBERSHIP</span><span>VIP {{ level }}</span></footer>
-  </article>
+    <span class="vip-card-grain" aria-hidden="true" />
+    <span class="vip-card-reflection" aria-hidden="true" />
+    <span class="vip-card-edge" aria-hidden="true" />
+    <span class="vip-card-brand"><span>MODEL-GATE</span><small>PRIVATE MEMBERSHIP</small></span>
+    <span v-if="variant === 'thumbnail'" class="vip-thumbnail-level">VIP {{ level }}</span>
+    <slot v-else>
+      <span v-if="current" class="vip-card-current">{{ currentLabel ?? '当前等级' }}</span>
+      <div class="vip-card-rule" />
+      <h3 class="vip-card-heading"><span class="vip-card-latin">VIP <span class="vip-card-number">{{ level }}</span></span><span class="vip-card-divider">·</span>{{ memberTitle }}</h3>
+      <div class="vip-card-description"><p v-for="(line, index) in [thresholdLabel, ...benefits]" :key="index"><span v-for="(part, partIndex) in textParts(line)" :key="partIndex" :class="{ 'vip-card-numeric': part.numeric }">{{ part.value }}</span></p></div>
+      <footer v-if="ownerName" class="vip-card-footer member-owner"><strong :title="ownerName">{{ ownerName }}</strong><span v-if="ownerId != null">UID {{ ownerId }}</span></footer>
+      <footer v-else class="vip-card-footer"><span>MODEL-GATE MEMBERSHIP</span><span>VIP {{ level }}</span></footer>
+    </slot>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -23,10 +26,12 @@ const props = defineProps<{
   benefits: string[]
   ownerName?: string
   ownerId?: number
+  variant?: 'banner' | 'thumbnail'
+  currentLabel?: string
   current?: boolean
 }>()
 const material = computed(() => ['silver', 'bronze', 'pearl', 'gold', 'platinum', 'black-diamond'][props.level] || 'silver')
-const memberTitle = computed(() => props.name.endsWith('会员') ? props.name : props.name + '会员')
+const memberTitle = computed(() => /[\u3400-\u9fff]/.test(props.name) && !props.name.endsWith('会员') ? props.name + '会员' : props.name)
 function textParts(text: string) {
   return text.split(/([$]?\d+(?:[.,]\d+)*(?:%|\s*\/\s*日)?)/g).filter(Boolean).map(value => ({ value, numeric: /^\$?\d/.test(value) }))
 }
@@ -104,4 +109,32 @@ function resetReflection(event: PointerEvent) {
 @container(max-width:320px){.vip-card-description{width:64%;font-size:9px;line-height:1.25}.vip-card-heading{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.vip-card-reflection{opacity:.4}}
 @media(prefers-reduced-motion:no-preference){.vip-membership-card{transition:box-shadow .18s ease}}
+
+.vip-card-banner {
+  min-height: clamp(153px, 12.1vw, 188px);
+  aspect-ratio: auto;
+  display: flex;
+  align-items: center;
+  border-radius: 15px;
+}
+.vip-card-banner .vip-card-artwork {
+  object-fit: cover;
+  object-position: 50% 62%;
+  mask-image: linear-gradient(90deg, #0006, #000b 34%, #000 53%);
+}
+.vip-card-banner .vip-card-edge { border-radius: 11px; }
+.vip-card-banner .vip-card-brand { left: auto; top: 15%; right: clamp(20px, 2.5vw, 42px); gap: 3px; align-items: flex-end; }
+.vip-card-banner .vip-card-brand > span { font-size: clamp(14px, 1.35vw, 22px); }
+.vip-card-banner .vip-card-brand > small { font-size: clamp(7px, .57vw, 9px); }
+.vip-card-thumbnail { display: block; }
+.vip-card-thumbnail .vip-card-brand { top: 15%; gap: 2px; }
+.vip-card-thumbnail .vip-card-brand > span { font-size: clamp(8px, 8.5cqi, 14px); }
+.vip-card-thumbnail .vip-card-brand > small { font-size: clamp(4px, 4cqi, 7px); }
+.vip-thumbnail-level { position: absolute; z-index: 3; bottom: 14%; left: 7%; font: 500 clamp(10px, 10cqi, 16px)/1 'DM Mono', monospace; }
+@media (max-width: 640px) {
+  .vip-card-banner { min-height: 145px; }
+  .vip-card-banner .vip-card-brand { top: 12%; right: 17px; gap: 2px; }
+  .vip-card-banner .vip-card-brand > span { font-size: 12px; }
+  .vip-card-banner .vip-card-brand > small { font-size: 6px; }
+}
 </style>

@@ -1,0 +1,196 @@
+@font-face {
+  font-family: 'MG Recharge Sans';
+  src: url('../assets/fonts/recharge/sans.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MG Recharge Serif';
+  src: url('../assets/fonts/recharge/serif.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MG Recharge Mono';
+  src: url('../assets/fonts/recharge/mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MG Recharge Mono';
+  src: url('../assets/fonts/recharge/mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MG Recharge Brand';
+  src: url('../assets/fonts/recharge/brand.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+.recharge-theme {
+  --recharge-ink: #23241f;
+  --recharge-muted: #706e62;
+  --recharge-gold: #826727;
+  --recharge-edge: #e6e1d6;
+  --recharge-paper: #fff;
+  --recharge-tint: #f7f3e9;
+  --recharge-ui: 'MG Recharge Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --recharge-heading: 'MG Recharge Serif', 'Noto Serif SC', 'Songti SC', SimSun, Georgia, serif;
+  --recharge-number: 'MG Recharge Mono', 'DM Mono', Consolas, var(--recharge-ui);
+  --recharge-brand: 'MG Recharge Brand', 'Bodoni Moda', Didot, Georgia, serif;
+  color: var(--recharge-ink);
+  font-family: var(--recharge-ui);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.dark .recharge-theme {
+  --recharge-ink: #f2eee4;
+  --recharge-muted: #b7b3a5;
+  --recharge-gold: #d7bf85;
+  --recharge-edge: #403e36;
+  --recharge-paper: #1d1e1c;
+  --recharge-tint: #2e2b23;
+}
+.recharge-page { display: grid; gap: 21px; }
+.recharge-page-heading, .recharge-section-head, .recharge-growth-line, .recharge-progress-label {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.recharge-page-heading h1 { color: var(--recharge-ink); font: 600 clamp(27px, 2.5vw, 38px)/1.22 var(--recharge-heading); letter-spacing: -.02em; }
+.recharge-page-heading p { margin-top: 5px; color: var(--recharge-muted); font-size: 13px; }
+.recharge-orders, .recharge-tier-tag, .recharge-text-link, .recharge-benefit-links a, .recharge-section-head h2, .recharge-wallet-label {
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.recharge-orders { flex: none; border: 1px solid var(--recharge-edge); border-radius: 8px; padding: 8px 12px; background: var(--recharge-paper); color: var(--recharge-muted); font-size: 13px; text-decoration: none; }
+.recharge-orders:hover, .recharge-text-link:hover, .recharge-benefit-links a:hover { color: var(--recharge-gold); text-decoration: underline; text-underline-offset: 3px; }
+
+.recharge-wallet-inner { position: relative; z-index: 3; min-width: 0; max-width: 66%; padding: 23px clamp(21px, 2.5vw, 42px); }
+.recharge-wallet-label { max-width: 100%; font-size: 13px; font-weight: 500; }
+.recharge-wallet-label svg, .recharge-wallet-tier svg { flex: none; }
+.recharge-owner { overflow: hidden; padding-left: 9px; border-left: 1px solid currentColor; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.recharge-balance { display: flex; align-items: baseline; gap: 8px; margin: 5px 0 12px; }
+.recharge-balance strong { font: 400 clamp(32px, 3.25vw, 51px)/1.12 var(--recharge-number); letter-spacing: -.045em; overflow-wrap: anywhere; }
+.recharge-balance small { font-size: .62em; }
+.recharge-balance > span { font: 500 11px var(--recharge-number); letter-spacing: .1em; }
+.recharge-wallet-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; }
+.recharge-tier-tag { border: 1px solid color-mix(in srgb, var(--vip-ink) 40%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--vip-surface) 50%, transparent); padding: 2px 7px; font-weight: 500; }
+.recharge-wallet-link { position: absolute; inset: auto 0 0 auto; z-index: 4; display: flex; align-items: center; gap: 3px; padding: 13px clamp(20px, 2.5vw, 42px); color: inherit; font: 500 12px var(--recharge-ui); }
+.recharge-wallet-link:hover { text-decoration: underline; }
+.recharge-theme .vip-card-brand > span, .recharge-theme .vip-card-brand > small { font-family: var(--recharge-brand); }
+.recharge-theme .vip-card-heading, .recharge-theme .vip-card-description { font-family: var(--recharge-heading); }
+.recharge-theme :is(.vip-card-latin, .vip-card-numeric, .vip-thumbnail-level) { font-family: var(--recharge-number); }
+
+.recharge-workspace { display: grid; grid-template-columns: minmax(0, 1.46fr) minmax(285px, .94fr); align-items: start; gap: 19px; }
+.recharge-aside { min-width: 0; display: grid; gap: 14px; }
+.recharge-panel { min-width: 0; padding: 23px; border: 1px solid var(--recharge-edge); border-radius: 13px; background: var(--recharge-paper); box-shadow: 0 2px 8px #34301b06; }
+.recharge-section-head { margin-bottom: 16px; }
+.recharge-section-head h2, .recharge-form .payment-method-heading { margin: 0; color: var(--recharge-ink); font: 600 18px/1.4 var(--recharge-heading); }
+.recharge-section-head h2 svg, .recharge-form .payment-method-heading svg { color: var(--recharge-gold); }
+.recharge-unit { color: var(--recharge-muted); font: 400 11px var(--recharge-number); }
+.recharge-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.recharge-amount { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; min-height: 64px; padding: 10px 4px; border: 1px solid var(--recharge-edge); border-radius: 8px; color: var(--recharge-ink); background: var(--recharge-paper); }
+.recharge-amount:hover, .recharge-form [data-testid="payment-method-grid"] button:hover:enabled { border-color: var(--recharge-gold); }
+.recharge-amount[aria-pressed="true"], .recharge-form [data-testid="payment-method-grid"] button[aria-pressed="true"] { border-color: var(--recharge-gold); background: var(--recharge-tint); box-shadow: inset 0 0 0 .5px var(--recharge-gold); }
+.recharge-amount-value { font: 500 clamp(18px, 1.7vw, 25px)/1.2 var(--recharge-number); }
+.recharge-amount-value small { margin-right: 3px; font-size: .62em; }
+.recharge-tier-offer, .recharge-amount-detail { color: var(--recharge-muted); font: 400 11px/1.4 var(--recharge-ui); }
+.recharge-tier-offer { color: var(--recharge-gold); font-weight: 600; }
+.recharge-selected-check { position: absolute; top: 4px; right: 4px; color: var(--recharge-gold); }
+.recharge-more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 8px 0; padding: 5px; font-size: 12px; color: var(--recharge-muted); }
+.recharge-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.recharge-custom { display: flex; align-items: center; gap: 15px; margin-top: 14px; font-size: 13px; }
+.recharge-custom label { flex: none; }
+.recharge-custom > div { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--recharge-edge); border-radius: 7px; }
+.recharge-custom > div:focus-within { outline: 2px solid var(--recharge-gold); outline-offset: 1px; }
+.recharge-custom span { color: var(--recharge-muted); font-family: var(--recharge-number); }
+.recharge-custom input { width: 100%; min-width: 0; height: 40px; border: 0; background: transparent; color: inherit; padding: 0 8px; outline: none; box-shadow: none; font: 400 14px var(--recharge-number); }
+.recharge-custom input::placeholder { font: 400 12px var(--recharge-ui); color: var(--recharge-muted); }
+.recharge-methods { margin-top: 21px; padding-top: 19px; border-top: 1px solid var(--recharge-edge); }
+.recharge-form .payment-method-heading { margin-bottom: 14px; }
+.recharge-form [data-testid="payment-method-grid"] { grid-template-columns: repeat(auto-fit, minmax(min(165px, 100%), 1fr)); gap: 9px; }
+.recharge-form [data-testid="payment-method-grid"] button { height: auto; min-height: 48px; flex-flow: row; gap: 6px; justify-content: space-between; border: 1px solid var(--recharge-edge); border-radius: 8px; background: var(--recharge-paper); color: var(--recharge-ink); padding: 8px 11px; }
+.recharge-form [data-testid="payment-method-grid"] button > span:first-child { justify-content: flex-start; }
+.recharge-form [data-testid="payment-method-grid"] img { width: 22px; height: 22px; }
+.recharge-form [data-testid="payment-method-label"] { font-size: 13px; font-weight: 500; }
+.recharge-method-radio { width: 13px; height: 13px; flex: none; border: 1px solid var(--recharge-edge); border-radius: 50%; }
+[aria-pressed="true"] > .recharge-method-radio { border: 4px solid var(--recharge-gold); }
+
+.recharge-sum-list { display: grid; gap: 10px; }
+.recharge-sum-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.recharge-sum-list dt, .recharge-note, .recharge-progress-label, .recharge-growth-loading { color: var(--recharge-muted); }
+.recharge-sum-list dd, .recharge-growth-line strong, .recharge-estimate strong { text-align: right; font: 500 14px var(--recharge-number); }
+.recharge-gold { color: var(--recharge-gold); }
+.recharge-credit { padding: 11px 12px; border-radius: 7px; background: var(--recharge-tint); }
+.recharge-sum-list .recharge-credit dd { font-size: 19px; }
+.recharge-sum-list .recharge-credit small { font-size: 10px; }
+.recharge-total { margin-top: 2px; }
+.recharge-sum-list .recharge-total dd { font-size: 25px; }
+.recharge-note { margin-top: 9px; font-size: 12px; line-height: 1.6; }
+.recharge-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 13px; }
+.recharge-growth { padding: 18px 21px; }
+.recharge-growth .recharge-section-head { margin-bottom: 13px; }
+.recharge-growth h2 { font-size: 16px; }
+.recharge-text-link, .recharge-benefit-links a { color: var(--recharge-gold); font-size: 12px; }
+.recharge-growth-line, .recharge-progress-label { font-size: 12px; }
+.recharge-progress { height: 5px; margin: 9px 0 6px; border-radius: 5px; overflow: hidden; background: var(--recharge-edge); }
+.recharge-progress span { display: block; height: 100%; background: var(--recharge-gold); }
+.recharge-estimate { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--recharge-edge); color: var(--recharge-muted); font-size: 12px; }
+.recharge-estimate strong { color: var(--recharge-ink); font-size: 12px; }
+.recharge-unavailable { text-align: center; color: var(--recharge-muted); }
+
+.recharge-benefits { display: grid; gap: 16px; }
+.recharge-tier-picker { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.recharge-tier-picker button { min-width: 0; padding: 4px; border: 1px solid var(--recharge-edge); border-radius: 8px; }
+.recharge-tier-picker button[aria-pressed="true"] { border-color: var(--recharge-gold); background: var(--recharge-tint); }
+.recharge-tier-caption { display: flex; align-items: center; justify-content: center; gap: 3px; padding: 4px; font-size: 12px; }
+.recharge-tier-caption svg { color: var(--recharge-gold); }
+.recharge-showcase { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1fr); align-items: center; gap: 16px; }
+.recharge-benefit-figures, .recharge-usage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.recharge-benefit-figures > div, .recharge-usage > div { min-width: 0; padding: 11px 13px; border: 1px solid var(--recharge-edge); border-radius: 8px; }
+.recharge-benefit-figures { align-self: stretch; }
+.recharge-benefit-figures > div { display: flex; flex-direction: column; justify-content: center; background: var(--recharge-tint); }
+.recharge-benefit-figures dt, .recharge-usage dt, .recharge-benefit-figures small { color: var(--recharge-muted); font-size: 12px; }
+.recharge-benefit-figures dd { margin: 2px 0; color: var(--recharge-ink); font: 500 clamp(16px, 2vw, 24px)/1.4 var(--recharge-number); }
+.recharge-usage { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; }
+.recharge-usage dd { margin-top: 4px; font-size: 13px; }
+.recharge-benefits details { border-top: 1px solid var(--recharge-edge); padding-top: 11px; }
+.recharge-benefits summary { cursor: pointer; font: 600 14px var(--recharge-heading); }
+.recharge-comparison { margin-top: 10px; overflow-x: auto; }
+.recharge-comparison table { min-width: 620px; width: 100%; text-align: left; font-size: 12px; }
+.recharge-comparison th, .recharge-comparison td { padding: 7px; border-bottom: 1px solid var(--recharge-edge); }
+.recharge-comparison td { font-family: var(--recharge-number); }
+.recharge-benefits ul { margin: 10px 0 0; padding-left: 18px; list-style: disc; font-size: 13px; line-height: 1.65; }
+.recharge-benefits li + li { margin-top: 5px; }
+.recharge-benefit-links { display: flex; flex-wrap: wrap; gap: 20px; }
+.recharge-theme :is(button,a,summary):focus-visible { outline: 2px solid var(--recharge-gold); outline-offset: 2px; }
+
+@media (max-width: 1000px) {
+  .recharge-workspace { grid-template-columns: minmax(0, 1.18fr) minmax(245px, .95fr); gap: 13px; }
+  .recharge-panel { padding: 17px; }
+}
+@media (max-width: 760px) {
+  .recharge-workspace { grid-template-columns: minmax(0, 1fr); }
+  .recharge-page { gap: 15px; }
+  .recharge-showcase { grid-template-columns: minmax(0, 1fr); }
+  .recharge-showcase > article { max-width: 440px; margin: auto; }
+  .recharge-tier-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .recharge-usage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 510px) {
+  .recharge-wallet-inner { max-width: 76%; padding: 16px 18px; }
+  .recharge-wallet-label { font-size: 12px; }
+  .recharge-wallet-tier { gap: 4px; }
+  .recharge-wallet-tier > :nth-child(2) { flex-basis: 100%; }
+  .recharge-wallet-link { padding: 12px 14px; font-size: 11px; }
+  .recharge-balance { margin-bottom: 7px; }
+  .recharge-owner { max-width: 70px; }
+  .recharge-page-heading p { font-size: 12px; }
+  .recharge-orders { gap: 4px; padding: 7px 8px; font-size: 12px; }
+  .recharge-amounts { gap: 6px; }
+  .recharge-amount { min-height: 53px; }
+  .recharge-form [data-testid="payment-method-grid"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 390px) {
+  .recharge-owner { display: none; }
+  .recharge-panel { padding: 14px; }
+}

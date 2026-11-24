@@ -1,8 +1,9 @@
 <template>
   <div>
-    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <div class="payment-method-heading mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+      <Icon v-if="recharge" name="creditCard" size="sm" />
       {{ t('payment.paymentMethod') }}
-    </label>
+    </div>
     <div
       data-testid="payment-method-grid"
       class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
@@ -13,6 +14,7 @@
         type="button"
         :title="methodLabel(method)"
         :disabled="!method.available"
+        :aria-pressed="selected === method.type"
         :class="[
           'relative flex h-[60px] min-w-0 flex-col items-center justify-center rounded-lg border px-3 transition-all',
           !method.available
@@ -37,12 +39,14 @@
             </span>
           </span>
         </span>
+        <span v-if="recharge" class="recharge-method-radio" aria-hidden="true" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { METHOD_ORDER, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from './providerConfig'
@@ -60,6 +64,7 @@ export interface PaymentMethodOption {
 }
 
 const props = defineProps<{
+  recharge?: boolean
   methods: PaymentMethodOption[]
   selected: string
 }>()

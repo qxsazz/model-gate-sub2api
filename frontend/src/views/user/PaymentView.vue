@@ -40,91 +40,86 @@
           </div>
           <!-- Top-up Tab -->
           <template v-else-if="activeTab === 'recharge'">
-            <!-- Recharge Account Card -->
-            <div class="card payment-account-card p-5">
-              <p class="payment-eyebrow">{{ t('payment.rechargeAccount') }}</p>
-              <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="payment-balance-text mt-0.5 text-sm font-medium">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
-            </div>
-            <div class="recharge-workspace vip-ready">
-            <div class="recharge-controls space-y-6">
-            <div v-if="enabledMethods.length === 0" class="card payment-empty-state py-16 text-center">
-              <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
-            </div>
-            <template v-else>
-            <div class="card payment-panel p-6">
-              <!-- 充值赠送活动文案（后台 Markdown 配置，空则不渲染） -->
-              <div
-                v-if="renderedBonusNotice"
-                class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 [&_a]:font-medium [&_a]:underline [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:ml-5 [&_ul]:list-disc"
-                data-testid="recharge-bonus-notice"
-                v-html="renderedBonusNotice"
-              ></div>
-              <AmountInput
-                v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-                :bonus-tiers="rechargeBonusTiers"
-                :bonus-mode="rechargeBonusMode"
-                :multiplier="balanceRechargeMultiplier"
-                :currency="selectedCurrency"
-              />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-            </div>
-            <div v-if="enabledMethods.length >= 1" class="card payment-panel p-6">
-              <PaymentMethodSelector
-                :methods="methodOptions"
-                :selected="selectedMethod"
-                @select="selectedMethod = $event"
-              />
-            </div>
-            <div v-if="validAmount > 0" class="card payment-panel payment-summary-panel p-6">
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                  <span :class="discountAmount > 0 ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'">{{ formatSelectedPaymentAmount(validAmount) }}</span>
+            <div class="recharge-theme recharge-page">
+              <header class="recharge-page-heading">
+                <div><h1>{{ t('payment.rechargePage.title') }}</h1><p>{{ t('payment.rechargePage.intro') }}</p></div>
+                <RouterLink to="/orders" class="recharge-orders"><Icon name="clock" size="sm" />{{ t('payment.rechargePage.orders') }}</RouterLink>
+              </header>
+              <VIPMembershipCard class="recharge-wallet" variant="banner" :level="effectiveLevel ?? 0"
+                :name="t('payment.rechargePage.wallet')" threshold-label="" :benefits="[]">
+                <div class="recharge-wallet-inner">
+                  <div class="recharge-wallet-label"><Icon name="creditCard" size="sm" />{{ t('payment.rechargePage.balance') }}
+                    <span v-if="user?.username" class="recharge-owner" :title="user.username">{{ user.username }}</span>
+                  </div>
+                  <div class="recharge-balance"><strong><small>$</small>{{ user?.balance?.toFixed(2) ?? '—' }}</strong><span>USD</span></div>
+                  <div class="recharge-wallet-tier">
+                    <span v-if="effectiveLevel != null" class="recharge-tier-tag"><Icon name="badge" size="xs" />VIP {{ effectiveLevel }} · {{ t(`payment.rechargePage.tier${effectiveLevel}`) }}</span>
+                    <span v-if="checkout.vip_recharge_bonus_enabled">{{ t('payment.rechargePage.thisBonus', { percent: checkoutBonusPercent }) }}</span>
+                  </div>
                 </div>
-                <div v-if="discountAmount > 0" class="flex justify-between" data-testid="recharge-discount-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</span>
-                  <span class="font-medium text-red-600 dark:text-red-400">-{{ formatSelectedPaymentAmount(discountAmount) }}</span>
+                <button v-if="vipSnapshot?.enabled" type="button" class="recharge-wallet-link" @click="showBenefits = true">
+                  {{ t('payment.rechargePage.membership') }} <Icon name="chevronRight" size="xs" />
+                </button>
+              </VIPMembershipCard>
+              <div class="recharge-workspace vip-ready">
+                <section v-if="!enabledMethods.length" class="recharge-panel recharge-unavailable">
+                  {{ t('payment.notAvailable') }}
+                </section>
+                <section v-else class="recharge-panel recharge-form">
+                  <div
+                    v-if="renderedBonusNotice"
+                    class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 [&_a]:font-medium [&_a]:underline [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:ml-5 [&_ul]:list-disc"
+                    data-testid="recharge-bonus-notice"
+                    v-html="renderedBonusNotice"
+                  ></div>
+                  <AmountInput
+                    v-model="amount"
+                    :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                    :min="globalMinAmount"
+                    :max="globalMaxAmount"
+                    :bonus-tiers="rechargeBonusTiers"
+                    :bonus-mode="rechargeBonusMode"
+                    :multiplier="balanceRechargeMultiplier"
+                    :currency="selectedCurrency"
+                  />
+                  <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
+                  <div class="recharge-methods">
+                    <PaymentMethodSelector recharge :methods="methodOptions" :selected="selectedMethod" @select="selectedMethod = $event" />
+                  </div>
+                </section>
+                <div class="recharge-aside">
+                  <section v-if="enabledMethods.length" class="recharge-panel recharge-summary">
+                    <div class="recharge-section-head"><h2><Icon name="document" size="sm" />{{ t('payment.rechargePage.summary') }}</h2></div>
+                    <dl class="recharge-sum-list">
+                      <div><dt>{{ t('payment.rechargePage.principal') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(validAmount) : '—' }}</dd></div>
+                      <div v-if="discountAmount > 0" data-testid="recharge-discount-row">
+                        <dt>{{ t('payment.rechargeBonus.discountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                        <dd>−{{ formatSelectedPaymentAmount(discountAmount) }}</dd>
+                      </div>
+                      <div v-if="checkout.vip_recharge_bonus_enabled">
+                        <dt>{{ t('payment.vipRechargeBonus', { level: checkout.vip_recharge_bonus_level ?? 0 }) }} ({{ checkoutBonusPercent }}%)</dt>
+                        <dd class="recharge-gold">{{ validAmount ? '+$' + (bonusQuote.base - validAmount).toFixed(2) : '—' }}</dd>
+                      </div>
+                      <div v-if="showBonusRow" data-testid="recharge-bonus-row">
+                        <dt>{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</dt>
+                        <dd class="recharge-gold">+${{ bonusQuote.bonus.toFixed(2) }}</dd>
+                      </div>
+                      <div v-if="feeRate > 0"><dt>{{ t('payment.fee') }} ({{ feeRate }}%)</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(feeAmount) : '—' }}</dd></div>
+                      <div class="recharge-credit" data-testid="recharge-credited-row">
+                        <dt>{{ t('payment.creditedBalance') }}</dt><dd>{{ validAmount ? '$' + creditedAmount.toFixed(2) : '—' }} <small>USD</small></dd>
+                      </div>
+                      <div class="recharge-total"><dt>{{ t('payment.actualPay') }}</dt><dd>{{ validAmount ? formatSelectedPaymentAmount(totalAmount) : '—' }}</dd></div>
+                    </dl>
+                    <p v-if="validAmount && balanceRechargeMultiplier !== 1" class="recharge-note">{{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}</p>
+                    <button type="button" class="btn payment-submit-button recharge-submit" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+                      {{ t(submitting ? 'common.processing' : 'payment.rechargePage.createOrder') }} <Icon v-if="!submitting" name="arrowRight" size="sm" />
+                    </button>
+                  </section>
+                  <RechargeVIPBenefits v-model:show="showBenefits" :amount="validAmount" :currency="selectedCurrency"
+                    :growth-rates="checkout.vip_growth_rates" :current-multiplier="balanceRechargeMultiplier"
+                    :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" @snapshot="vipSnapshot = $event" />
                 </div>
-                <div v-if="feeRate > 0" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
-                </div>
-                <div v-if="showActualPay" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
-                </div>
-                <div v-if="checkout.vip_recharge_bonus_enabled" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.vipRechargeBonus', { level: checkout.vip_recharge_bonus_level ?? 0 }) }} ({{ ((balanceRechargeMultiplier - 1) * 100).toFixed(1).replace(/\.0$/, '') }}%)</span>
-                  <span class="text-gray-900 dark:text-white">${{ (bonusQuote.base - validAmount).toFixed(2) }}</span>
-                </div>
-                <div v-if="showBonusRow" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': !showActualPay }" data-testid="recharge-bonus-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeBonus.amountLabelWithPercent', { percent: formatRechargeBonusNumber(bonusQuote.percent) }) }}</span>
-                  <span class="font-medium text-red-600 dark:text-red-400">+${{ bonusQuote.bonus.toFixed(2) }}</span>
-                </div>
-                <div v-if="showCreditedBalance" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': !showActualPay && !showBonusRow }" data-testid="recharge-credited-row">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span :class="bonusQuote.percent > 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-900 dark:text-white'">${{ creditedAmount.toFixed(2) }}</span>
-                </div>
-                <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                  {{ t('payment.rechargeRatePreview', { currency: selectedCurrency, usd: formatBalanceRechargeMultiplier(balanceRechargeMultiplier) }) }}
-                </p>
-                <p v-if="checkout.vip_recharge_bonus_enabled" class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.vipRechargeBonusNote') }}</p>
               </div>
-            </div>
-            <button :class="['btn payment-submit-button w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-              <span v-if="submitting" class="flex items-center justify-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                {{ t('common.processing') }}
-              </span>
-              <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
-            </button>
-            </template>
-            </div>
-            <RechargeVIPBenefits :amount="validAmount" :currency="selectedCurrency" :growth-rates="checkout.vip_growth_rates" :current-level="checkout.vip_recharge_bonus_level ?? 0" :current-multiplier="balanceRechargeMultiplier" :bonus-enabled="!!checkout.vip_recharge_bonus_enabled" :initial-request="vipInitialRequest" />
             </div>
           </template>
           <!-- Subscribe Tab -->
@@ -292,9 +287,10 @@
 
 <script setup lang="ts">
 import { ref, shallowRef, computed, onMounted, watch } from 'vue'
+import '@/styles/recharge.css'
+import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
 import RechargeVIPBenefits from '@/components/payment/RechargeVIPBenefits.vue'
 import { getVIP, type VIPSnapshot } from '@/api/vip'
-const vipInitialRequest = shallowRef<Promise<VIPSnapshot|null>>()
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -345,6 +341,12 @@ const paymentStore = usePaymentStore()
 const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
 
+const vipInitialRequest = shallowRef<Promise<VIPSnapshot | null>>()
+const vipSnapshot = shallowRef<VIPSnapshot | null>(null)
+const showBenefits = ref(false)
+const effectiveLevel = computed(() => vipSnapshot.value?.enabled ? vipSnapshot.value.tier.level
+  : checkout.value.vip_recharge_bonus_enabled ? checkout.value.vip_recharge_bonus_level : null)
+const checkoutBonusPercent = computed(() => formatRechargeBonusNumber((balanceRechargeMultiplier.value - 1) * 100))
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
 
@@ -686,7 +688,6 @@ const payBaseAmount = computed(() => bonusQuote.value.payBase)
 const discountAmount = computed(() => roundPaymentAmount(validAmount.value - payBaseAmount.value, selectedCurrency.value))
 const creditedAmount = computed(() => bonusQuote.value.credited)
 const showBonusRow = computed(() => bonusQuote.value.mode !== 'discount' && bonusQuote.value.bonus > 0)
-const showCreditedBalance = computed(() => checkout.value.vip_recharge_bonus_enabled || balanceRechargeMultiplier.value !== 1 || bonusQuote.value.percent > 0)
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
@@ -711,7 +712,6 @@ const totalAmount = computed(() =>
     ? Math.round((payBaseAmount.value + feeAmount.value) * 100) / 100
     : payBaseAmount.value
 )
-const showActualPay = computed(() => feeRate.value > 0 || discountAmount.value > 0)
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
@@ -1232,6 +1232,12 @@ onMounted(async () => {
         }
       }
     }
+    // Preselect the standard amount only when the chosen method can accept it.
+    if (paymentPhase.value === 'select' && activeTab.value === 'recharge' && !checkout.value.balance_disabled && enabledMethods.value.length && amount.value === null
+        && globalMinAmount.value <= 100 && (!globalMaxAmount.value || globalMaxAmount.value >= 100)) {
+      amount.value = 100
+      if (!canSubmit.value) amount.value = null
+    }
   } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { loading.value = false }
   // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
@@ -1260,14 +1266,10 @@ onMounted(async () => {
 }
 .payment-page-inner.with-vip{max-width:1140px}
 .payment-loading{padding-top:8px}.loading-account{height:110px;background:var(--payment-line);opacity:.4;border-radius:5px}.loading-workspace{display:grid;grid-template-columns:1.12fr 1fr;gap:36px;margin-top:28px}.loading-control{height:540px;border-radius:5px;background:var(--payment-line);opacity:.35}.loading-levels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:28px}.loading-levels span{display:block;height:148px;background:var(--payment-line);opacity:.35;border-radius:5px}
-.recharge-workspace.vip-ready{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:28px 36px}
-.vip-ready .recharge-controls{grid-row:2;grid-column:1;min-width:0;padding-right:30px;border-right:1px solid var(--payment-line)}
-.vip-ready .recharge-controls .payment-panel{border:0!important;border-radius:0;box-shadow:none!important;background:transparent!important;padding:0}
-.with-vip .payment-account-card{border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;padding:0!important}
-.with-vip .payment-account-card p.text-gray-900{color:var(--payment-ink-soft)!important}
-.with-vip .payment-account-card::after{display:none}
-.vip-ready :deep(button[class*='bg-primary-50']){background:var(--payment-champagne)!important;border-color:var(--payment-gold)!important;color:var(--payment-gold)!important}
-@media(max-width:1000px){.recharge-workspace.vip-ready{display:flex;flex-direction:column}.vip-ready .recharge-controls{padding-right:0;border-right:0;order:1}.loading-workspace{grid-template-columns:1fr}.loading-levels{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width: 760px) {
+  .loading-workspace { grid-template-columns: 1fr; }
+  .loading-levels { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
 
 .payment-luxury-page :deep(.card) {
   border: 1px solid var(--payment-line);
@@ -1291,43 +1293,6 @@ onMounted(async () => {
   background: var(--payment-surface) !important;
   color: var(--payment-ink) !important;
   box-shadow: 0 4px 12px rgb(18 19 22 / 8%);
-}
-
-.payment-account-card {
-  position: relative;
-  overflow: hidden;
-  border-color: #2c2a25 !important;
-  background:
-    radial-gradient(circle at 92% 20%, rgb(201 180 119 / 18%), transparent 34%),
-    linear-gradient(135deg, #17181b 0%, #101114 70%);
-  color: #f5f1e7;
-  box-shadow: 0 16px 32px rgb(18 19 22 / 16%) !important;
-}
-
-.payment-account-card::after {
-  position: absolute;
-  right: 1.25rem;
-  bottom: 0.75rem;
-  color: rgb(201 180 119 / 42%);
-  content: 'MODEL-GATE';
-  font-family: 'Bodoni Moda', 'Bodoni MT', Didot, Georgia, serif;
-  font-size: 0.75rem;
-  letter-spacing: 0;
-}
-
-.payment-account-card .payment-eyebrow {
-  color: #c9b477;
-  font-size: 0.6875rem;
-  font-weight: 600;
-}
-
-.payment-account-card p.text-gray-900,
-.payment-account-card p.dark\:text-white {
-  color: #f5f1e7 !important;
-}
-
-.payment-balance-text {
-  color: #dfcf9f !important;
 }
 
 .payment-panel,

@@ -4,6 +4,8 @@ import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import AmountInput from '@/components/payment/AmountInput.vue'
+import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
+import RechargeVIPBenefits from '@/components/payment/RechargeVIPBenefits.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
@@ -411,6 +413,19 @@ describe('PaymentView recharge rate preview', () => {
     expect(translate).toHaveBeenCalledWith('payment.vipRechargeBonus',{level:2})
     expect(createOrder).not.toHaveBeenCalled()
   })
+  it('uses the effective membership for the wallet even when VIP recharge bonuses are disabled', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValueOnce(checkoutInfoFixture({ vip_recharge_bonus_enabled: false, vip_recharge_bonus_level: 0 }))
+    const wrapper = shallowMount(PaymentView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } } })
+    await flushPromises()
+    wrapper.getComponent(RechargeVIPBenefits).vm.$emit('snapshot', { enabled: true, tier: { level: 4 }, badge_level: 1 })
+    await flushPromises()
+    expect(wrapper.getComponent(VIPMembershipCard).props()).toMatchObject({ variant: 'banner', level: 4 })
+    expect(wrapper.getComponent(AmountInput).props('modelValue')).toBe(100)
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain('$100.00')
+  })
+
   it('uses the selected payment method currency in both locale templates', async () => {
     translate.mockClear()
     routeState.path = '/purchase'
@@ -881,7 +896,7 @@ describe('PaymentView subscription feature flag', () => {
 
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
-    expect(wrapper.text()).toContain('payment.rechargeAccount')
+    expect(wrapper.findComponent(AmountInput).exists()).toBe(true)
   })
 
   it('shows an unavailable notice instead of a doomed top-up form when balance recharge is disabled too', async () => {
@@ -891,7 +906,7 @@ describe('PaymentView subscription feature flag', () => {
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
     expect(wrapper.text()).not.toContain('payment.confirmSubscription')
-    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
+    expect(wrapper.findComponent(AmountInput).exists()).toBe(false)
     expect(wrapper.text()).toContain('payment.billingUnavailable')
     wrapper.unmount()
   })
@@ -905,7 +920,7 @@ describe('PaymentView subscription feature flag', () => {
 
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
-    expect(wrapper.text()).toContain('payment.rechargeAccount')
+    expect(wrapper.findComponent(AmountInput).exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -918,7 +933,7 @@ describe('PaymentView subscription feature flag', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('payment.billingUnavailable')
-    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
+    expect(wrapper.findComponent(AmountInput).exists()).toBe(false)
     expect(wrapper.findAllComponents(SubscriptionPlanCard).length).toBeGreaterThan(0)
     wrapper.unmount()
   })
