@@ -15,15 +15,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up Go for CI
+        uses: ./.github/actions/setup-go-ci
         with:
-          go-version-file: backend/go.mod
-          check-latest: false
-          cache-dependency-path: backend/go.sum
-      - name: Verify Go version
-        run: |
-          go version | grep -q 'go1.27.4'
+          save-modules: 'true'
       - name: Run govulncheck
         working-directory: backend
         run: |

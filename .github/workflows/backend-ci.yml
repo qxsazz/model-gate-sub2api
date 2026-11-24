@@ -26,8 +26,13 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.backend != 'false' || needs.changes.outputs.compose != 'false') }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
       - name: Check Docker Compose, runtime resources and Caddy
         if: needs.changes.outputs.compose != 'false'
         run: |
@@ -36,47 +41,74 @@ jobs:
           /bin/sh deploy/tests/docker-compose-gateway-env-test.sh
           /bin/sh deploy/tests/docker-runtime-resources-test.sh
           /bin/sh deploy/test-caddyfile-cache.sh
-      - uses: actions/setup-go@v6
+      - name: Check prior Go run
+        id: prior
         if: needs.changes.outputs.backend != 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python3 .github/ci/go_reuse.py
+      - name: Set up Go for CI
+        if: needs.changes.outputs.backend != 'false' && steps.prior.outputs.reused != 'true'
+        uses: ./.github/actions/setup-go-ci
         with:
-          go-version-file: backend/go.mod
-          check-latest: false
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Verify Go version
-        if: needs.changes.outputs.backend != 'false'
-        run: |
-          go version | grep -q 'go1.27.4'
+          build-cache: test
       - name: Unit tests
-        if: needs.changes.outputs.backend != 'false'
+        if: needs.changes.outputs.backend != 'false' && steps.prior.outputs.reused != 'true'
         working-directory: backend
         run: make test-unit
       - name: Integration tests
-        if: needs.changes.outputs.backend != 'false'
+        if: needs.changes.outputs.backend != 'false' && steps.prior.outputs.reused != 'true'
         working-directory: backend
         run: make test-integration
+      - name: Publish Go check evidence
+        if: steps.prior.outputs.evidence != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ steps.prior.outputs.evidence }}
+          path: ${{ runner.temp }}/go-ci-evidence.json
+          retention-days: 2
+          if-no-files-found: error
 
   golangci-lint:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          go-version-file: backend/go.mod
-          check-latest: false
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Verify Go version
-        run: |
-          go version | grep -q 'go1.27.4'
+          fetch-depth: 2
+      - name: Check prior Go run
+        id: prior
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: python3 .github/ci/go_reuse.py
+      - name: Set up Go for CI
+        if: steps.prior.outputs.reused != 'true'
+        uses: ./.github/actions/setup-go-ci
+        with:
+          build-cache: lint
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        if: steps.prior.outputs.reused != 'true'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.14.0
           args: --timeout=30m
           working-directory: backend
+      - name: Publish Go check evidence
+        if: steps.prior.outputs.evidence != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ steps.prior.outputs.evidence }}
+          path: ${{ runner.temp }}/go-ci-evidence.json
+          retention-days: 2
+          if-no-files-found: error
 
   release-helpers:
     needs: changes
@@ -95,24 +127,3 @@ jobs:
       - run: bash -n .github/release-tools/release-images.sh
       - name: Test CI selection and comparison
         run: python -m unittest discover -s .github/ci
-
-  compare-backend-runs:
-    needs: [changes, test, golangci-lint]
-    if: >-
-      ${{ !cancelled() && needs.changes.outputs.backend != 'false' &&
-          ((github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) ||
-           (github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 2
-      - name: Compare with a previous successful run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TEST_RESULT: ${{ needs.test.result }}
-          LINT_RESULT: ${{ needs.golangci-lint.result }}
-        run: python3 .github/ci/ci_reuse_report.py

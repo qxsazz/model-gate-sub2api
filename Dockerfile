@@ -61,10 +61,6 @@ COPY --from=canvas-builder /app/canvas/web/dist /app/backend/internal/web/dist/c
 # build (emulated networking here was dropping module fetches with EOF).
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS backend-builder
 
-# Build arguments for version info (set by CI)
-ARG VERSION=
-ARG COMMIT=docker
-ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
 # Populated by buildx from the --platform target (e.g. linux/amd64).
@@ -81,10 +77,8 @@ WORKDIR /app/backend
 
 # Copy go mod files first (better caching)
 COPY backend/go.mod backend/go.sum ./
-# Cache mount keeps the module cache across builds so a transient CDN blip on
-# retry resumes instead of re-fetching every zip from scratch.
-RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
-    go mod download
+# Store modules in this intermediate layer so a fresh BuildKit runner can import them.
+RUN go mod download
 
 # Copy backend source first
 COPY backend/ ./
@@ -94,8 +88,10 @@ COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
-RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
-    --mount=type=cache,id=sub2api-gobuild,target=/root/.cache/go-build \
+ARG VERSION=
+ARG COMMIT=docker
+ARG DATE
+RUN --mount=type=cache,id=sub2api-gobuild,target=/root/.cache/go-build \
     VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \

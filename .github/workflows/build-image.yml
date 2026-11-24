@@ -42,6 +42,11 @@ jobs:
         run: |
           set -euo pipefail
           image='ghcr.io/qxsazz/model-gate-sub2api'
+          cache_ref="$image:buildcache-staging-amd64"
+          echo "cache_ref=$cache_ref" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/staging && "$SOURCE_SHA" == "$GITHUB_SHA" ]]; then
+            echo "cache_export=type=registry,ref=$cache_ref,mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
+          fi
           version="$(tr -d '\r\n' < backend/cmd/server/VERSION)"
           echo "image=$image:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -65,6 +70,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.cache_ref }}
+          cache-to: ${{ steps.meta.outputs.cache_export }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             COMMIT=${{ inputs.source_sha }}

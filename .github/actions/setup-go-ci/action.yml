@@ -1,0 +1,62 @@
+name: Set up Go for CI
+description: Verify the Go toolchain and restore module and per-job compilation caches
+inputs:
+  save-modules:
+    description: Populate the shared module cache on a miss
+    default: 'false'
+  build-cache:
+    description: Compilation cache name for this suite
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      with:
+        go-version-file: backend/go.mod
+        check-latest: false
+        cache: false
+    - name: Verify Go and locate caches
+      id: go
+      shell: bash
+      working-directory: backend
+      run: |
+        set -eu
+        version=$(go env GOVERSION)
+        test "$version" = go1.27.4
+        echo "Using $version"
+        echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "platform=$RUNNER_OS-$RUNNER_ARCH-${ImageOS:-$RUNNER_OS}-$version" >> "$GITHUB_OUTPUT"
+        echo "backend=$(git rev-parse HEAD:backend)" >> "$GITHUB_OUTPUT"
+    - name: Restore Go modules
+      id: modules
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.go.outputs.modules }}
+        key: go-mod-v1-${{ steps.go.outputs.platform }}-${{ hashFiles('backend/go.mod', 'backend/go.sum') }}
+        restore-keys: |
+          go-mod-v1-${{ steps.go.outputs.platform }}-
+    - name: Download locked Go modules
+      id: download
+      continue-on-error: true
+      if: inputs.save-modules == 'true' && steps.modules.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: backend
+      run: go mod download
+    - name: Save Go modules
+      if: steps.download.outcome == 'success' && steps.modules.outputs.cache-primary-key != ''
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.go.outputs.modules }}
+        key: ${{ steps.modules.outputs.cache-primary-key }}
+    - name: Cache Go compilation for this suite
+      continue-on-error: true
+      if: inputs.build-cache != ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.go.outputs.build }}
+        key: go-build-v1-${{ steps.go.outputs.platform }}-${{ inputs.build-cache }}-${{ steps.go.outputs.backend }}
+        restore-keys: |
+          go-build-v1-${{ steps.go.outputs.platform }}-${{ inputs.build-cache }}-
