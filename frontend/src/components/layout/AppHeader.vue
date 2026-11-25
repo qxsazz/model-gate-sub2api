@@ -7,7 +7,7 @@
       class="flex h-[72px] items-center justify-between gap-2 px-2 sm:px-4 md:px-6"
     >
       <!-- Left: Mobile Menu Toggle + Page Title -->
-      <div class="flex shrink-0 items-center gap-2 sm:gap-4">
+      <div class="flex min-w-0 items-center gap-2 sm:gap-4" :class="{ 'shrink-0': !isUserConsole }">
         <button
           @click="toggleMobileSidebar"
           class="btn-ghost btn-icon lg:hidden"
@@ -17,27 +17,29 @@
         </button>
 
         <div class="hidden min-w-0 lg:block">
-          <p v-if="isUserConsole && userPageEyebrow" class="user-console-eyebrow">
+          <p v-if="isUserConsole && userPageEyebrow" class="user-console-eyebrow truncate">
             {{ userPageEyebrow }}
           </p>
           <h1
             class="text-lg font-semibold text-gray-900 dark:text-white"
-              :class="{ 'user-console-page-title': isUserConsole, 'admin-console-page-title': !isUserConsole }"
+            :class="isUserConsole ? 'user-console-page-title truncate' : 'admin-console-page-title'"
           >
             {{ pageTitle }}
           </h1>
           <p
             v-if="pageDescription"
             class="text-xs text-gray-500 dark:text-dark-400"
-            :class="{ 'user-console-page-description': isUserConsole, 'admin-console-page-description': !isUserConsole }"
+            :class="isUserConsole ? 'user-console-page-description truncate' : 'admin-console-page-description'"
           >
             {{ pageDescription }}
           </p>
         </div>
       </div>
 
-      <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
-      <div class="flex min-w-0 items-center gap-1 sm:gap-3">
+      <!-- Right: Check-in + Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
+      <div class="header-actions flex min-w-0 items-center gap-1 sm:gap-3">
+        <HeaderCheckin v-if="user && isUserConsole" :key="user.id" :user-id="user.id" />
+
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
@@ -47,7 +49,7 @@
           :href="docUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
+          class="header-docs hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
         >
           <Icon name="book" size="sm" />
           <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
@@ -59,17 +61,17 @@
           :to="{ path: '/model-plaza', query: { embedded: '1' } }"
           :title="t('nav.modelPlaza')"
           :aria-label="t('nav.modelPlaza')"
-          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+          class="header-plaza flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
         >
           <Icon name="grid" size="sm" />
           <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
         </router-link>
 
         <!-- Language Switcher -->
-        <LocaleSwitcher />
+        <LocaleSwitcher class="header-locale" />
 
         <!-- Subscription Progress (for users with active subscriptions; not mounted at all when the feature is off) -->
-        <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" />
+        <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" class="header-subscription" />
 
         <!-- Balance Display -->
         <div
@@ -119,11 +121,11 @@
         </div>
 
         <!-- User Dropdown -->
-        <router-link v-if="user && isUserConsole" to="/vip" aria-label="VIP 中心"><VIPBadge :key="user.id" /></router-link>
+        <router-link v-if="user && isUserConsole" to="/vip" class="header-vip" aria-label="VIP 中心"><VIPBadge :key="user.id" /></router-link>
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             @click="toggleDropdown"
-            class="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-800"
+            class="header-profile flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-800"
             :aria-label="t('common.userMenu')"
           >
             <div class="user-console-avatar flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
@@ -135,7 +137,7 @@
               >
               <span v-else>{{ userInitials }}</span>
             </div>
-            <div class="hidden text-left md:block">
+            <div class="header-profile-details hidden text-left md:block">
               <div class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ displayName }}
               </div>
@@ -277,6 +279,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import HeaderCheckin from './HeaderCheckin.vue'
 import Icon from '@/components/icons/Icon.vue'
 import VIPBadge from '@/components/user/VIPBadge.vue'
 import { sanitizeUrl } from '@/utils/url'
@@ -428,6 +431,28 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.user-console-header .header-actions { flex-shrink: 0; }
+
+@media (max-width: 1279px) {
+  .user-console-header .header-actions { column-gap: 4px; }
+  .user-console-header .header-profile-details,
+  .user-console-header .header-profile > svg { display: none; }
+}
+
+@media (max-width: 767px) {
+  .user-console-header .header-actions { column-gap: 2px; }
+  .user-console-header .header-profile { padding-inline: 2px; }
+  .user-console-header .header-docs,
+  .user-console-header .header-plaza,
+  .user-console-header .header-locale :deep(> button),
+  .user-console-header .header-subscription :deep(> button) { padding-inline: 4px; }
+  .user-console-header .header-subscription :deep(> button > div) { display: none; }
+}
+
+@media (max-width: 480px) {
+  .user-console-header .header-actions:has(.header-subscription > button) .header-vip { display: none; }
+}
+
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.2s ease;

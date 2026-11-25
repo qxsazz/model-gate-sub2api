@@ -13,6 +13,7 @@ import (
 
 var _ service.AchievementRepository = (*userRepository)(nil)
 var _ service.AchievementAccessRepository = (*userRepository)(nil)
+var _ service.AchievementCheckinStatusRepository = (*userRepository)(nil)
 
 func (r *userRepository) SaveAchievementZodiac(ctx context.Context, id int64, zodiac string) error {
 	result, err := r.sql.ExecContext(ctx, `INSERT INTO achievement_preferences(user_id,zodiac)
@@ -144,6 +145,14 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),
  'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key),'card_claim',(SELECT to_jsonb(cc) FROM achievement_card_claims cc WHERE cc.user_id=$1 AND cc.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
  ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
+}
+
+func (r *userRepository) AchievementCheckinStatus(ctx context.Context, id int64) (json.RawMessage, error) {
+	return r.achievementJSON(ctx, `WITH d AS (SELECT (statement_timestamp() AT TIME ZONE 'Asia/Shanghai')::date AS today)
+ SELECT achievement_access_snapshot(u.id) || jsonb_build_object(
+   'date', d.today,
+   'checked_in', EXISTS (SELECT 1 FROM achievement_checkins ch WHERE ch.user_id=u.id AND ch.day=d.today)
+ ) FROM d, users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
 }
 
 func (r *userRepository) EnsureAchievementAccess(ctx context.Context, id int64) error {

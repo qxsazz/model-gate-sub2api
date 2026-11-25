@@ -165,6 +165,14 @@ export default {
   nav: {
     dashboard: '仪表盘',
     announcements: '公告',
+    checkin: {
+      action: '签到',
+      pending: '签到中',
+      done: '已签到',
+      success: '签到成功',
+      alreadyDone: '今天已签到',
+      failed: '签到失败，请稍后重试。',
+    },
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
     usage: '使用记录',

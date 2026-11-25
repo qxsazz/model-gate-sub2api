@@ -22,18 +22,38 @@ func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	r := &userRepository{sql: tx}
+	checkStatus := func(unlocked, checkedIn bool) string {
+		t.Helper()
+		raw, err := r.AchievementCheckinStatus(ctx, id)
+		require.NoError(t, err)
+		var status struct {
+			Date           string `json:"date"`
+			AccessUnlocked *bool  `json:"access_unlocked"`
+			CheckedIn      *bool  `json:"checked_in"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &status))
+		require.Equal(t, service.CheckinDate(time.Now()), status.Date)
+		require.NotNil(t, status.AccessUnlocked)
+		require.NotNil(t, status.CheckedIn)
+		require.Equal(t, unlocked, *status.AccessUnlocked)
+		require.Equal(t, checkedIn, *status.CheckedIn)
+		return status.Date
+	}
+	checkStatus(false, false)
 	seedAchievementRecharge(t, tx, id, 10)
 	_, err = tx.ExecContext(ctx, `UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false}'::jsonb`)
 	require.NoError(t, err)
-	r := &userRepository{sql: tx}
-	raw, err := r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-account")
+	day := checkStatus(true, false)
+	raw, err := r.AchievementMutation(ctx, id, "checkin", "", day, "new-active-account")
 	require.NoError(t, err)
 	var receipt map[string]any
 	require.NoError(t, json.Unmarshal(raw, &receipt))
 	require.Equal(t, "eligible", receipt["reason"])
 	require.Equal(t, .01, receipt["gross"])
 	require.Equal(t, .01, receipt["net"])
-	raw, err = r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-retry")
+	checkStatus(true, true)
+	raw, err = r.AchievementMutation(ctx, id, "checkin", "", day, "new-active-retry")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(raw, &receipt))
 	require.Equal(t, true, receipt["replayed"])

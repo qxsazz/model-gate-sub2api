@@ -779,6 +779,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useEventBus } from '@vueuse/core'
 import { formatDateTime, formatMoneyFixed as money } from '@/utils/format'
 import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
 import '@/components/achievements/achievement-ui.css'
@@ -786,6 +787,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import MedalArt from '@/components/achievements/MedalArt.vue'
 import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
 import AchievementRechargeNotice from '@/components/achievements/AchievementRechargeNotice.vue'
+import { achievementCheckinEvent } from '@/components/achievements/checkinEvents'
 import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
 import { lunarDate } from '@/components/achievements/companion'
@@ -802,6 +804,7 @@ import {
   useAchievementCard,
 } from '@/api/achievements'
 import { useAuthStore } from '@/stores/auth'
+const checkins = useEventBus(achievementCheckinEvent)
 const auth = useAuthStore(),
   state = ref<AchievementState | null>(null),
   error = ref(''),
@@ -1202,6 +1205,8 @@ async function act(
   error.value = ''
   message.value = ''
   actionError.value = ''
+  const userId = auth.user?.id
+  const date = state.value.date
   try {
     if (
       action === 'checkin' ||
@@ -1210,9 +1215,12 @@ async function act(
     ) {
       const r = await changeAchievement(action, {
         key,
-        date: state.value.date,
+        date,
         request_key: requestKey.value,
       })
+      if (action === 'checkin' && userId !== undefined && auth.user?.id === userId) {
+        checkins.emit({ userId, date })
+      }
       message.value =
         r.cards_awarded !== undefined
           ? `已领取 ${r.cards_awarded} 张补签卡，剩余 ${r.card_balance} 张。`
@@ -1238,6 +1246,9 @@ function openDetail(m: Medal) {
   selected.value = m
   detailDialog.value?.showModal()
 }
+checkins.on((event) => {
+  if (event && event.userId === auth.user?.id && !busy.value) void load()
+})
 onMounted(() => {
   void load()
   window.addEventListener('focus', refreshAccessOnFocus)

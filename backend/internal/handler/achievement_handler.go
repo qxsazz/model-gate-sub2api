@@ -159,6 +159,21 @@ func (h *UserHandler) GetAchievements(c *gin.Context) {
 	}
 	response.Success(c, v)
 }
+
+func (h *UserHandler) GetAchievementCheckinStatus(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	status, err := h.userService.GetAchievementCheckinStatus(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, status)
+}
+
 func (h *UserHandler) PreviewAchievementCard(c *gin.Context) {
 	if !h.ensureAchievementAccess(c) {
 		return

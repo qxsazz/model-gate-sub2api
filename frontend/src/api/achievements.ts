@@ -59,6 +59,10 @@ export interface AchievementAccessSnapshot {
   remaining_recharge_cny?: number | string | null
   access_reason?: string | null
 }
+export interface AchievementCheckinStatus extends AchievementAccessSnapshot {
+  date: string
+  checked_in: boolean
+}
 export interface AchievementState extends AchievementAccessSnapshot {
   joined_date?: string
   companionship_days?: number
@@ -205,6 +209,8 @@ export const getAchievementAudit = async () =>
   (await apiClient.get<AchievementAudit[]>('/admin/achievements/audit')).data
 export const getAchievements = async () =>
   (await apiClient.get<AchievementState>('/user/achievements')).data
+export const getAchievementCheckinStatus = async () =>
+  (await apiClient.get<AchievementCheckinStatus>('/user/achievements/checkin')).data
 type AchievementBody = { key?: string; date?: string; request_key?: string }
 export function changeAchievement(
   action: 'checkin',

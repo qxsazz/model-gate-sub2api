@@ -165,6 +165,14 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
+    checkin: {
+      action: 'Check in',
+      pending: 'Checking in',
+      done: 'Checked in',
+      success: 'Check-in complete',
+      alreadyDone: 'Already checked in today',
+      failed: 'Check-in failed. Please try again.',
+    },
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',
     usage: 'Usage',

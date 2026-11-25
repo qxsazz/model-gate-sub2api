@@ -35,6 +35,7 @@ func RegisterUserRoutes(
 			user.DELETE("/chat-bindings/:binding_id", h.User.RevokeChatBinding)
 			user.GET("/vip", h.User.GetVIP)
 			user.GET("/achievements", h.User.GetAchievements)
+			user.GET("/achievements/checkin", h.User.GetAchievementCheckinStatus)
 			user.PUT("/achievements/preferences", h.User.SaveAchievementPreferences)
 			user.GET("/achievements/card-preview", h.User.PreviewAchievementCard)
 			user.POST("/achievements/use-card", h.User.UseAchievementCard)
