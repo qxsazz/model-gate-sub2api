@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Use the local Bodoni Moda figures for amounts while keeping letters in their UI font. */
+@font-face {
+  font-family: 'MG Bodoni Figures';
+  src: url('./assets/fonts/recharge/brand.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range: U+0024-0025, U+002B-002E, U+0030-0039, U+00A3, U+00A5, U+20AC, U+2212;
+}
+
 @layer base {
   * {
     @apply border-gray-200 dark:border-dark-700;
@@ -69,6 +78,12 @@
 }
 
 @layer components {
+  .mg-balance-figure {
+    @apply text-4xl font-bold tracking-normal;
+    font-family: 'MG Bodoni Figures', 'Bodoni Moda', Georgia, serif;
+    font-variant-numeric: normal;
+  }
+
   /* ============ 按钮样式 ============ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;

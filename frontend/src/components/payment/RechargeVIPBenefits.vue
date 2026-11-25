@@ -1,65 +1,194 @@
 <template>
-  <div v-if="state?.enabled" class="recharge-vip">
-    <section class="vip-current" aria-label="当前会员权益"><span class="grade num">VIP {{ currentLevel }} · {{ name(currentLevel) }}</span><p>累计有效充值 <strong class="num">${{ money(state.total) }}</strong><span data-current-bonus> · 本次加赠 <strong class="num">{{ currentBonus }}%</strong></span></p><small>{{ state.next ? '距下一充值档还差 $' + money(Math.max(0,state.next.threshold-state.total)) : '已达到最高充值档位' }}</small></section>
-    <section class="vip-projection" aria-labelledby="vip-projection-title">
-      <p class="eyebrow">YOUR NEXT PRIVILEGES</p><h2 id="vip-projection-title">本次充值后的会员权益</h2><p class="muted">成功充值后预计生效</p>
-      <template v-if="projected">
-        <h3 data-projected-tier><span class="num">VIP {{ projected.level }}</span> · {{ name(projected.level) }}会员</h3>
-        <progress :value="progress" max="100" aria-label="预计会员成长进度" />
-        <div class="progress-note"><span>预计累计 <strong class="num" data-future-total>${{ money(futureTotal!) }}</strong></span><span>{{ nextTier ? '距下一档还差 $' + money(nextTier.threshold-futureTotal!) : '已达到最高档' }}</span></div>
-        <dl class="facts"><div><dt>普通分组最高减免</dt><dd class="num">{{ maxCut ?? '按分组规则' }}</dd></div><div><dt>后续充值加赠</dt><dd class="num" data-projected-bonus>{{ bonusEnabled ? projected.recharge_bonus_percent ?? 0 : currentBonus }}%</dd></div><div><dt>并发目标</dt><dd>{{ projected.concurrency ? projected.concurrency + ' 请求' : '沿用原基础额度' }}</dd></div><div><dt>邀请返利</dt><dd class="num">{{ projected.rebate_percent }}%</dd></div></dl>
-        <div class="saving"><p>0.4 倍率 · 文档示例<br>同等调用量，实付约节省</p><strong class="num">{{ savings[projected.level] }}</strong></div>
-        <p class="timing">{{ state.tier_source === 'manual' ? '当前为管理员指定等级，充值成长额仍独立累计。' : '' }}本次仍按下单权益加赠 {{ currentBonus }}%；新比例从下一笔充值生效。</p>
-      </template>
-      <p v-else class="timing">当前支付币种的成长换算暂无法预计，请以充值完成后的 VIP 中心为准。</p>
-      <p class="note">未付款不提升等级，加赠与手续费不计入成长。并发不降低原基础额度，专属分组与签到资格以实际开放规则为准。</p>
-    </section>
-    <section class="vip-comparison" aria-labelledby="vip-comparison-title"><div class="comparison-heading"><h2 id="vip-comparison-title">先看权益，再选择充值金额</h2><div class="comparison-links"><router-link to="/vip" data-vip-center>VIP 中心</router-link><router-link to="/docs?cat=membership&amp;page=vip">会员权益文档</router-link></div></div>
-      <div class="levels" aria-label="会员等级对比"><button v-for="tier in allTiers" :key="tier.level" type="button" :class="'palette-'+tier.level" :aria-pressed="selected === tier.level" @click="selected = tier.level"><span class="level-heading"><span class="num level-number">VIP {{ tier.level }}</span><strong>{{ name(tier.level) }}</strong></span><span class="level-threshold num">{{ tier.level ? '$'+money(tier.threshold)+' 起' : '注册即享' }}</span><span class="level-saving"><strong class="num">{{ savings[tier.level] }}</strong><span>示例节省</span></span><small class="level-status">{{ tier.level === currentLevel ? '当前等级' : tier.level === projected?.level ? '本次预计达到' : '查看权益' }}</small></button></div>
-      <dl v-if="selectedTier" class="tier-details"><div><dt>累计充值门槛</dt><dd class="num">{{ selected ? '$'+money(selectedTier.threshold) : '注册即享' }}</dd></div><div><dt>0.4 倍率示例节省</dt><dd class="num">{{ savings[selected] }}</dd></div><div><dt>签到 / 日</dt><dd class="num">${{ money(state.rules.daily_rewards?.[selected] ?? 0) }}</dd></div><div><dt>本档累充奖励</dt><dd class="num">{{ selected ? '$'+money(selectedTier.threshold*.02) : '—' }}</dd></div><div><dt>专属分组资格</dt><dd>{{ selectedTier.threshold >= state.rules.access_threshold ? '按开放规则享有' : '未解锁' }}</dd></div></dl>
-      <details><summary>查看全部等级对比</summary><div class="overflow"><table><thead><tr><th>等级</th><th>累计门槛</th><th>充值加赠</th><th>签到 / 日</th><th>邀请返利</th><th>示例节省 · 0.4 倍率</th></tr></thead><tbody><tr v-for="tier in allTiers" :key="tier.level"><td>VIP {{ tier.level }} · {{ name(tier.level) }}</td><td class="num">${{ money(tier.threshold) }}</td><td class="num">{{ bonusEnabled ? tier.recharge_bonus_percent ?? 0 : currentBonus }}%</td><td class="num">${{ money(state.rules.daily_rewards?.[tier.level] ?? 0) }}</td><td class="num">{{ tier.rebate_percent }}%</td><td class="num">{{ savings[tier.level] }}</td></tr></tbody></table></div></details>
-      <p class="note">示例采用文档中的 0.4 基础倍率、普通会员无加赠、减免阶梯 0.015 / 0.03 / 0.045 / 0.06 / 0.075 及加赠 1%–5%。不含签到、邀请收入、一次性奖励或高峰因子，不代表全模型实际折扣。签到金额为档位配置，当前可领资格以成就与签到页为准。</p>
-    </section>
-  </div>
-  <div v-else-if="pending" class="recharge-vip" data-vip-skeleton aria-busy="true" aria-label="正在读取会员权益">
-    <section class="vip-current"><span class="skeleton skeleton-grade" /><span class="skeleton skeleton-label" /></section>
-    <section class="vip-projection"><h2>本次充值后的会员权益</h2><span class="skeleton skeleton-title" /><div class="skeleton-facts"><span v-for="n in 4" :key="n" class="skeleton skeleton-fact" /></div><span class="skeleton skeleton-title" /></section>
-    <section class="vip-comparison"><h2>先看权益，再选择充值金额</h2><div class="levels"><span v-for="n in 6" :key="n" class="skeleton skeleton-level" /></div></section>
-  </div>
-  <div v-else class="recharge-vip"><section class="vip-current"><span>会员权益</span><router-link to="/vip">VIP 中心</router-link></section><section class="vip-projection"><h2>会员权益</h2><p v-if="error" class="vip-read-error" role="status">会员权益暂时无法读取，不影响按当前到账报价充值。<button type="button" @click="load(false)">重试</button></p><p v-else class="note">VIP 规则尚未启用，充值按当前到账报价执行。</p></section><section class="vip-comparison"><router-link to="/vip">查看 VIP 中心</router-link></section></div>
+  <section class="recharge-order-perks" aria-labelledby="recharge-perks-title">
+    <div class="recharge-section-head">
+      <h3 id="recharge-perks-title">
+        <Icon name="badge" size="sm" />
+        {{ state?.enabled ? t('payment.rechargePage.currentBenefits', { level: state.tier.level }) : t('payment.rechargePage.membership') }}
+      </h3>
+      <button v-if="state?.enabled" class="recharge-text-link" type="button" @click="emit('update:show', true)">
+        {{ t('payment.rechargePage.compare') }} <Icon name="chevronRight" size="xs" />
+      </button>
+    </div>
+    <div v-if="pending" data-vip-skeleton aria-busy="true" class="recharge-growth-loading">{{ t('common.loading') }}</div>
+    <template v-else-if="state?.enabled && currentBenefits">
+      <dl class="recharge-perk-list" :aria-busy="loadingMembership">
+        <div v-for="(value, field) in currentBenefits" :key="field">
+          <dt>{{ t(`payment.rechargePage.${field}`) }}</dt>
+          <dd>
+            {{ value }}
+            <small v-if="field === 'daily'">{{ t('payment.rechargePage.ifEligible') }}</small>
+            <small v-if="field === 'milestone' && currentReward">{{ t(`payment.rechargePage.${currentReward.status}`) }}</small>
+          </dd>
+        </div>
+      </dl>
+      <p v-if="membershipError" class="recharge-note" role="status">
+        {{ t('payment.rechargePage.detailError') }} <button class="recharge-text-link" type="button" @click="loadMembership">{{ t('payment.rechargePage.retry') }}</button>
+      </p>
+    </template>
+    <p v-else-if="error" role="status" class="recharge-note">
+      {{ t('payment.rechargePage.loadError') }} <button class="recharge-text-link" type="button" @click="load(false)">{{ t('payment.rechargePage.retry') }}</button>
+    </p>
+    <p v-else class="recharge-note">{{ t('payment.rechargePage.vipOff') }}</p>
+  </section>
+
+  <BaseDialog v-if="state?.enabled" :show="show" :title="t('payment.rechargePage.allBenefits')" width="extra-wide" @close="emit('update:show', false)">
+    <div class="recharge-theme recharge-benefits">
+      <div class="recharge-tier-picker" role="group" :aria-label="t('payment.rechargePage.browseTiers')">
+        <button v-for="tier in tiers" :key="tier.level" type="button" :aria-pressed="selectedLevel === tier.level"
+          :aria-label="'VIP ' + tier.level + ' · ' + tierName(tier.level)" @click="selectedLevel = tier.level">
+          <VIPMembershipCard variant="thumbnail" :level="tier.level" :name="tierName(tier.level)" threshold-label="" :benefits="[]" />
+          <span class="recharge-tier-caption">{{ tierName(tier.level) }}<Icon v-if="selectedLevel === tier.level" name="check" size="xs" /></span>
+        </button>
+      </div>
+      <div v-if="selectedTier && selectedBenefits" class="recharge-tier-detail">
+        <div class="recharge-showcase">
+          <VIPMembershipCard :level="selectedTier.level" :name="tierName(selectedLevel)"
+            :current="isCurrent" :current-label="t('payment.rechargePage.currentTier')" :threshold-label="thresholdLabel(selectedTier)"
+            :benefits="[selectedBenefits.groups, t('payment.rechargePage.cardConcurrency', { value: selectedBenefits.concurrency }), t('payment.rechargePage.cardRebate', { value: selectedBenefits.invites })]" />
+          <dl class="recharge-benefit-figures">
+            <div><dt>{{ t('payment.rechargePage.onlineBonus') }}</dt><dd>{{ selectedBenefits.onlineBonus }}</dd><small>{{ t('payment.rechargePage.atOrder') }}</small></div>
+            <div><dt>{{ t('payment.rechargePage.daily') }}</dt><dd>{{ selectedBenefits.daily }}</dd><small>{{ t('payment.rechargePage.ifEligible') }}</small></div>
+            <div><dt>{{ t('payment.rechargePage.invites') }}</dt><dd>{{ selectedBenefits.invites }}</dd><small>{{ t('payment.rechargePage.validInvites') }}</small></div>
+            <div><dt>{{ t('payment.rechargePage.milestone') }}</dt><dd>{{ selectedBenefits.milestone }}</dd>
+              <small v-if="selectedLevel">{{ t('payment.rechargePage.' + (reward(selectedLevel)?.status ?? 'oncePerTier')) }}</small></div>
+          </dl>
+        </div>
+        <dl class="recharge-usage">
+          <div><dt>{{ t('payment.rechargePage.concurrency') }}</dt><dd>{{ selectedBenefits.concurrency }}</dd></div>
+          <div><dt>{{ t('payment.rechargePage.rpm') }}</dt><dd>{{ selectedBenefits.rpm }}</dd></div>
+          <div><dt>{{ t('payment.rechargePage.groups') }}</dt><dd>{{ selectedBenefits.groups }}</dd></div>
+          <div><dt>{{ t('payment.rechargePage.exclusive') }}</dt><dd>{{ selectedBenefits.exclusive }}</dd></div>
+        </dl>
+        <p class="recharge-note">{{ t('payment.rechargePage.pricingExample', pricingExample) }}</p>
+      </div>
+      <p v-if="membershipError" class="recharge-note" role="status">
+        {{ t('payment.rechargePage.detailError') }} <button class="recharge-text-link" type="button" @click="loadMembership">{{ t('payment.rechargePage.retry') }}</button>
+      </p>
+      <details>
+        <summary>{{ t('payment.rechargePage.compare') }}</summary>
+        <div class="recharge-comparison" tabindex="0" role="region" :aria-label="t('payment.rechargePage.compare')">
+          <table><thead><tr>
+            <th v-for="field in ['grade', 'threshold', 'onlineBonus', 'daily', 'invites', 'concurrency', 'milestone']" :key="field" scope="col">{{ t('payment.rechargePage.' + field) }}</th>
+          </tr></thead><tbody>
+            <tr v-for="tier in tiers" :key="tier.level"><th scope="row">VIP {{ tier.level }} · {{ tierName(tier.level) }}</th>
+              <td>{{ tier.level ? usd(tier.threshold) : t('payment.rechargePage.atSignup') }}</td><td>{{ tierBonus(tier) }}</td>
+              <td>{{ usd(state.rules.daily_rewards?.[tier.level]) }}</td><td>{{ tier.rebate_percent }}%</td>
+              <td>{{ tier.concurrency || t('payment.rechargePage.accountDefault') }}</td><td>{{ usd(reward(tier.level)?.amount) }}</td>
+            </tr>
+          </tbody></table>
+        </div>
+      </details>
+      <details>
+        <summary>{{ t('payment.rechargePage.rules') }}</summary>
+        <ul><li v-for="rule in ['principalRule', 'bonusRule', 'rewardRule', 'dailyRule', 'groupRule', 'capacityRule']" :key="rule">{{ t('payment.rechargePage.' + rule) }}</li></ul>
+      </details>
+      <div class="recharge-benefit-links">
+        <RouterLink to="/vip" data-vip-center>{{ t('payment.rechargePage.vipCenter') }} <Icon name="chevronRight" size="xs" /></RouterLink>
+        <RouterLink to="/docs?cat=membership&amp;page=vip">{{ t('payment.rechargePage.guide') }} <Icon name="chevronRight" size="xs" /></RouterLink>
+      </div>
+    </div>
+  </BaseDialog>
 </template>
+
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { getVIP, getVIPMembership, type VIPSnapshot, type VIPMembership, type VIPTier } from '@/api/vip'
-const props=defineProps<{amount:number;currency:string;growthRates?:Record<string,number>;currentLevel:number;currentMultiplier:number;bonusEnabled:boolean;initialRequest?:Promise<VIPSnapshot|null>}>()
-const emit=defineEmits<{ready:[value:boolean]}>()
-const state=ref<VIPSnapshot|null>(null),membership=ref<VIPMembership|null>(null),error=ref(false),selected=ref(0)
-const pending=ref(true)
-const name=(level:number)=>['普通','青铜','白银','黄金','铂金','黑钻'][level]??'会员'
-const money=(value:number)=>value.toFixed(2)
-const savings=['0%','4.70%','9.31%','13.83%','18.27%','22.62%']
-const currentBonus=computed(()=>Number(((props.currentMultiplier-1)*100).toFixed(2)))
-const zero:VIPTier={level:0,threshold:0,concurrency:0,rpm:0,rebate_percent:0,recharge_bonus_percent:0}
-const allTiers=computed(()=>[zero,...(state.value?.rules.tiers??[])])
-const selectedTier=computed(()=>allTiers.value.find(tier=>tier.level===selected.value))
-const futureTotal=computed(()=>{const rate=props.growthRates?.[props.currency];return state.value && rate && Number.isFinite(rate) && rate>0 && Number.isFinite(props.amount) && props.amount>=0 ? Math.round((state.value.total+props.amount*rate)*1e8)/1e8 : null})
-const projected=computed(()=>{if(!state.value||futureTotal.value===null)return null;if(state.value.tier_source==='manual')return state.value.tier;return allTiers.value.reduce((tier,item)=>futureTotal.value!>=item.threshold?item:tier,zero)})
-const nextTier=computed(()=>{const current=state.value;return current?.rules.tiers.find(tier=>tier.threshold>(futureTotal.value??current.total))})
-const progress=computed(()=>{const previous=allTiers.value.filter(tier=>tier.threshold<=(futureTotal.value??0)).at(-1)?.threshold??0;return nextTier.value?Math.max(0,Math.min(100,((futureTotal.value??0)-previous)/(nextTier.value.threshold-previous)*100)):100})
-const maxCut=computed(()=>membership.value?.discount_summaries[projected.value?.level??0]?.[0])
-watch(projected,tier=>{if(tier)selected.value=tier.level})
-async function load(useInitial=true){pending.value=true;error.value=false;try{const result=useInitial && props.initialRequest ? await props.initialRequest : await getVIP();if(!result)throw new Error('VIP response unavailable');state.value=result;emit('ready',result.enabled);selected.value=props.currentLevel;pending.value=false;membership.value=await getVIPMembership().catch(()=>null)}catch{state.value=null;error.value=true;emit('ready',false)}finally{pending.value=false}}
-onMounted(()=>load())
+import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { getVIP, getVIPMembership, type VIPMembership, type VIPSnapshot, type VIPTier } from '@/api/vip'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Icon from '@/components/icons/Icon.vue'
+import VIPMembershipCard from '@/components/user/VIPMembershipCard.vue'
+import { formatRechargeBonusNumber } from '@/utils/rechargeBonus'
+
+const props = defineProps<{
+  show: boolean
+  currentMultiplier: number
+  bonusEnabled: boolean
+  initialRequest?: Promise<VIPSnapshot | null>
+}>()
+const emit = defineEmits<{ 'update:show': [show: boolean]; snapshot: [value: VIPSnapshot | null] }>()
+const { t } = useI18n()
+const state = ref<VIPSnapshot | null>(null)
+const membership = ref<VIPMembership | null>(null)
+const pending = ref(true)
+const error = ref(false)
+const membershipError = ref(false)
+const loadingMembership = ref(false)
+const selectedLevel = ref(0)
+
+const baseTier: VIPTier = { level: 0, threshold: 0, concurrency: 0, rpm: 0, rebate_percent: 0, recharge_bonus_percent: 0 }
+const tiers = computed(() => [baseTier, ...(state.value?.rules.tiers ?? [])])
+const currentBonus = computed(() => formatRechargeBonusNumber((props.currentMultiplier - 1) * 100))
+const selectedTier = computed(() => tiers.value.find(tier => tier.level === selectedLevel.value))
+const isCurrent = computed(() => selectedLevel.value === state.value?.tier.level)
+const currentReward = computed(() => state.value && reward(state.value.tier.level))
+const currentBenefits = computed(() => state.value && benefitsFor(state.value, state.value.tier))
+const selectedBenefits = computed(() => state.value && selectedTier.value && benefitsFor(state.value, selectedTier.value))
+
+function benefitsFor(snapshot: VIPSnapshot, tier: VIPTier) {
+  const current = tier.level === snapshot.tier.level
+  const concurrency = current ? snapshot.concurrency : tier.concurrency
+  const rpm = current ? snapshot.rpm : tier.rpm
+  const rebate = current ? snapshot.rebate_percent ?? tier.rebate_percent : tier.rebate_percent
+  const cut = membership.value?.discount_summaries?.[tier.level]?.[0]
+  const groupPrice = cut ? t('payment.rechargePage.maxCut', { value: cut }) : t('payment.rechargePage.groupPricing')
+  const granted = snapshot.groups?.some(group => group.exclusive && group.granted)
+  const threshold = t('payment.rechargePage.accessFrom', { threshold: usd(snapshot.rules.access_threshold) })
+  return {
+    onlineBonus: current && props.bonusEnabled ? currentBonus.value + '%' : tierBonus(tier),
+    daily: usd(snapshot.rules.daily_rewards?.[tier.level]),
+    invites: rebate + '%',
+    milestone: tier.level ? usd(reward(tier.level)?.amount) : t('payment.rechargePage.noMilestone'),
+    concurrency: concurrency || t('payment.rechargePage.accountDefault'),
+    rpm: rpm || t('payment.rechargePage.accountDefault'),
+    groups: membership.value ? groupPrice : '—',
+    exclusive: current ? t(granted ? 'payment.rechargePage.openAccess' : 'payment.rechargePage.noAccess') : threshold,
+  }
+}
+// The VIP guide illustrates a 0.400 base rate, 0.015 reduction and 1% bonus per tier.
+const pricingExample = computed(() => {
+  const level = selectedLevel.value
+  const rate = 0.4 - level * 0.015
+  const savings = 100 * (1 - rate / (0.4 * (1 + level / 100)))
+  return { rate: rate.toFixed(3), bonus: level, savings: savings.toFixed(2) }
+})
+const tierName = (level: number) => t(`payment.rechargePage.tier${level}`)
+const usd = (n?: number) => n == null ? '—' : '$' + n.toFixed(2)
+const tierBonus = (tier: VIPTier) => props.bonusEnabled ? (tier.recharge_bonus_percent ?? 0) + '%' : t('payment.rechargePage.inactive')
+const reward = (level: number) => membership.value?.rewards?.find(item => item.level === level)
+const thresholdLabel = (tier: VIPTier) => tier.level
+  ? t('payment.rechargePage.thresholdFrom', { amount: usd(tier.threshold) }) : t('payment.rechargePage.atSignup')
+
+async function loadMembership() {
+  if (membership.value || loadingMembership.value) return
+  loadingMembership.value = true
+  membershipError.value = false
+  try { membership.value = await getVIPMembership() }
+  catch { membershipError.value = true }
+  finally { loadingMembership.value = false }
+}
+
+watch([() => props.show, () => state.value?.enabled], ([open]) => {
+  if (open && state.value?.enabled) {
+    selectedLevel.value = state.value.tier.level
+  }
+})
+
+async function load(useInitial = true) {
+  pending.value = true
+  error.value = false
+  try {
+    const result = useInitial && props.initialRequest ? await props.initialRequest : await getVIP()
+    if (!result) throw new Error('VIP snapshot unavailable')
+    state.value = result
+    emit('snapshot', result)
+    if (result.enabled) void loadMembership()
+  } catch {
+    error.value = true
+    state.value = null
+    emit('snapshot', null)
+  } finally {
+    pending.value = false
+  }
+}
+onMounted(() => load())
 </script>
-<style scoped>
-.recharge-vip{display:contents}.num{font-family:'DM Mono','SFMono-Regular',Consolas,monospace;font-variant-numeric:tabular-nums}.vip-current{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;gap:16px;border-block:1px solid var(--payment-line);padding:16px 0}.vip-current p{font-size:13px}.vip-current small{font-size:11px;color:var(--mg-muted)}.grade{border:1px solid var(--payment-line);border-radius:4px;padding:6px 10px;font-size:12px;white-space:nowrap}.vip-projection{grid-column:2;grid-row:2;min-width:0}.eyebrow{font:11px Consolas,monospace;color:var(--payment-gold);margin-bottom:8px}h2{font:500 18px 'Noto Serif SC',SimSun,serif;margin-bottom:12px}h3{font:500 21px 'Noto Serif SC',SimSun,serif;margin:24px 0 16px}.muted,.note{font-size:11px;color:var(--mg-muted);line-height:1.8}.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:12px 0}.facts>div{border-bottom:1px solid var(--payment-line);padding:14px 0}dt{font-size:11px;color:var(--mg-muted);margin-bottom:8px}dd{font-size:16px;margin:0}.saving{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--payment-line);padding:18px 0;gap:12px}.saving p{font-size:12px;line-height:1.8}.saving strong{font-size:28px;font-weight:500;color:var(--payment-gold)}.timing{font-size:11px;line-height:1.8;background:var(--payment-champagne);border-left:2px solid var(--payment-gold);padding:10px 12px;margin:16px 0}.progress-note{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--mg-muted);line-height:1.8}progress{appearance:none;height:4px;width:100%;border:0;display:block;margin-bottom:10px}progress::-webkit-progress-bar{background:var(--payment-line)}progress::-webkit-progress-value{background:var(--payment-gold)}progress::-moz-progress-bar{background:var(--payment-gold)}.vip-comparison{grid-column:1/-1;grid-row:3;border-top:1px solid var(--payment-line);padding-top:24px}.comparison-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}.comparison-heading a{font-size:12px;color:var(--payment-gold)}.levels{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:16px 0}.levels button{border:1px solid var(--payment-line);background:var(--payment-surface);padding:10px;border-radius:5px;text-align:left;font-size:12px;min-height:64px}.levels button[aria-pressed=true]{border-color:var(--payment-gold);box-shadow:inset 0 -2px 0 var(--payment-gold)}.levels small{display:block;min-height:14px;font-size:10px;color:var(--payment-gold);margin-top:8px}.metal{display:inline-block;width:20px;height:13px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#c4d0d4 url('/mg-vip-b-engraving.png') center/cover}.palette-1 .metal{background-color:#c8a385;background-blend-mode:multiply}.palette-2 .metal{background-color:#fff}.palette-3 .metal{background-color:#ddc58b;background-blend-mode:multiply}.palette-4 .metal{background-color:#b8d5d3;background-blend-mode:multiply}.palette-5 .metal{background-color:#202428;background-blend-mode:multiply}.tier-details{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;border-block:1px solid var(--payment-line);padding:16px 0}.tier-details dd{font-size:14px}details{margin:16px 0;font-size:12px}summary{cursor:pointer;color:var(--payment-gold);width:max-content}.overflow{overflow:auto;margin-top:12px}table{width:100%;font-size:12px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--payment-line);white-space:nowrap}th{font-weight:500;background:var(--payment-champagne)}.vip-read-error{font-size:12px;color:var(--mg-muted)}.vip-read-error button{margin-left:10px;text-decoration:underline}
-@media(max-width:1000px){.vip-current,.vip-projection,.vip-comparison{grid-column:auto;grid-row:auto}.vip-current{flex-wrap:wrap}.vip-current small{width:100%}.vip-projection{border-top:1px solid var(--payment-line);padding-top:24px}.levels{grid-template-columns:repeat(3,minmax(0,1fr))}.tier-details{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style>
-<style scoped>
-.vip-projection{min-height:540px}.vip-current{min-height:58px}.comparison-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.comparison-links a:first-child{color:var(--payment-ink-soft);font-weight:500}
-.levels button{position:relative;min-height:148px;padding:16px 12px 10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}.levels button:before{content:'';position:absolute;inset:0 0 auto;height:4px;background:var(--level-tone,#9aa8ae)}.palette-1{--level-tone:#ac7955}.palette-2{--level-tone:#c9d3d3}.palette-3{--level-tone:#b99b51}.palette-4{--level-tone:#809f9e}.palette-5{--level-tone:#30343a}.level-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.level-number{font-size:17px;font-weight:500}.level-heading strong{font-size:12px;font-weight:500}.level-threshold{font-size:11px;color:var(--mg-muted)}.level-saving{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:auto}.level-saving strong{font-size:17px;font-weight:500;color:var(--payment-gold)}.level-saving>span{font-size:10px;color:var(--mg-muted)}.levels .level-status{margin-top:0}.levels button:hover{border-color:var(--payment-gold)}.levels button:focus-visible{outline:2px solid var(--payment-gold);outline-offset:3px}
-.skeleton{display:block;background:var(--payment-line,#e5dfd1);border-radius:4px;opacity:.6}.skeleton-grade{width:110px;height:28px}.skeleton-label{width:40%;height:18px}.skeleton-title{width:70%;height:28px;margin:30px 0}.skeleton-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.skeleton-fact{height:74px}.skeleton-level{height:148px}
-@media(prefers-reduced-motion:no-preference){.skeleton{animation:vip-loading 1.4s ease-in-out infinite alternate}@keyframes vip-loading{to{opacity:.3}}}
-@media(max-width:1000px){.vip-current{order:0}.vip-projection{order:2;min-height:540px}.vip-comparison{order:3}.comparison-heading{align-items:flex-start;flex-wrap:wrap}}
-@media(max-width:600px){.levels{grid-template-columns:repeat(2,minmax(0,1fr))}.levels button{min-height:136px}.level-number{font-size:16px}.level-saving strong{font-size:16px}.comparison-links{gap:14px}.skeleton-level{height:136px}}
-</style>
