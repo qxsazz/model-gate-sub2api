@@ -71,6 +71,20 @@ for item in legacy:
 
 
 environment = json.loads(subprocess.check_output(["docker", "inspect", "sub2api-staging", "--format", "{{json .Config.Env}}"], text=True))
+checkin_admin_email = next((item.split("=", 1)[1].strip() for item in environment if item.startswith("MG_STAGING_CHECKIN_ADMIN_EMAIL=")), "")
+if not checkin_admin_email:
+    raise SystemExit("staging check-in administrator has not been configured")
+email_hex = checkin_admin_email.encode().hex()
+eligible_admin = sql(f"""
+WITH target AS (SELECT convert_from(decode('{email_hex}', 'hex'), 'UTF8') AS email)
+SELECT EXISTS (
+  SELECT 1 FROM users u JOIN target ON u.email = target.email
+  WHERE achievement_console_checkin_exempt(u.id, target.email)
+);
+""")
+if eligible_admin != "t":
+    raise SystemExit("configured staging check-in administrator is not active")
+print("Staging administrator check-in eligibility verified (read-only).")
 secret = next((item.split("=", 1)[1] for item in environment if item.startswith("JWT_SECRET=")), "")
 if not secret:
     raise SystemExit("staging must configure JWT_SECRET explicitly")

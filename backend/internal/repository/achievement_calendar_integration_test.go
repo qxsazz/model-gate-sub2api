@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -20,7 +21,8 @@ type calendarClockExecutor struct {
 
 func (c calendarClockExecutor) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	// Freeze the snapshot's server clock, retaining its actual production query.
-	query = strings.ReplaceAll(query, "clock_timestamp()", "$2::timestamptz")
+	clockParameter := fmt.Sprintf("$%d::timestamptz", len(args)+1)
+	query = strings.ReplaceAll(query, "clock_timestamp()", clockParameter)
 	return c.sqlExecutor.QueryContext(ctx, query, append(args, c.day+"T12:00:00+08:00")...)
 }
 

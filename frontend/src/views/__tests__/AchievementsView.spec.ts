@@ -82,6 +82,21 @@ describe('achievement recharge access', () => {
     expect(mocks.change).not.toHaveBeenCalled()
   })
 
+  it('permits exempt check-in while keeping activities and backfill subject to recharge', async () => {
+    mocks.get.mockResolvedValue({ ...state, ...access, checkin_exempt: true })
+    mocks.change.mockResolvedValueOnce({ day: state.date, gross: 0.1, net: 0.1, offset_amount: 0 })
+    wrapper = render()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('此账号可直接签到')
+    expect(wrapper.findAll('button').find((button) => button.text() === '去补签')?.attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="checkin"]').trigger('click')
+    await flushPromises()
+    expect(mocks.change).toHaveBeenCalledWith('checkin', expect.objectContaining({ date: state.date }))
+    await wrapper.findAll('.achievement-tabs button')[3].trigger('click')
+    expect(wrapper.find('#activity-tasks').exists()).toBe(false)
+  })
+
   it('blocks a stale page after a recharge-required response even if rechecking fails', async () => {
     mocks.get.mockResolvedValueOnce(state).mockRejectedValueOnce(new Error('核验服务暂不可用'))
     mocks.change.mockRejectedValueOnce({ reason: 'ACHIEVEMENT_RECHARGE_REQUIRED', message: '有效充值未达标' })

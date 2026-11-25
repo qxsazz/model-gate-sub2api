@@ -73,6 +73,7 @@ type AchievementAccessRepository interface {
 
 type AchievementCheckinStatusRepository interface {
 	AchievementCheckinStatus(context.Context, int64) (json.RawMessage, error)
+	EnsureAchievementCheckinAccess(context.Context, int64) error
 }
 
 func (s *UserService) EnsureAchievementAccess(ctx context.Context, id int64) error {
@@ -81,6 +82,13 @@ func (s *UserService) EnsureAchievementAccess(ctx context.Context, id int64) err
 		return infraerrors.New(503, "ACHIEVEMENT_ACCESS_UNAVAILABLE", "暂时无法核验充值资格，请稍后重试，无需重复充值")
 	}
 	return repo.EnsureAchievementAccess(ctx, id)
+}
+
+func (s *UserService) EnsureAchievementCheckinAccess(ctx context.Context, id int64) error {
+	if repo, ok := s.userRepo.(AchievementCheckinStatusRepository); ok {
+		return repo.EnsureAchievementCheckinAccess(ctx, id)
+	}
+	return s.EnsureAchievementAccess(ctx, id)
 }
 
 func (s *UserService) achievementRepo() (AchievementRepository, error) {

@@ -2,7 +2,8 @@
   <section v-if="access.supported" class="recharge-notice" :class="{ 'is-unlocked': !access.blocked }" aria-labelledby="achievement-recharge-heading" role="status" aria-live="polite">
     <div>
       <h2 id="achievement-recharge-heading">{{ heading }}</h2>
-      <p>{{ access.message }}</p>
+      <p v-if="checkinExempt && access.blocked">此账号可直接签到。</p>
+      <p>{{ accessMessage }}</p>
       <p v-if="needsRecharge" class="recharge-amounts">
         当前有效充值 <strong>¥{{ access.qualified }}</strong>，还差 <strong>¥{{ access.remaining }}</strong>
         <span v-if="access.kind === 'refunded'">（当前门槛 ¥{{ access.minimum }}）</span>。
@@ -26,11 +27,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AchievementRechargeAccess } from './rechargeAccess'
-const props = defineProps<{ access: AchievementRechargeAccess; refreshing: boolean }>()
+const props = defineProps<{ access: AchievementRechargeAccess; refreshing: boolean; checkinExempt?: boolean }>()
 defineEmits<{ refresh: [] }>()
 const needsRecharge = computed(() => ['required', 'refunded'].includes(props.access.kind))
+const accessMessage = computed(() =>
+  props.checkinExempt && props.access.kind === 'required'
+    ? `累计有效充值满 ¥${props.access.minimum} 后，可使用答题活动、成就领奖和补签卡。`
+    : props.access.message,
+)
 const heading = computed(() => ({
-  legacy: '', eligible: '有效充值门槛已满足', required: '充值解锁签到与成就奖励',
+  legacy: '', eligible: '有效充值门槛已满足', required: props.checkinExempt ? '充值解锁成就奖励' : '充值解锁签到与成就奖励',
   refunded: '有效充值不足，相关功能暂时锁定', pending: '等待充值到账确认',
   unavailable: '充值资格暂时无法核验', account: '当前账户不可用',
 })[props.access.kind])

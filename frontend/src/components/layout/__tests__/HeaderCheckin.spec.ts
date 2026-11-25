@@ -89,6 +89,26 @@ describe('header daily check-in', () => {
     expect(wrapper.get(selector).text()).toBe('nav.checkin.done')
   })
 
+  it('allows daily check-in when the server exempts the account from the recharge threshold', async () => {
+    mocks.getStatus.mockResolvedValueOnce({
+      ...status,
+      access_reason: 'recharge_required',
+      access_unlocked: false,
+      qualified_recharge_cny: 0,
+      remaining_recharge_cny: 10,
+      checkin_exempt: true,
+    })
+    mocks.change.mockResolvedValueOnce(receipt)
+    const wrapper = render()
+    await flushPromises()
+
+    expect(wrapper.get(selector).text()).toBe('nav.checkin.action')
+    await wrapper.get(selector).trigger('click')
+    await flushPromises()
+    expect(mocks.change).toHaveBeenCalledTimes(1)
+    expect(wrapper.get(selector).text()).toBe('nav.checkin.done')
+  })
+
   it('hides a blocked reminder and learns a completed check-in when the window regains focus', async () => {
     mocks.getStatus
       .mockResolvedValueOnce({

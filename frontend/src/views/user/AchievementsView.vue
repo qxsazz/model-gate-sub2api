@@ -9,7 +9,7 @@
       </p>
       <p v-if="!state && !error" class="loading">正在读取你的成就记录…</p>
       <template v-if="state">
-        <AchievementRechargeNotice :access="rechargeAccess" :refreshing="accessRefreshing" @refresh="load" />
+        <AchievementRechargeNotice :access="rechargeAccess" :refreshing="accessRefreshing" :checkin-exempt="checkinExempt" @refresh="load" />
         <section class="hero account-summary">
           <div class="wear-panel equipped">
             <button
@@ -187,7 +187,7 @@
               </div>
               <p class="policy-status" data-testid="current-cash-status">
                 {{
-                  rechargeAccess.blocked ? rechargeAccess.message : state.today && state.cash_reason === 'eligible'
+                  checkinBlocked ? rechargeAccess.message : state.today && state.cash_reason === 'eligible'
                     ? '当前签到金额奖励已开放。'
                     : cashReason(state.cash_reason)
                 }}
@@ -195,7 +195,7 @@
               <button
                 data-testid="checkin"
                 class="gold-button primary"
-                :disabled="busy || !!state.today || rechargeAccess.blocked"
+                :disabled="busy || !!state.today || checkinBlocked"
                 @click="act('checkin')"
               >
                 {{
@@ -203,7 +203,7 @@
                     ? '正在处理…'
                     : state.today
                       ? '今日已签到 · 明天再见'
-                      : rechargeAccess.blocked ? '暂不可签到，请核对资格' : '立即签到'
+                      : checkinBlocked ? '暂不可签到，请核对资格' : '立即签到'
                 }}
               </button>
               <template v-if="state.today"
@@ -636,7 +636,7 @@
             class="day-makeup-action"
           >
             <span>今日签到权益 ${{ money(state.daily_amount) }}</span
-            ><button class="primary" :disabled="busy || rechargeAccess.blocked" @click="checkinFromDate">
+            ><button class="primary" :disabled="busy || checkinBlocked" @click="checkinFromDate">
               {{ busy ? '正在处理…' : '立即签到' }}
             </button>
           </div>
@@ -823,6 +823,8 @@ const requestKey = ref(crypto.randomUUID())
 const accessRefreshing = ref(false)
 const requireAccessConfirmation = ref(false)
 const rechargeAccess = computed(() => achievementRechargeAccess(state.value, requireAccessConfirmation.value))
+const checkinExempt = computed(() => state.value?.checkin_exempt === true)
+const checkinBlocked = computed(() => rechargeAccess.value.blocked && !checkinExempt.value)
 const cardDialog = ref<HTMLDialogElement>()
 const cardDay = ref(''),
   cardError = ref('')
@@ -1175,7 +1177,7 @@ async function load() {
       error.value = errorMessage(e)
       if (state.value && rechargeAccess.value.supported) {
         requireAccessConfirmation.value = true
-        state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+        state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable', checkin_exempt: false }
       }
     }
   } finally {
@@ -1185,7 +1187,7 @@ async function load() {
 async function refreshRestrictedAccess() {
   requireAccessConfirmation.value = true
   // Do not retain an old positive result if the authoritative write has been refused.
-  if (state.value) state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+  if (state.value) state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable', checkin_exempt: false }
   clearCardPreview()
   await load()
 }
@@ -1197,7 +1199,7 @@ async function act(
   key?: string,
 ) {
   if (busy.value || !state.value) return
-  if (action !== 'equip' && rechargeAccess.value.blocked) {
+  if (action === 'checkin' ? checkinBlocked.value : action !== 'equip' && rechargeAccess.value.blocked) {
     actionError.value = rechargeAccess.value.message
     return
   }
@@ -1299,7 +1301,7 @@ const dayStatus = computed(() => {
   if (day > s.date) return calendarFutureStatus(day, s.date)
   if (s.joined_date && day < s.joined_date) return calendarStatusFor(day, 'beforeJoin')
   if (day === s.date) {
-    return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'today')
+    return checkinBlocked.value ? rechargeAccess.value.message : calendarStatusFor(day, 'today')
   }
   if (s.card_min_date && s.card_max_date && day >= s.card_min_date && day <= s.card_max_date) {
     return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'makeup')

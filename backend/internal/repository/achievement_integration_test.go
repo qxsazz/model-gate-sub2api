@@ -69,6 +69,53 @@ func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	require.True(t, recorded)
 }
 
+func TestStagingCheckinExemptsOnlyConfiguredActiveAdmin(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	r := &userRepository{sql: tx}
+	newAdmin := func(email string) int64 {
+		var id int64
+		require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role,balance)
+			VALUES($1,'fixture','admin',0) RETURNING id`, email).Scan(&id))
+		return id
+	}
+	email := uuid.NewString() + "@example.invalid"
+	t.Setenv("MG_STAGING_CHECKIN_ADMIN_EMAIL", email)
+	adminID := newAdmin(email)
+	otherID := newAdmin(uuid.NewString() + "@example.invalid")
+	status := func(id int64, exempt, checkedIn bool) string {
+		t.Helper()
+		raw, err := r.AchievementCheckinStatus(ctx, id)
+		require.NoError(t, err)
+		var state map[string]any
+		require.NoError(t, json.Unmarshal(raw, &state))
+		require.Equal(t, exempt, state["checkin_exempt"])
+		require.Equal(t, checkedIn, state["checked_in"])
+		require.Equal(t, false, state["access_unlocked"])
+		require.Equal(t, 0.0, state["qualified_recharge_cny"])
+		return state["date"].(string)
+	}
+	day := status(adminID, true, false)
+	status(otherID, false, false)
+	require.NoError(t, r.EnsureAchievementCheckinAccess(ctx, adminID))
+	for _, request := range []string{"staging-admin-first", "staging-admin-retry"} {
+		raw, err := r.AchievementMutation(ctx, adminID, "checkin", "", day, request)
+		require.NoError(t, err)
+		var receipt map[string]any
+		require.NoError(t, json.Unmarshal(raw, &receipt))
+		require.Equal(t, request == "staging-admin-retry", receipt["replayed"])
+	}
+	status(adminID, true, true)
+	_, err = tx.ExecContext(ctx, `UPDATE users SET role = 'user' WHERE id = $1`, adminID)
+	require.NoError(t, err)
+	status(adminID, false, true)
+	_, err = r.AchievementMutation(ctx, otherID, "checkin", "", day, "other-admin-first")
+	require.ErrorContains(t, err, "累计有效充值满")
+}
+
 func TestAchievementCheckinAccountingAndLifetimeClaim(t *testing.T) {
 	_ = testEntClient(t)
 	ctx := context.Background()

@@ -54,6 +54,7 @@ export interface CardHistory {
 }
 export interface AchievementAccessSnapshot {
   access_unlocked?: boolean
+  checkin_exempt?: boolean
   minimum_recharge_cny?: number | string | null
   qualified_recharge_cny?: number | string | null
   remaining_recharge_cny?: number | string | null

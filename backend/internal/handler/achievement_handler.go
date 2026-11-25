@@ -212,12 +212,23 @@ func (h *UserHandler) UseAchievementCard(c *gin.Context) {
 	response.Success(c, v)
 }
 func (h *UserHandler) ChangeAchievement(c *gin.Context) {
-	if c.Param("action") != "equip" && !h.ensureAchievementAccess(c) {
-		return
-	}
 	s, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	action := c.Param("action")
+	var accessErr error
+	switch action {
+	case "checkin":
+		accessErr = h.userService.EnsureAchievementCheckinAccess(c.Request.Context(), s.UserID)
+	case "equip":
+		// Badge equipment has no recharge prerequisite.
+	default:
+		accessErr = h.userService.EnsureAchievementAccess(c.Request.Context(), s.UserID)
+	}
+	if accessErr != nil {
+		response.ErrorFrom(c, accessErr)
 		return
 	}
 	var in struct {
@@ -229,7 +240,7 @@ func (h *UserHandler) ChangeAchievement(c *gin.Context) {
 		response.BadRequest(c, "无效的请求")
 		return
 	}
-	v, e := h.userService.ChangeAchievement(c.Request.Context(), s.UserID, c.Param("action"), in.Key, in.Date, in.RequestKey)
+	v, e := h.userService.ChangeAchievement(c.Request.Context(), s.UserID, action, in.Key, in.Date, in.RequestKey)
 	if e != nil {
 		response.ErrorFrom(c, e)
 		return

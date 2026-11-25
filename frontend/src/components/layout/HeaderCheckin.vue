@@ -38,7 +38,7 @@ const { t } = useI18n()
 const checkins = useEventBus(achievementCheckinEvent)
 const status = ref<AchievementCheckinStatus | null>(null)
 const busy = ref(false)
-const accessBlocked = computed(() => achievementRechargeAccess(status.value, true).blocked)
+const accessBlocked = computed(() => status.value?.checkin_exempt !== true && achievementRechargeAccess(status.value, true).blocked)
 const label = computed(() => {
   if (status.value?.checked_in) return t('nav.checkin.done')
   return t(busy.value ? 'nav.checkin.pending' : 'nav.checkin.action')
