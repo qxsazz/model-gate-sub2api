@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { LegacyCheckinCredit, MonthlyCheckinCredit } from './wallet'
 export interface CashReceipt {
   gross: number
   net: number
@@ -72,7 +73,8 @@ export interface AchievementState extends AchievementAccessSnapshot {
   timezone: string
   tier: number
   daily_amount: number
-  checkin_credit?: { available: number; next_amount: number; next_expiry: string } | null
+  checkin_credit?: MonthlyCheckinCredit | null
+  legacy_checkin_credit?: LegacyCheckinCredit | null
   daily_rewards: number[]
   cash_reason: string
   milestone_cash_enabled: boolean

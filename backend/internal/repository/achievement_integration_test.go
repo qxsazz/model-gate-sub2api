@@ -62,8 +62,9 @@ func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	require.Equal(t, .01, balance)
 	var count int
 	var recorded bool
-	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*),bool_and(c.remaining=.01 AND c.expires_at=
-        ((a.created_at AT TIME ZONE 'Asia/Shanghai')+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*),bool_and(c.remaining=.01 AND
+        c.credit_month=date_trunc('month',a.created_at AT TIME ZONE 'Asia/Shanghai')::date AND
+        c.expires_at=(c.credit_month+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
         FROM checkin_balance_credits c JOIN achievement_checkins a USING (user_id,day) WHERE user_id=$1`, id).Scan(&count, &recorded))
 	require.Equal(t, 1, count)
 	require.True(t, recorded)

@@ -57,8 +57,10 @@ BEGIN
  r:=achievement_admin_operation(actor,uid,'revoke',body);
  IF (r->>'cards_reclaimed')::int<>0 OR (r->>'series_debt_added')::numeric<>1.3 OR (SELECT amount FROM vip_reward_debt WHERE user_id=uid)<>1.38 THEN RAISE EXCEPTION 'Used card or series debt reclaim %',r; END IF;
  IF NOT EXISTS(SELECT 1 FROM checkin_balance_credits c JOIN achievement_checkins a USING(user_id,day)
-   WHERE c.user_id=uid AND c.day=day_key AND c.expires_at=((a.created_at AT TIME ZONE 'Asia/Shanghai')+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
- THEN RAISE EXCEPTION 'Backfill deadline must follow actual grant time';END IF;
+   WHERE c.user_id=uid AND c.day=day_key
+     AND c.credit_month=date_trunc('month',a.created_at AT TIME ZONE 'Asia/Shanghai')::date
+     AND c.expires_at=(c.credit_month+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
+ THEN RAISE EXCEPTION 'Backfill deadline must follow the month of the actual grant';END IF;
  IF NOT EXISTS(SELECT 1 FROM achievement_checkins WHERE user_id=uid AND day=day_key AND source='card') THEN RAISE EXCEPTION 'Used card checkin erased';END IF;
  body:=jsonb_build_object('key','A-K01','reason','QA restore','request_key',gen_random_uuid(),'grant_reward',false,'reclaim_reward',false);
  PERFORM achievement_admin_operation(actor,uid,'restore',body);

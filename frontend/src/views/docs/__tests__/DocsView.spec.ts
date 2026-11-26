@@ -99,8 +99,8 @@ describe('DocsView', () => {
   it('keeps check-in expiry visible and secondary instructions collapsed', async () => {
     const { wrapper } = await mountDocs('/docs?cat=achievements&page=check-in')
     const article = wrapper.get('[data-testid="docs-article"]')
-    expect(article.get('strong').text()).toBe('1 个自然月')
-    expect(article.get('strong').element.closest('details')).toBeNull()
+    const expiry = article.findAll('strong').find(emphasis => emphasis.text() === '下月 1 日 00:00')
+    expect(expiry?.element.closest('details')).toBeNull()
     const groupGuide = article.findAll('details').find(detail => detail.text().includes('/绑定'))
     expect(groupGuide?.get('summary').text()).toContain('在群里签到')
     expect(groupGuide?.element.open).toBe(false)

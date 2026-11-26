@@ -41,8 +41,8 @@ func TestCheckinCreditFIFOAndExpiry(t *testing.T) {
 	require.NoError(t, err)
 	repo := NewUsageBillingRepository(integrationEntClient, integrationDB)
 	now := time.Now()
-	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 3, now.Add(-48*time.Hour))
-	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-02", 4, now.Add(-24*time.Hour))
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 3, now)
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-02", 4, now)
 	// A normal recharge remains permanent. Retries use the existing billing dedup.
 	_, err = integrationDB.Exec(`UPDATE users SET balance=balance+5 WHERE id=$1`, id)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestCheckinCreditCalendarMonthDebtAndHolds(t *testing.T) {
 	var deadline time.Time
 	require.NoError(t, tx.QueryRow(`SELECT remaining,expires_at FROM checkin_balance_credits WHERE user_id=$1`, id).Scan(&remaining, &deadline))
 	require.Equal(t, 3.0, remaining)
-	require.True(t, time.Date(2024, 2, 28, 16, 35, 11, 0, time.UTC).Equal(deadline))
+	require.Equal(t, time.Date(2024, 1, 31, 16, 0, 0, 0, time.UTC), deadline.UTC())
 	var balance float64
 	require.NoError(t, tx.QueryRow(`SELECT checkin_lock_balance($1)`, id).Scan(&balance))
 	require.Zero(t, balance)
@@ -152,6 +152,30 @@ func TestCheckinCreditCalendarMonthDebtAndHolds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 10.0, *released.NewBalance)
 	require.Zero(t, *released.FrozenBalance)
+}
+
+func TestCheckinCreditMonthlyBoundaryUsesReceiptTime(t *testing.T) {
+	tx := testTx(t)
+	id := achievementAccessUser(t, tx)
+	// Shanghai June 1 at 00:00 and June 29 at 23:59 share July 1 at 00:00.
+	// The second and third receipts use older signed days, as makeup would.
+	for _, grant := range []struct {
+		day, month string
+		received   time.Time
+		deadline   time.Time
+	}{
+		{"2026-06-01", "2026-06-01", time.Date(2026, 5, 31, 16, 0, 0, 0, time.UTC), time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)},
+		{"2026-05-29", "2026-06-01", time.Date(2026, 6, 29, 15, 59, 0, 0, time.UTC), time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)},
+		{"2026-06-30", "2026-07-01", time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC), time.Date(2026, 7, 31, 16, 0, 0, 0, time.UTC)},
+	} {
+		addCheckinBalanceFixture(t, tx, id, grant.day, 2, grant.received)
+		var month string
+		var deadline time.Time
+		require.NoError(t, tx.QueryRow(`SELECT credit_month::text,expires_at FROM checkin_balance_credits
+			WHERE user_id=$1 AND day=$2`, id, grant.day).Scan(&month, &deadline))
+		require.Equal(t, grant.month, month)
+		require.Equal(t, grant.deadline, deadline.UTC())
+	}
 }
 
 func TestCheckinCreditCachedBalanceDeadline(t *testing.T) {

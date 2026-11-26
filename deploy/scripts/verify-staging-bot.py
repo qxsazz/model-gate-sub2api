@@ -6,6 +6,7 @@ their data and budget contribution. No production origin or platform RPCs.
 """
 import base64
 import datetime as dt
+from decimal import Decimal
 import hashlib
 import hmac
 import json
@@ -210,12 +211,24 @@ try:
     assert sql(f"SELECT balance=0 FROM users WHERE id={uid};") == "t"
     verify_trial_credit(uid, qq, wx)
     recharge(uid, minimum)
+    wallet_before = call("/user/balance", user_token, method="GET")
     assert call("/integrations/bot/checkin", token, unpaid) == {**rejected, "replayed": True}
     paid = checkin(qq)
     first = call("/integrations/bot/checkin", token, paid)
     assert_status(first, "checked_in")
     assert call("/integrations/bot/checkin", token, paid)["replayed"]
     assert_status(call("/integrations/bot/checkin", token, checkin(wx)), "already_checked_in")
+    wallet_after = call("/user/balance", user_token, method="GET")
+    monthly = wallet_after["checkin_credit"]
+    start = dt.date.fromisoformat(monthly["month"] + "-01")
+    beijing = dt.timezone(dt.timedelta(hours=8))
+    next_month = dt.datetime(start.year + int(start.month == 12), start.month % 12 + 1, 1, tzinfo=beijing)
+    assert dt.datetime.fromisoformat(monthly["expires_at"]) == next_month
+    assert not wallet_after.get("legacy_checkin_credit") and wallet_after["frozen_balance"] == 0
+    assert wallet_after["other_available"] == wallet_before["other_available"]
+    spendable = Decimal(str(wallet_after["available_balance"]))
+    assert spendable == Decimal(str(wallet_after["other_available"])) + Decimal(str(monthly["available"]))
+    print("Wallet HTTPS passed: current-month cutoff, spendable total and other balance.")
     bindings = call("/user/chat-bindings", user_token, method="GET")
     qq_binding = next(item for item in bindings if item["identity"] == qq)
     call("/user/chat-bindings/" + str(qq_binding["id"]), other_token, method="DELETE", expected=404)

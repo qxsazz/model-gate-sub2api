@@ -29,6 +29,7 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			user.GET("/balance", h.User.GetWalletBalance)
 			user.GET("/chat-bindings", h.User.ListChatBindings)
 			user.GET("/chat-bindings/challenges/:challenge_id", h.User.GetChatBindingChallenge)
 			user.POST("/chat-bindings/challenges/:challenge_id/authorize", h.User.AuthorizeChatBindingChallenge)

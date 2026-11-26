@@ -26,6 +26,47 @@ type userHandlerRepoStub struct {
 	unbound    []string
 }
 
+type walletBalanceRepoStub struct {
+	service.UserRepository
+	userID int64
+}
+
+func (s *walletBalanceRepoStub) GetWalletBalance(_ context.Context, userID int64) (service.WalletBalance, error) {
+	s.userID = userID
+	return service.WalletBalance{AvailableBalance: 23, OtherAvailable: 20, CheckinCredit: service.MonthlyCheckinCredit{Available: 3}}, nil
+}
+
+func TestUserHandlerWalletBalanceUsesJWTSubject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &walletBalanceRepoStub{}
+	handler := &UserHandler{userService: service.NewUserService(repo, nil, nil, nil)}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/user/balance?user_id=999", nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+	handler.GetWalletBalance(ctx)
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.Zero(t, repo.userID)
+
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	ctx.Request = request
+	ctx.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 11})
+	handler.GetWalletBalance(ctx)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, int64(11), repo.userID)
+	require.Equal(t, "private, no-store", recorder.Header().Get("Cache-Control"))
+	var result struct {
+		Code int                   `json:"code"`
+		Data service.WalletBalance `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &result))
+	require.Zero(t, result.Code)
+	require.Equal(t, 23.0, result.Data.AvailableBalance)
+	require.Equal(t, 3.0, result.Data.CheckinCredit.Available)
+	require.Nil(t, result.Data.LegacyCheckinCredit)
+}
+
 func (s *userHandlerRepoStub) Create(context.Context, *service.User) error { return nil }
 func (s *userHandlerRepoStub) CreateWithEmailAliasGuard(context.Context, *service.User) error {
 	return nil
