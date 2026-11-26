@@ -420,7 +420,7 @@ describe('achievement checkin', () => {
     )
     expect(w.text()).toContain('已领取 1 张补签卡')
   })
-  it('shows monthly and existing check-in balances with separate Beijing deadlines', async () => {
+  it('shows the current month check-in balance to two decimals and its Beijing deadline', async () => {
     mocks.get.mockResolvedValue({
       ...state,
       checkin_credit: { available: 1.0015, month: '2027-02', expires_at: '2027-02-28T16:00:00Z' },
@@ -430,14 +430,11 @@ describe('achievement checkin', () => {
     await flushPromises()
     const policy = w.get('[data-testid="checkin-credit-policy"]')
     expect(policy.text()).toContain('成就现金奖励计入其他可用余额')
-    expect(policy.text()).toContain('$1.0015')
-    expect(policy.text()).toContain('$0.0115')
-    expect(policy.text()).toContain('$0.0015')
-    expect(policy.findAll('time').map((time) => time.attributes('datetime'))).toEqual([
-      '2027-02-28T16:00:00Z', '2027-02-28T10:15:24Z',
-    ])
-    expect(policy.findAll('time')[0].text()).toContain('00:00:00')
-    expect(policy.findAll('time')[1].text()).toContain('18:15:24')
+    expect(policy.get('strong').text()).toBe('$1.00')
+    expect(policy.text()).not.toContain('历史签到余额')
+    expect(policy.findAll('time')).toHaveLength(1)
+    expect(policy.get('time').attributes('datetime')).toBe('2027-02-28T16:00:00Z')
+    expect(policy.get('time').text()).toContain('00:00:00')
     w.unmount()
   })
 

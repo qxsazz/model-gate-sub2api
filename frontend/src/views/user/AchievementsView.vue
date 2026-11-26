@@ -221,13 +221,8 @@
               <div class="quiet-note flex-col" data-testid="checkin-credit-policy">
                 <p>签到和补签奖励计入到账当月的签到余额，优先按到期时间扣除。北京时间下月 1 日 00:00，剩余月度签到余额统一清零。成就现金奖励计入其他可用余额。</p>
                 <p v-if="state.checkin_credit">
-                  本月签到余额 <strong>${{ creditAmount.format(state.checkin_credit.available) }}</strong>，将于
+                  本月签到余额 <strong>${{ money(state.checkin_credit.available) }}</strong>，将于
                   <time :datetime="state.checkin_credit.expires_at">{{ formatDateTime(state.checkin_credit.expires_at, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
-                </p>
-                <p v-if="state.legacy_checkin_credit">
-                  历史签到余额 <strong>${{ creditAmount.format(state.legacy_checkin_credit.available) }}</strong>，按原日期到期。
-                  其中 ${{ creditAmount.format(state.legacy_checkin_credit.next_amount) }} 将于
-                  <time :datetime="state.legacy_checkin_credit.next_expiry">{{ formatDateTime(state.legacy_checkin_credit.next_expiry, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
                 </p>
               </div>
               <div class="sign-stats day-stats">
@@ -818,7 +813,6 @@ const auth = useAuthStore(),
   tab = ref('sign'),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
-const creditAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
 const creditDateFormat: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',

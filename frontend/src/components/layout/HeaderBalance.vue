@@ -17,7 +17,7 @@
     <section v-show="open" :id="panelId" class="header-balance-panel" :aria-labelledby="headingId" :aria-busy="loading">
       <header class="header-balance-heading">
         <h2 :id="headingId">{{ t('common.availableBalance') }}</h2>
-        <strong>{{ details ? formatAmount(details.available_balance) : triggerAmount }}</strong>
+        <strong>{{ triggerAmount }}</strong>
         <button type="button" class="header-balance-close" :aria-label="t('common.balanceBreakdown.close')" @click="closeAndFocus">
           <Icon name="x" size="sm" aria-hidden="true" />
         </button>
@@ -38,24 +38,14 @@
           <dd class="header-balance-value">{{ formatAmount(details.checkin_credit.available) }}</dd>
           <dd class="header-balance-expiry">{{ t('common.balanceBreakdown.expiry', { date: expiryLabel(details.checkin_credit.expires_at) }) }}</dd>
         </div>
-        <div v-if="details.legacy_checkin_credit" class="header-balance-line">
-          <dt>
-            <span class="header-balance-icon"><Icon name="clock" size="xs" aria-hidden="true" /></span>
-            <span>{{ t('common.balanceBreakdown.legacyCheckin') }}</span>
-            <span class="header-balance-priority">{{ t('common.balanceBreakdown.priority') }}</span>
-          </dt>
-          <dd class="header-balance-value">{{ formatAmount(details.legacy_checkin_credit.available) }}</dd>
-          <dd class="header-balance-expiry">{{ t('common.balanceBreakdown.legacyExpiry', {
-            amount: formatAmount(details.legacy_checkin_credit.next_amount),
-            date: expiryLabel(details.legacy_checkin_credit.next_expiry),
-          }) }}</dd>
-        </div>
         <div class="header-balance-line">
           <dt>
             <span class="header-balance-icon"><Icon name="creditCard" size="xs" aria-hidden="true" /></span>
             <span>{{ t('common.balanceBreakdown.other') }}</span>
           </dt>
-          <dd class="header-balance-value">{{ formatAmount(details.other_available) }}</dd>
+          <dd class="header-balance-value">
+            {{ formatAmount(details.other_available + (details.legacy_checkin_credit?.available ?? 0)) }}
+          </dd>
         </div>
         <div v-if="details.frozen_balance > 0" class="header-balance-line">
           <dt>
@@ -87,7 +77,7 @@ const open = ref(false)
 const loading = ref(false)
 const failed = ref(false)
 const details = ref<WalletBalance | null>(null)
-const triggerAmount = computed(() => formatMoneyFixed(details.value?.available_balance ?? props.available, '$'))
+const triggerAmount = computed(() => formatAmount(details.value?.available_balance ?? props.available))
 const monthLabel = computed(() => {
   const month = details.value?.checkin_credit.month
   if (!month) return ''
@@ -95,7 +85,6 @@ const monthLabel = computed(() => {
   return formatDateTime(`${month}-01T00:00:00+08:00`, { month: 'long', timeZone: 'Asia/Shanghai' }, locale.value)
 })
 
-const amountFormat = new Intl.NumberFormat('en-US', { useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 8 })
 const expiryFormat: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Shanghai', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }
@@ -103,7 +92,7 @@ let request: AbortController | undefined
 let expiryTimer: number | undefined
 
 function formatAmount(amount: number) {
-  return `$${amountFormat.format(amount)}`
+  return formatMoneyFixed(amount, '$')
 }
 
 function expiryLabel(date: string) {
