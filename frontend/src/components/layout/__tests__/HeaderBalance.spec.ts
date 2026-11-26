@@ -29,7 +29,7 @@ enableAutoUnmount(afterEach)
 beforeEach(() => getBalance.mockReset())
 
 describe('header balance', () => {
-  it('shows only the monthly expiry and displays all amounts to two decimal places', async () => {
+  it('shows the monthly expiry and notes old credit within other available funds', async () => {
     getBalance.mockResolvedValue(juneBalance)
     const wrapper = render()
     const trigger = wrapper.get('.header-balance-trigger')
@@ -48,6 +48,7 @@ describe('header balance', () => {
     expect(rows[0].text()).toContain('优先扣除')
     expect(rows[0].text()).toContain('00:00')
     expect(rows[1].text()).toContain('其他可用余额')
+    expect(rows[1].get('.header-balance-note').text()).toBe('含历史签到余额，沿用原到期时间')
     expect(wrapper.findAll('.header-balance-expiry')).toHaveLength(1)
     expect(rows.map((row) => row.get('.header-balance-value').text())).toEqual([
       '$0.00',
@@ -71,11 +72,13 @@ describe('header balance', () => {
       const wrapper = render()
       await wrapper.get('.header-balance-trigger').trigger('click')
       await flushPromises()
+      expect(wrapper.find('.header-balance-note').exists()).toBe(true)
       await vi.advanceTimersByTimeAsync(1250)
       await flushPromises()
 
       expect(getBalance).toHaveBeenCalledTimes(2)
       expect(wrapper.findAll('.header-balance-value')[1].text()).toBe('$10517.84')
+      expect(wrapper.find('.header-balance-note').exists()).toBe(false)
       wrapper.unmount()
     } finally {
       vi.useRealTimers()

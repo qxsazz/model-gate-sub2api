@@ -66,6 +66,7 @@ export default {
 	      monthlyCheckin: '{month}月签到余额',
 	      priority: '优先扣除',
 	      other: '其他可用余额',
+	      legacyNote: '含历史签到余额，沿用原到期时间',
 	      expiry: '{date} 到期（北京时间）',
 	      error: '暂时无法加载余额明细。',
 	    },

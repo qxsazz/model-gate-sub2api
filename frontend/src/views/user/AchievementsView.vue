@@ -195,7 +195,7 @@
               <button
                 data-testid="checkin"
                 class="gold-button primary"
-                :disabled="busy || !!state.today || checkinBlocked"
+                :disabled="busy || accessRefreshing || !!state.today || checkinBlocked"
                 @click="act('checkin')"
               >
                 {{
@@ -635,7 +635,7 @@
             class="day-makeup-action"
           >
             <span>今日签到权益 ${{ money(state.daily_amount) }}</span
-            ><button class="primary" :disabled="busy || checkinBlocked" @click="checkinFromDate">
+            ><button class="primary" :disabled="busy || accessRefreshing || checkinBlocked" @click="checkinFromDate">
               {{ busy ? '正在处理…' : '立即签到' }}
             </button>
           </div>
@@ -788,6 +788,7 @@ import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
 import AchievementRechargeNotice from '@/components/achievements/AchievementRechargeNotice.vue'
 import { achievementCheckinEvent } from '@/components/achievements/checkinEvents'
 import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
+import { useCheckinDayRefresh } from '@/components/achievements/useCheckinDayRefresh'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
 import { lunarDate } from '@/components/achievements/companion'
 import { calendarEntryFor, calendarFutureStatus, calendarStatusFor } from '@/components/achievements/calendarContent'
@@ -803,6 +804,7 @@ import {
   useAchievementCard,
 } from '@/api/achievements'
 import { useAuthStore } from '@/stores/auth'
+import { extractApiErrorCode } from '@/utils/apiError'
 const checkins = useEventBus(achievementCheckinEvent)
 const auth = useAuthStore(),
   state = ref<AchievementState | null>(null),
@@ -818,6 +820,7 @@ const creditDateFormat: Intl.DateTimeFormatOptions = {
   hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
 }
 const requestKey = ref(crypto.randomUUID())
+let checkinAttempt: { date: string; key: string } | undefined
 const accessRefreshing = ref(false)
 const requireAccessConfirmation = ref(false)
 const rechargeAccess = computed(() => achievementRechargeAccess(state.value, requireAccessConfirmation.value))
@@ -1189,14 +1192,12 @@ async function refreshRestrictedAccess() {
   clearCardPreview()
   await load()
 }
-function refreshAccessOnFocus() {
-  if (rechargeAccess.value.supported && !busy.value && !accessRefreshing.value) void load()
-}
 async function act(
   action: 'checkin' | 'claim' | 'claim_series' | 'equip',
   key?: string,
 ) {
   if (busy.value || !state.value) return
+  if (action === 'checkin' && (accessRefreshing.value || state.value.today)) return
   if (action === 'checkin' ? checkinBlocked.value : action !== 'equip' && rechargeAccess.value.blocked) {
     actionError.value = rechargeAccess.value.message
     return
@@ -1213,19 +1214,25 @@ async function act(
       action === 'claim' ||
       action === 'claim_series'
     ) {
+      let commandKey: string = requestKey.value
+      if (action === 'checkin') {
+        if (checkinAttempt?.date !== date) checkinAttempt = { date, key: crypto.randomUUID() }
+        commandKey = checkinAttempt.key
+      }
       const r = await changeAchievement(action, {
         key,
         date,
-        request_key: requestKey.value,
+        request_key: commandKey,
       })
-      if (action === 'checkin' && userId !== undefined && auth.user?.id === userId) {
-        checkins.emit({ userId, date })
+      if (action === 'checkin') {
+        if (userId !== undefined && auth.user?.id === userId) checkins.emit({ userId, date })
+      } else {
+        requestKey.value = crypto.randomUUID()
       }
       message.value =
         r.cards_awarded !== undefined
           ? `已领取 ${r.cards_awarded} 张补签卡，剩余 ${r.card_balance} 张。`
           : `${action === 'checkin' ? '签到成功' : '奖励已领取'}：奖励 $${money(r.gross)}，实际到账 $${money(r.net)}${r.offset_amount ? '，抵扣待追回金额 $' + money(r.offset_amount) : ''}`
-      requestKey.value = crypto.randomUUID()
       await auth.refreshUser()
     } else {
       await changeAchievement('equip', { key })
@@ -1236,7 +1243,15 @@ async function act(
   } catch (e) {
     error.value = errorMessage(e)
     actionError.value = error.value
-    if (isAchievementAccessRestricted(e)) await refreshRestrictedAccess()
+    if (isAchievementAccessRestricted(e)) {
+      await refreshRestrictedAccess()
+    } else if (action === 'checkin' && extractApiErrorCode(e) === 'ACHIEVEMENT_DATE_CHANGED') {
+      await load()
+      if (!error.value && state.value?.date !== date) {
+        message.value = '日期已更新，请重新点击签到。'
+        actionError.value = message.value
+      }
+    }
   } finally {
     busy.value = false
   }
@@ -1249,10 +1264,10 @@ function openDetail(m: Medal) {
 checkins.on((event) => {
   if (event && event.userId === auth.user?.id && !busy.value) void load()
 })
-onMounted(() => {
-  void load()
-  window.addEventListener('focus', refreshAccessOnFocus)
+useCheckinDayRefresh((dayChanged) => {
+  if (dayChanged || (!busy.value && !accessRefreshing.value)) void load()
 })
+onMounted(() => { void load() })
 
 const activityName = computed(
   () => activityGroups.find((g) => g.key === activityGroup.value)?.name || '',
@@ -1411,7 +1426,6 @@ watch(message, (value) => {
 })
 onUnmounted(() => {
   clearTimeout(toastTimer)
-  window.removeEventListener('focus', refreshAccessOnFocus)
 })
 
 function documentScrollSeries() {

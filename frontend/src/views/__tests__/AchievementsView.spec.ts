@@ -111,6 +111,89 @@ describe('achievement recharge access', () => {
   })
 })
 
+describe('achievement check-in day rollover', () => {
+  let wrapper: ReturnType<typeof render> | undefined
+  const nextDay = { ...state, date: '2026-10-04' }
+  const checkedIn = {
+    ...state,
+    today: { day: state.date, gross: 0, net: 0, offset_amount: 0, reason: 'eligible', streak: 1 },
+  }
+  const checkin = '[data-testid="checkin"]'
+
+  beforeEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    wrapper?.unmount()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it.each(['open', 'resumed'])('refreshes yesterday’s completed status in an %s tab', async (tab) => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date('2026-10-03T15:59:59Z'))
+    mocks.get.mockResolvedValueOnce(checkedIn).mockResolvedValueOnce(nextDay)
+    wrapper = render()
+    await flushPromises()
+    expect(wrapper.get(checkin).attributes('disabled')).toBeDefined()
+
+    if (tab === 'open') {
+      await vi.advanceTimersByTimeAsync(1_250)
+    } else {
+      const visibility = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+      await vi.advanceTimersByTimeAsync(1_250)
+      expect(mocks.get).toHaveBeenCalledTimes(1)
+      visibility.mockReturnValue(false)
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('focus'))
+      await flushPromises()
+    }
+
+    expect(mocks.get).toHaveBeenCalledTimes(2)
+    expect(wrapper.get(checkin).attributes('disabled')).toBeUndefined()
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+  })
+
+  it('ignores an earlier pre-midnight lookup that finishes after the rollover refresh', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date('2026-10-03T15:59:59Z'))
+    let finish!: (snapshot: typeof checkedIn) => void
+    mocks.get
+      .mockResolvedValueOnce(checkedIn)
+      .mockReturnValueOnce(new Promise<typeof checkedIn>((resolve) => { finish = resolve }))
+      .mockResolvedValueOnce(nextDay)
+    wrapper = render()
+    await flushPromises()
+
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(1_250)
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+
+    finish(checkedIn)
+    await flushPromises()
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+  })
+
+  it('recovers a rejected stale-day request and waits for confirmation with a fresh key', async () => {
+    mocks.get.mockResolvedValueOnce(state).mockResolvedValue(nextDay)
+    mocks.change
+      .mockRejectedValueOnce({ reason: 'ACHIEVEMENT_DATE_CHANGED', message: '日期已切换，请刷新后重新签到' })
+      .mockResolvedValueOnce({ day: nextDay.date, gross: 0, net: 0, offset_amount: 0 })
+    wrapper = render()
+    await flushPromises()
+
+    await wrapper.get(checkin).trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toContain('日期已更新，请重新点击签到。')
+    expect(mocks.change).toHaveBeenCalledTimes(1)
+
+    await wrapper.get(checkin).trigger('click')
+    await flushPromises()
+    const [first, second] = mocks.change.mock.calls.map((call) => call[1])
+    expect(first.date).toBe(state.date)
+    expect(second.date).toBe(nextDay.date)
+    expect(second.request_key).not.toBe(first.request_key)
+  })
+})
+
 describe('achievement checkin', () => {
   it('shows a lost claim response inside the detail dialog and retries the same command', async () => {
     HTMLDialogElement.prototype.showModal = vi.fn()

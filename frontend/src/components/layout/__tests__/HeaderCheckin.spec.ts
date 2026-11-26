@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { nextTick, reactive } from 'vue'
 import HeaderCheckin from '../HeaderCheckin.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -16,10 +17,11 @@ vi.mock('@/api/achievements', () => ({
 }))
 vi.mock('@/stores', () => ({
   useAppStore: () => ({ showError: mocks.showError, showSuccess: mocks.showSuccess }),
-  useAuthStore: () => ({ user: { id: 9 }, refreshUser: mocks.refreshUser }),
+  useAuthStore: () => auth,
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
+const auth = reactive({ user: { id: 9, balance: 0 }, refreshUser: mocks.refreshUser })
 const status = {
   date: '2026-11-25',
   checked_in: false,
@@ -28,6 +30,13 @@ const status = {
   remaining_recharge_cny: 0,
   access_unlocked: true,
   access_reason: 'eligible',
+}
+const blocked = {
+  ...status,
+  access_reason: 'recharge_required',
+  access_unlocked: false,
+  qualified_recharge_cny: 9,
+  remaining_recharge_cny: 1,
 }
 const receipt = { day: status.date, gross: 0.1, net: 0.1, offset_amount: 0 }
 const selector = '[data-testid="header-checkin"]'
@@ -39,6 +48,7 @@ function render() {
 enableAutoUnmount(afterEach)
 beforeEach(() => {
   vi.resetAllMocks()
+  auth.user = { id: 9, balance: 0 }
   mocks.getStatus.mockResolvedValue(status)
   mocks.refreshUser.mockResolvedValue(undefined)
 })
@@ -111,13 +121,7 @@ describe('header daily check-in', () => {
 
   it('hides a blocked reminder and learns a completed check-in when the window regains focus', async () => {
     mocks.getStatus
-      .mockResolvedValueOnce({
-        ...status,
-        access_reason: 'recharge_required',
-        access_unlocked: false,
-        qualified_recharge_cny: 9,
-        remaining_recharge_cny: 1,
-      })
+      .mockResolvedValueOnce(blocked)
       .mockResolvedValueOnce({ ...status, checked_in: true })
     const wrapper = render()
     await flushPromises()
@@ -128,5 +132,43 @@ describe('header daily check-in', () => {
     expect(wrapper.get(selector).text()).toBe('nav.checkin.done')
     expect(wrapper.find('.checkin-dot').exists()).toBe(false)
     expect(mocks.change).not.toHaveBeenCalled()
+  })
+
+  it('rechecks blocked accounts when the periodic profile refresh leaves the balance unchanged', async () => {
+    mocks.getStatus.mockResolvedValueOnce(blocked).mockResolvedValueOnce(status)
+    const wrapper = render()
+    await flushPromises()
+    expect(wrapper.find(selector).exists()).toBe(false)
+
+    auth.user = { ...auth.user }
+    await flushPromises()
+    expect(mocks.getStatus).toHaveBeenCalledTimes(2)
+    expect(wrapper.get(selector).text()).toBe('nav.checkin.action')
+
+    auth.user = { ...auth.user }
+    await flushPromises()
+    expect(mocks.getStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('coalesces resume requests and rechecks after a pending lookup if the refreshed balance is unchanged', async () => {
+    let finish!: (value: typeof status) => void
+    mocks.getStatus
+      .mockResolvedValueOnce(blocked)
+      .mockReturnValueOnce(new Promise<typeof status>((resolve) => { finish = resolve }))
+      .mockResolvedValueOnce(status)
+    const wrapper = render()
+    await flushPromises()
+
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    auth.user = { ...auth.user }
+    await nextTick()
+    expect(mocks.getStatus).toHaveBeenCalledTimes(2)
+    expect(wrapper.find(selector).exists()).toBe(false)
+
+    finish(blocked)
+    await flushPromises()
+    expect(mocks.getStatus).toHaveBeenCalledTimes(3)
+    expect(wrapper.get(selector).text()).toBe('nav.checkin.action')
   })
 })

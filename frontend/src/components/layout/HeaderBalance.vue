@@ -46,6 +46,9 @@
           <dd class="header-balance-value">
             {{ formatAmount(details.other_available + (details.legacy_checkin_credit?.available ?? 0)) }}
           </dd>
+          <dd v-if="(details.legacy_checkin_credit?.available ?? 0) > 0" class="header-balance-note">
+            {{ t('common.balanceBreakdown.legacyNote') }}
+          </dd>
         </div>
         <div v-if="details.frozen_balance > 0" class="header-balance-line">
           <dt>
@@ -251,7 +254,7 @@ watch(() => [props.available, props.frozen], () => {
 .header-balance-credit .header-balance-icon, .header-balance-priority { background: var(--balance-badge); color: var(--balance-badge-ink); }
 .header-balance-priority { padding: 1px 4px; border-radius: 4px; font-size: 10px; line-height: 1.4; white-space: nowrap; }
 .header-balance-value { align-self: center; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: end; }
-.header-balance-expiry { grid-column: 1 / -1; padding-inline-start: 25px; color: var(--balance-muted); font-size: 11px; line-height: 1.45; }
+.header-balance-expiry, .header-balance-note { grid-column: 1 / -1; padding-inline-start: 25px; color: var(--balance-muted); font-size: 11px; line-height: 1.45; }
 .header-balance-feedback { margin-top: 8px; padding: 5px 4px; color: var(--balance-muted); font-size: 12px; }
 .header-balance-retry { color: var(--balance-badge-ink); text-decoration: underline; }
 

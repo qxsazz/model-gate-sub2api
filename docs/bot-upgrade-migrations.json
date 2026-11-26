@@ -1,7 +1,7 @@
 {
   "production_commit": "a723baa628fe2a3938bb7fb2056cbcd255350fb3",
   "existing_sql_files_unchanged": 328,
-  "total_sql_files": 334,
+  "total_sql_files": 335,
   "migrations": [
     {
       "filename": "001_init.sql",
@@ -2032,6 +2032,12 @@
       "filename": "269_monthly_checkin_credit.sql",
       "sha256": "3b9c4beda34c6370d91d3631904f6621cf02d0b189de94497036c8ef0bdc2e0c",
       "runner_checksum": "dd9bc7fee24c64458a96ee7cfaa22f69982060a46f7e0f32e6d2d2f3d5f78e4d",
+      "existing_in_production": false
+    },
+    {
+      "filename": "270_checkin_wallet_operation_time.sql",
+      "sha256": "1e50c3a7a58dcbb8dcc137ec10bab05dde75d5934bc3929cb987b005c7b03557",
+      "runner_checksum": "ee07767adcb7c04ed3a25e25f33fdc2e1a4be203c7c5923d96a215fc0853008b",
       "existing_in_production": false
     }
   ]

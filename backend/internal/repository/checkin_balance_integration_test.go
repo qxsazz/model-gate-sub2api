@@ -178,6 +178,65 @@ func TestCheckinCreditMonthlyBoundaryUsesReceiptTime(t *testing.T) {
 	}
 }
 
+func TestCheckinCreditUsesCutoffAfterWalletLock(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	id := achievementAccessUser(t, integrationDB)
+	_, err := integrationDB.ExecContext(ctx, `UPDATE users SET balance = 10 WHERE id = $1`, id)
+	require.NoError(t, err)
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 5, time.Now())
+
+	debit, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = debit.Close() }()
+	var pid int
+	require.NoError(t, debit.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+
+	locked, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = locked.Rollback() }()
+	_, err = locked.ExecContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	type outcome struct {
+		balance    float64
+		sufficient bool
+		err        error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		var result outcome
+		result.err = debit.QueryRowContext(ctx, `SELECT balance, sufficient FROM checkin_charge_balance($1, 1)`, id).
+			Scan(&result.balance, &result.sufficient)
+		done <- result
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := integrationDB.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity WHERE pid = $1 AND wait_event_type = 'Lock'
+		)`, pid).Scan(&waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond)
+	// Put the deadline between the debit's statement start and its lock acquisition.
+	_, err = locked.ExecContext(ctx, `UPDATE checkin_balance_credits SET expires_at = clock_timestamp() WHERE user_id = $1`, id)
+	require.NoError(t, err)
+	require.NoError(t, locked.Commit())
+
+	select {
+	case result := <-done:
+		require.NoError(t, result.err)
+		require.True(t, result.sufficient)
+		require.Equal(t, 9.0, result.balance)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	var expired, remaining float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT expired, remaining FROM checkin_balance_credits
+		WHERE user_id = $1`, id).Scan(&expired, &remaining))
+	require.Equal(t, 5.0, expired)
+	require.Zero(t, remaining)
+}
+
 func TestCheckinCreditCachedBalanceDeadline(t *testing.T) {
 	ctx := context.Background()
 	rdb := testRedis(t)

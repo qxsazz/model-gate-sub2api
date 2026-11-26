@@ -56,17 +56,28 @@ func (r *userRepository) ExpireCheckinBalances(ctx context.Context, limit int) (
 	return ids, rows.Err()
 }
 
-// Absolute balance changes and capped refunds must settle expired credit before they
-// calculate an amount from the wallet. Keep both statements under the same row lock.
+// Absolute balance changes and capped refunds use the same locked wallet and
+// expiration cutoff when they calculate and apply an amount.
 func (r *userRepository) withSettledBalance(ctx context.Context, id int64, apply func(*dbent.Client) error) error {
 	client := clientFromContext(ctx, r.client)
 	if client.Driver().Dialect() != dialect.Postgres {
 		return apply(client)
 	}
-	run := func(c *dbent.Client) error {
-		if _, err := c.ExecContext(ctx, `SELECT checkin_lock_balance($1)`, id); err != nil {
+	run := func(c *dbent.Client) (operationErr error) {
+		previous, err := beginCheckinWalletOperation(ctx, c, id)
+		if err != nil {
 			return err
 		}
+		defer func() {
+			// The caller can own the transaction even if this operation's
+			// context was cancelled. Release its cutoff before returning.
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_, err := c.ExecContext(cleanupCtx, `SELECT checkin_end_wallet_operation($1)`, previous)
+			if operationErr == nil {
+				operationErr = err
+			}
+		}()
 		return apply(c)
 	}
 	if dbent.TxFromContext(ctx) != nil {
@@ -84,6 +95,25 @@ func (r *userRepository) withSettledBalance(ctx context.Context, id int64, apply
 		return err
 	}
 	return tx.Commit()
+}
+
+func beginCheckinWalletOperation(ctx context.Context, client *dbent.Client, id int64) (string, error) {
+	rows, err := client.QueryContext(ctx, `SELECT checkin_begin_wallet_operation($1)`, id)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+		return "", sql.ErrNoRows
+	}
+	var previous string
+	if err := rows.Scan(&previous); err != nil {
+		return "", err
+	}
+	return previous, rows.Err()
 }
 
 func (r *userRepository) changeSettledBalance(ctx context.Context, id int64, amount float64, query string) (change service.BalanceChange, found bool, err error) {

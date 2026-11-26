@@ -27,10 +27,12 @@ func newRedeemAdjustmentRepoMock(t *testing.T) (*userRepository, sqlmock.Sqlmock
 func TestApplyRedeemBalanceAdjustment_UsesAtomicFloor(t *testing.T) {
 	repo, mock := newRedeemAdjustmentRepoMock(t)
 	mock.ExpectBegin()
-	mock.ExpectExec(`SELECT checkin_lock_balance`).WithArgs(int64(42)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT checkin_begin_wallet_operation`).WithArgs(int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"previous"}).AddRow("previous scope"))
 	mock.ExpectExec(`UPDATE users SET balance = GREATEST\(balance \+ \$1, 0\), updated_at = NOW\(\) WHERE id = \$2 AND deleted_at IS NULL`).
 		WithArgs(-7.0, int64(42)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`SELECT checkin_end_wallet_operation`).WithArgs("previous scope").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	require.NoError(t, repo.ApplyRedeemBalanceAdjustment(context.Background(), 42, -7))
@@ -50,10 +52,12 @@ func TestApplyRedeemConcurrencyAdjustment_UsesAtomicFloor(t *testing.T) {
 func TestApplyRedeemAdjustment_MissingUser(t *testing.T) {
 	repo, mock := newRedeemAdjustmentRepoMock(t)
 	mock.ExpectBegin()
-	mock.ExpectExec(`SELECT checkin_lock_balance`).WithArgs(int64(404)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT checkin_begin_wallet_operation`).WithArgs(int64(404)).
+		WillReturnRows(sqlmock.NewRows([]string{"previous"}).AddRow(""))
 	mock.ExpectExec(`UPDATE users SET balance = GREATEST\(balance \+ \$1, 0\), updated_at = NOW\(\) WHERE id = \$2 AND deleted_at IS NULL`).
 		WithArgs(-1.0, int64(404)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`SELECT checkin_end_wallet_operation`).WithArgs("").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
 	err := repo.ApplyRedeemBalanceAdjustment(context.Background(), 404, -1)

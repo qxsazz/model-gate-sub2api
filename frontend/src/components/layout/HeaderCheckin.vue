@@ -21,12 +21,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useEventBus } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { changeAchievement, getAchievementCheckinStatus, type AchievementCheckinStatus } from '@/api/achievements'
 import { achievementCheckinEvent } from '@/components/achievements/checkinEvents'
 import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
+import { useCheckinDayRefresh } from '@/components/achievements/useCheckinDayRefresh'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore, useAuthStore } from '@/stores'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
@@ -46,31 +47,28 @@ const label = computed(() => {
 
 let active = true
 let statusRequest = 0
-let dayTimer: number | undefined
+let loadingStatus = false
+let refreshQueued = false
 let attempt: { date: string; key: string } | undefined
 
-function scheduleDayRefresh(date: string) {
-  window.clearTimeout(dayTimer)
-  const nextDay = Date.parse(date + 'T00:00:00+08:00') + 86_400_000
-  const delay = nextDay - Date.now()
-  if (delay > 0 && delay <= 86_400_000) {
-    dayTimer = window.setTimeout(() => {
-      status.value = null
-      void refreshStatus()
-    }, delay + 250)
+async function refreshStatus(queueIfBusy = false) {
+  if (!active || document.hidden) return
+  if (busy.value || loadingStatus) {
+    if (queueIfBusy) refreshQueued = true
+    return
   }
-}
-
-async function refreshStatus() {
-  if (busy.value) return
+  loadingStatus = true
+  refreshQueued = false
   const request = ++statusRequest
   try {
     const next = await getAchievementCheckinStatus()
     if (!active || request !== statusRequest) return
     status.value = next
-    scheduleDayRefresh(next.date)
   } catch {
     // Keep the last confirmed state on a transient refresh failure.
+  } finally {
+    loadingStatus = false
+    if (refreshQueued) void refreshStatus()
   }
 }
 
@@ -105,7 +103,7 @@ async function checkIn() {
     }
   } finally {
     busy.value = false
-    if (active && (refreshNeeded || !status.value)) void refreshStatus()
+    if (refreshNeeded || refreshQueued || !status.value) void refreshStatus(true)
   }
 }
 
@@ -115,19 +113,27 @@ checkins.on((event) => {
     statusRequest++
     status.value = { ...status.value, checked_in: true }
   } else {
-    void refreshStatus()
+    void refreshStatus(true)
   }
 })
 
-onMounted(() => {
-  void refreshStatus()
-  window.addEventListener('focus', refreshStatus)
+useCheckinDayRefresh((dayChanged) => {
+  if (dayChanged) {
+    statusRequest++
+    status.value = null
+  }
+  void refreshStatus(dayChanged)
 })
 
+// Balance payment completion and the existing periodic auth refresh both replace the user snapshot.
+watch(() => auth.user, (user) => {
+  if (user?.id !== props.userId || !accessBlocked.value || status.value?.checked_in) return
+  void refreshStatus(true)
+})
+
+onMounted(() => { void refreshStatus() })
 onBeforeUnmount(() => {
   active = false
-  window.clearTimeout(dayTimer)
-  window.removeEventListener('focus', refreshStatus)
 })
 </script>
 

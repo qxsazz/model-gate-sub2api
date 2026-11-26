@@ -66,6 +66,7 @@ export default {
 	      monthlyCheckin: '{month} check-in balance',
 	      priority: 'Spent first',
 	      other: 'Other available balance',
+	      legacyNote: 'Includes prior check-in credit (original expiry)',
 	      expiry: 'Expires {date} (Beijing time)',
 	      error: 'Balance details are temporarily unavailable.',
 	    },
