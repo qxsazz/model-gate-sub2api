@@ -160,6 +160,19 @@ func TestAchievementCardsSeriesAndHistoricalBackfill(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance,achievement_card_balance(id) FROM users WHERE id=$1`, id).Scan(&balance, &cards))
 	require.Equal(t, 1.45, balance)
 	require.Equal(t, 5, cards)
+	var monthlyLots int
+	var monthlyAmount float64
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*),COALESCE(sum(c.remaining),0)
+		FROM checkin_balance_credits c JOIN achievement_checkins a USING (user_id,day)
+		WHERE c.user_id=$1 AND a.source='card'
+		AND c.credit_month=date_trunc('month',a.created_at AT TIME ZONE 'Asia/Shanghai')::date
+		AND c.expires_at=(c.credit_month+interval '1 month') AT TIME ZONE 'Asia/Shanghai'`, id).Scan(&monthlyLots, &monthlyAmount))
+	require.Equal(t, 1, monthlyLots)
+	require.Equal(t, .05, monthlyAmount)
+	// The series cash reward is spendable without entering the expiring lot.
+	var totalLots int
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*) FROM checkin_balance_credits WHERE user_id=$1`, id).Scan(&totalLots))
+	require.Equal(t, 1, totalLots)
 	raw, err = r.AchievementSnapshot(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, 5., decode(raw)["card_balance"])

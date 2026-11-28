@@ -82,6 +82,21 @@ describe('achievement recharge access', () => {
     expect(mocks.change).not.toHaveBeenCalled()
   })
 
+  it('permits exempt check-in while keeping activities and backfill subject to recharge', async () => {
+    mocks.get.mockResolvedValue({ ...state, ...access, checkin_exempt: true })
+    mocks.change.mockResolvedValueOnce({ day: state.date, gross: 0.1, net: 0.1, offset_amount: 0 })
+    wrapper = render()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('此账号可直接签到')
+    expect(wrapper.findAll('button').find((button) => button.text() === '去补签')?.attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="checkin"]').trigger('click')
+    await flushPromises()
+    expect(mocks.change).toHaveBeenCalledWith('checkin', expect.objectContaining({ date: state.date }))
+    await wrapper.findAll('.achievement-tabs button')[3].trigger('click')
+    expect(wrapper.find('#activity-tasks').exists()).toBe(false)
+  })
+
   it('blocks a stale page after a recharge-required response even if rechecking fails', async () => {
     mocks.get.mockResolvedValueOnce(state).mockRejectedValueOnce(new Error('核验服务暂不可用'))
     mocks.change.mockRejectedValueOnce({ reason: 'ACHIEVEMENT_RECHARGE_REQUIRED', message: '有效充值未达标' })
@@ -93,6 +108,89 @@ describe('achievement recharge access', () => {
     expect(wrapper.text()).toContain('无需重复充值')
     expect(wrapper.find('.recharge-actions a').exists()).toBe(false)
     expect(mocks.change).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('achievement check-in day rollover', () => {
+  let wrapper: ReturnType<typeof render> | undefined
+  const nextDay = { ...state, date: '2026-10-04' }
+  const checkedIn = {
+    ...state,
+    today: { day: state.date, gross: 0, net: 0, offset_amount: 0, reason: 'eligible', streak: 1 },
+  }
+  const checkin = '[data-testid="checkin"]'
+
+  beforeEach(() => vi.clearAllMocks())
+  afterEach(() => {
+    wrapper?.unmount()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it.each(['open', 'resumed'])('refreshes yesterday’s completed status in an %s tab', async (tab) => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date('2026-10-03T15:59:59Z'))
+    mocks.get.mockResolvedValueOnce(checkedIn).mockResolvedValueOnce(nextDay)
+    wrapper = render()
+    await flushPromises()
+    expect(wrapper.get(checkin).attributes('disabled')).toBeDefined()
+
+    if (tab === 'open') {
+      await vi.advanceTimersByTimeAsync(1_250)
+    } else {
+      const visibility = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+      await vi.advanceTimersByTimeAsync(1_250)
+      expect(mocks.get).toHaveBeenCalledTimes(1)
+      visibility.mockReturnValue(false)
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('focus'))
+      await flushPromises()
+    }
+
+    expect(mocks.get).toHaveBeenCalledTimes(2)
+    expect(wrapper.get(checkin).attributes('disabled')).toBeUndefined()
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+  })
+
+  it('ignores an earlier pre-midnight lookup that finishes after the rollover refresh', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date('2026-10-03T15:59:59Z'))
+    let finish!: (snapshot: typeof checkedIn) => void
+    mocks.get
+      .mockResolvedValueOnce(checkedIn)
+      .mockReturnValueOnce(new Promise<typeof checkedIn>((resolve) => { finish = resolve }))
+      .mockResolvedValueOnce(nextDay)
+    wrapper = render()
+    await flushPromises()
+
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(1_250)
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+
+    finish(checkedIn)
+    await flushPromises()
+    expect(wrapper.get(checkin).text()).toBe('立即签到')
+  })
+
+  it('recovers a rejected stale-day request and waits for confirmation with a fresh key', async () => {
+    mocks.get.mockResolvedValueOnce(state).mockResolvedValue(nextDay)
+    mocks.change
+      .mockRejectedValueOnce({ reason: 'ACHIEVEMENT_DATE_CHANGED', message: '日期已切换，请刷新后重新签到' })
+      .mockResolvedValueOnce({ day: nextDay.date, gross: 0, net: 0, offset_amount: 0 })
+    wrapper = render()
+    await flushPromises()
+
+    await wrapper.get(checkin).trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toContain('日期已更新，请重新点击签到。')
+    expect(mocks.change).toHaveBeenCalledTimes(1)
+
+    await wrapper.get(checkin).trigger('click')
+    await flushPromises()
+    const [first, second] = mocks.change.mock.calls.map((call) => call[1])
+    expect(first.date).toBe(state.date)
+    expect(second.date).toBe(nextDay.date)
+    expect(second.request_key).not.toBe(first.request_key)
   })
 })
 
@@ -405,17 +503,21 @@ describe('achievement checkin', () => {
     )
     expect(w.text()).toContain('已领取 1 张补签卡')
   })
-  it('shows spendable check-in credit and the next expiry in Beijing time', async () => {
-    mocks.get.mockResolvedValue({ ...state, checkin_credit: {
-      available: 1.0015, next_amount: 0.0015, next_expiry: '2027-02-28T10:15:24Z',
-    } })
+  it('shows the current month check-in balance to two decimals and its Beijing deadline', async () => {
+    mocks.get.mockResolvedValue({
+      ...state,
+      checkin_credit: { available: 1.0015, month: '2027-02', expires_at: '2027-02-28T16:00:00Z' },
+      legacy_checkin_credit: { available: 0.0115, next_amount: 0.0015, next_expiry: '2027-02-28T10:15:24Z' },
+    })
     const w = render()
     await flushPromises()
     const policy = w.get('[data-testid="checkin-credit-policy"]')
-    expect(policy.text()).toContain('$1.0015')
-    expect(policy.text()).toContain('$0.0015')
-    expect(policy.get('time').text()).toContain('18:15:24')
-    expect(policy.get('time').attributes('datetime')).toBe('2027-02-28T10:15:24Z')
+    expect(policy.text()).toContain('成就现金奖励计入其他可用余额')
+    expect(policy.get('strong').text()).toBe('$1.00')
+    expect(policy.text()).not.toContain('历史签到余额')
+    expect(policy.findAll('time')).toHaveLength(1)
+    expect(policy.get('time').attributes('datetime')).toBe('2027-02-28T16:00:00Z')
+    expect(policy.get('time').text()).toContain('00:00:00')
     w.unmount()
   })
 

@@ -22,18 +22,38 @@ func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	var id int64
 	require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,balance) VALUES($1,'fixture',0) RETURNING id`, uuid.NewString()+"@example.com").Scan(&id))
+	r := &userRepository{sql: tx}
+	checkStatus := func(unlocked, checkedIn bool) string {
+		t.Helper()
+		raw, err := r.AchievementCheckinStatus(ctx, id)
+		require.NoError(t, err)
+		var status struct {
+			Date           string `json:"date"`
+			AccessUnlocked *bool  `json:"access_unlocked"`
+			CheckedIn      *bool  `json:"checked_in"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &status))
+		require.Equal(t, service.CheckinDate(time.Now()), status.Date)
+		require.NotNil(t, status.AccessUnlocked)
+		require.NotNil(t, status.CheckedIn)
+		require.Equal(t, unlocked, *status.AccessUnlocked)
+		require.Equal(t, checkedIn, *status.CheckedIn)
+		return status.Date
+	}
+	checkStatus(false, false)
 	seedAchievementRecharge(t, tx, id, 10)
 	_, err = tx.ExecContext(ctx, `UPDATE achievement_config SET payload=payload||'{"cash_enabled":true,"cash_scope":"all","budget_enabled":false}'::jsonb`)
 	require.NoError(t, err)
-	r := &userRepository{sql: tx}
-	raw, err := r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-account")
+	day := checkStatus(true, false)
+	raw, err := r.AchievementMutation(ctx, id, "checkin", "", day, "new-active-account")
 	require.NoError(t, err)
 	var receipt map[string]any
 	require.NoError(t, json.Unmarshal(raw, &receipt))
 	require.Equal(t, "eligible", receipt["reason"])
 	require.Equal(t, .01, receipt["gross"])
 	require.Equal(t, .01, receipt["net"])
-	raw, err = r.AchievementMutation(ctx, id, "checkin", "", service.CheckinDate(time.Now()), "new-active-retry")
+	checkStatus(true, true)
+	raw, err = r.AchievementMutation(ctx, id, "checkin", "", day, "new-active-retry")
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(raw, &receipt))
 	require.Equal(t, true, receipt["replayed"])
@@ -42,11 +62,59 @@ func TestAchievementCheckinPaysQualifiedAccountWithoutVIPGrowth(t *testing.T) {
 	require.Equal(t, .01, balance)
 	var count int
 	var recorded bool
-	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*),bool_and(c.remaining=.01 AND c.expires_at=
-        ((a.created_at AT TIME ZONE 'Asia/Shanghai')+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT count(*),bool_and(c.remaining=.01 AND
+        c.credit_month=date_trunc('month',a.created_at AT TIME ZONE 'Asia/Shanghai')::date AND
+        c.expires_at=(c.credit_month+interval '1 month') AT TIME ZONE 'Asia/Shanghai')
         FROM checkin_balance_credits c JOIN achievement_checkins a USING (user_id,day) WHERE user_id=$1`, id).Scan(&count, &recorded))
 	require.Equal(t, 1, count)
 	require.True(t, recorded)
+}
+
+func TestStagingCheckinExemptsOnlyConfiguredActiveAdmin(t *testing.T) {
+	_ = testEntClient(t)
+	ctx := context.Background()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	r := &userRepository{sql: tx}
+	newAdmin := func(email string) int64 {
+		var id int64
+		require.NoError(t, tx.QueryRowContext(ctx, `INSERT INTO users(email,password_hash,role,balance)
+			VALUES($1,'fixture','admin',0) RETURNING id`, email).Scan(&id))
+		return id
+	}
+	email := uuid.NewString() + "@example.invalid"
+	t.Setenv("MG_STAGING_CHECKIN_ADMIN_EMAIL", email)
+	adminID := newAdmin(email)
+	otherID := newAdmin(uuid.NewString() + "@example.invalid")
+	status := func(id int64, exempt, checkedIn bool) string {
+		t.Helper()
+		raw, err := r.AchievementCheckinStatus(ctx, id)
+		require.NoError(t, err)
+		var state map[string]any
+		require.NoError(t, json.Unmarshal(raw, &state))
+		require.Equal(t, exempt, state["checkin_exempt"])
+		require.Equal(t, checkedIn, state["checked_in"])
+		require.Equal(t, false, state["access_unlocked"])
+		require.Equal(t, 0.0, state["qualified_recharge_cny"])
+		return state["date"].(string)
+	}
+	day := status(adminID, true, false)
+	status(otherID, false, false)
+	require.NoError(t, r.EnsureAchievementCheckinAccess(ctx, adminID))
+	for _, request := range []string{"staging-admin-first", "staging-admin-retry"} {
+		raw, err := r.AchievementMutation(ctx, adminID, "checkin", "", day, request)
+		require.NoError(t, err)
+		var receipt map[string]any
+		require.NoError(t, json.Unmarshal(raw, &receipt))
+		require.Equal(t, request == "staging-admin-retry", receipt["replayed"])
+	}
+	status(adminID, true, true)
+	_, err = tx.ExecContext(ctx, `UPDATE users SET role = 'user' WHERE id = $1`, adminID)
+	require.NoError(t, err)
+	status(adminID, false, true)
+	_, err = r.AchievementMutation(ctx, otherID, "checkin", "", day, "other-admin-first")
+	require.ErrorContains(t, err, "累计有效充值满")
 }
 
 func TestAchievementCheckinAccountingAndLifetimeClaim(t *testing.T) {

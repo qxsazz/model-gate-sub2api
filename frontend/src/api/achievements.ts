@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { LegacyCheckinCredit, MonthlyCheckinCredit } from './wallet'
 export interface CashReceipt {
   gross: number
   net: number
@@ -54,10 +55,15 @@ export interface CardHistory {
 }
 export interface AchievementAccessSnapshot {
   access_unlocked?: boolean
+  checkin_exempt?: boolean
   minimum_recharge_cny?: number | string | null
   qualified_recharge_cny?: number | string | null
   remaining_recharge_cny?: number | string | null
   access_reason?: string | null
+}
+export interface AchievementCheckinStatus extends AchievementAccessSnapshot {
+  date: string
+  checked_in: boolean
 }
 export interface AchievementState extends AchievementAccessSnapshot {
   joined_date?: string
@@ -67,7 +73,8 @@ export interface AchievementState extends AchievementAccessSnapshot {
   timezone: string
   tier: number
   daily_amount: number
-  checkin_credit?: { available: number; next_amount: number; next_expiry: string } | null
+  checkin_credit?: MonthlyCheckinCredit | null
+  legacy_checkin_credit?: LegacyCheckinCredit | null
   daily_rewards: number[]
   cash_reason: string
   milestone_cash_enabled: boolean
@@ -205,6 +212,8 @@ export const getAchievementAudit = async () =>
   (await apiClient.get<AchievementAudit[]>('/admin/achievements/audit')).data
 export const getAchievements = async () =>
   (await apiClient.get<AchievementState>('/user/achievements')).data
+export const getAchievementCheckinStatus = async () =>
+  (await apiClient.get<AchievementCheckinStatus>('/user/achievements/checkin')).data
 type AchievementBody = { key?: string; date?: string; request_key?: string }
 export function changeAchievement(
   action: 'checkin',

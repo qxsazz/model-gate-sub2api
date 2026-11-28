@@ -113,6 +113,22 @@ type userProfileSourceContext struct {
 	Source   string `json:"source,omitempty"`
 }
 
+// GetWalletBalance returns the current JWT user's spendable balance breakdown.
+func (h *UserHandler) GetWalletBalance(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	result, err := h.userService.GetWalletBalance(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	c.Header("Cache-Control", "private, no-store")
+	response.Success(c, result)
+}
+
 // GetProfile handles getting user profile
 // GET /api/v1/users/me
 func (h *UserHandler) GetProfile(c *gin.Context) {

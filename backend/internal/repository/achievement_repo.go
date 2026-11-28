@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -13,6 +15,11 @@ import (
 
 var _ service.AchievementRepository = (*userRepository)(nil)
 var _ service.AchievementAccessRepository = (*userRepository)(nil)
+var _ service.AchievementCheckinStatusRepository = (*userRepository)(nil)
+
+func stagingCheckinAdminEmail() string {
+	return strings.TrimSpace(os.Getenv("MG_STAGING_CHECKIN_ADMIN_EMAIL"))
+}
 
 func (r *userRepository) SaveAchievementZodiac(ctx context.Context, id int64, zodiac string) error {
 	result, err := r.sql.ExecContext(ctx, `INSERT INTO achievement_preferences(user_id,zodiac)
@@ -118,16 +125,18 @@ func (r *userRepository) achievementJSON(ctx context.Context, query string, args
 func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (json.RawMessage, error) {
 	return r.achievementJSON(ctx, `WITH d AS (SELECT (clock_timestamp() AT TIME ZONE 'Asia/Shanghai')::date AS today),c AS (SELECT * FROM achievement_config WHERE id=true)
  SELECT achievement_access_snapshot($1)||jsonb_build_object(
+ 'checkin_exempt',achievement_console_checkin_exempt($1,$2),
  'date',d.today,'timezone','Asia/Shanghai','tier',achievement_tier($1),
  'joined_date',(u.created_at AT TIME ZONE 'Asia/Shanghai')::date,
  'companionship_days',GREATEST(d.today-(u.created_at AT TIME ZONE 'Asia/Shanghai')::date+1,1),
  'zodiac',COALESCE((SELECT zodiac FROM achievement_preferences WHERE user_id=$1),''),
  'daily_amount',(SELECT amount FROM achievement_daily_policy WHERE tier=achievement_tier($1)),
  'daily_rewards',(SELECT jsonb_agg(amount ORDER BY tier) FROM achievement_daily_policy),
- 'checkin_credit',(SELECT jsonb_build_object('available',sum(sum(remaining)) OVER (),
-     'next_amount',sum(remaining),'next_expiry',expires_at) FROM checkin_balance_credits
-     WHERE user_id=$1 AND remaining>0 AND expires_at>statement_timestamp()
-     GROUP BY expires_at ORDER BY expires_at LIMIT 1),
+ 'checkin_credit',CASE WHEN checkin_totals.monthly > 0 THEN jsonb_build_object(
+     'available',checkin_totals.monthly,'month',to_char(checkin_period.month_start,'YYYY-MM'),
+     'expires_at',checkin_period.expires_at,'next_amount',checkin_totals.monthly,'next_expiry',checkin_period.expires_at) END,
+ 'legacy_checkin_credit',CASE WHEN checkin_totals.legacy > 0 THEN jsonb_build_object(
+     'available',checkin_totals.legacy,'next_amount',legacy_due.amount,'next_expiry',checkin_totals.legacy_expiry) END,
  'card_balance',achievement_card_balance($1),
  'card_min_date',GREATEST((u.created_at AT TIME ZONE 'Asia/Shanghai')::date,d.today-30),'card_max_date',d.today-1,
  'card_history',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY id DESC) FROM (SELECT * FROM achievement_card_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 20)l),'[]'::jsonb),
@@ -143,7 +152,25 @@ func (r *userRepository) AchievementSnapshot(ctx context.Context, id int64) (jso
  'equipment',(SELECT eq.key FROM achievement_equipment eq WHERE eq.user_id=$1 AND achievement_is_unlocked($1,eq.key)),
  'passes',COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'topic',topic)) FROM achievement_activity_passes WHERE user_id=$1),'[]'::jsonb),
  'medals',(SELECT jsonb_agg(to_jsonb(cat)||jsonb_build_object('progress',achievement_progress($1,cat.key),'unlocked',achievement_is_unlocked($1,cat.key),'manual',(SELECT ov.state FROM achievement_overrides ov WHERE ov.user_id=$1 AND ov.key=cat.key),'claim',(SELECT to_jsonb(cl) FROM achievement_claims cl WHERE cl.user_id=$1 AND cl.key=cat.key),'card_claim',(SELECT to_jsonb(cc) FROM achievement_card_claims cc WHERE cc.user_id=$1 AND cc.key=cat.key)) ORDER BY cat.key) FROM achievement_catalog cat)
- ) FROM d,c,users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id)
+ ) FROM d,c,users u `+checkinCreditSummaryJoin+` WHERE u.id=$1 AND u.deleted_at IS NULL`, id, stagingCheckinAdminEmail())
+}
+
+func (r *userRepository) AchievementCheckinStatus(ctx context.Context, id int64) (json.RawMessage, error) {
+	return r.achievementJSON(ctx, `WITH d AS (SELECT (statement_timestamp() AT TIME ZONE 'Asia/Shanghai')::date AS today)
+ SELECT achievement_access_snapshot(u.id) || jsonb_build_object(
+   'date', d.today,
+   'checkin_exempt', achievement_console_checkin_exempt(u.id,$2),
+   'checked_in', EXISTS (SELECT 1 FROM achievement_checkins ch WHERE ch.user_id=u.id AND ch.day=d.today)
+ ) FROM d, users u WHERE u.id=$1 AND u.deleted_at IS NULL`, id, stagingCheckinAdminEmail())
+}
+
+func (r *userRepository) EnsureAchievementCheckinAccess(ctx context.Context, id int64) error {
+	email := stagingCheckinAdminEmail()
+	if email == "" {
+		return r.EnsureAchievementAccess(ctx, id)
+	}
+	_, err := r.sql.ExecContext(ctx, `SELECT achievement_require_console_checkin_access($1,$2,false)`, id, email)
+	return achievementError(err)
 }
 
 func (r *userRepository) EnsureAchievementAccess(ctx context.Context, id int64) error {
@@ -174,6 +201,9 @@ func (r *userRepository) AchievementAudit(ctx context.Context) (json.RawMessage,
 func (r *userRepository) AchievementMutation(ctx context.Context, id int64, action, key, date, idem string) (json.RawMessage, error) {
 	switch action {
 	case "checkin":
+		if email := stagingCheckinAdminEmail(); email != "" {
+			return r.achievementJSON(ctx, `SELECT achievement_console_checkin($1,$2,$3,$4)`, id, date, idem, email)
+		}
 		return r.achievementJSON(ctx, `SELECT achievement_checkin($1,$2,$3)`, id, date, idem)
 	case "claim":
 		return r.achievementJSON(ctx, `SELECT achievement_claim($1,$2)`, id, key)

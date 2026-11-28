@@ -41,8 +41,8 @@ func TestCheckinCreditFIFOAndExpiry(t *testing.T) {
 	require.NoError(t, err)
 	repo := NewUsageBillingRepository(integrationEntClient, integrationDB)
 	now := time.Now()
-	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 3, now.Add(-48*time.Hour))
-	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-02", 4, now.Add(-24*time.Hour))
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 3, now)
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-02", 4, now)
 	// A normal recharge remains permanent. Retries use the existing billing dedup.
 	_, err = integrationDB.Exec(`UPDATE users SET balance=balance+5 WHERE id=$1`, id)
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestCheckinCreditCalendarMonthDebtAndHolds(t *testing.T) {
 	var deadline time.Time
 	require.NoError(t, tx.QueryRow(`SELECT remaining,expires_at FROM checkin_balance_credits WHERE user_id=$1`, id).Scan(&remaining, &deadline))
 	require.Equal(t, 3.0, remaining)
-	require.True(t, time.Date(2024, 2, 28, 16, 35, 11, 0, time.UTC).Equal(deadline))
+	require.Equal(t, time.Date(2024, 1, 31, 16, 0, 0, 0, time.UTC), deadline.UTC())
 	var balance float64
 	require.NoError(t, tx.QueryRow(`SELECT checkin_lock_balance($1)`, id).Scan(&balance))
 	require.Zero(t, balance)
@@ -152,6 +152,89 @@ func TestCheckinCreditCalendarMonthDebtAndHolds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 10.0, *released.NewBalance)
 	require.Zero(t, *released.FrozenBalance)
+}
+
+func TestCheckinCreditMonthlyBoundaryUsesReceiptTime(t *testing.T) {
+	tx := testTx(t)
+	id := achievementAccessUser(t, tx)
+	// Shanghai June 1 at 00:00 and June 29 at 23:59 share July 1 at 00:00.
+	// The second and third receipts use older signed days, as makeup would.
+	for _, grant := range []struct {
+		day, month string
+		received   time.Time
+		deadline   time.Time
+	}{
+		{"2026-06-01", "2026-06-01", time.Date(2026, 5, 31, 16, 0, 0, 0, time.UTC), time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)},
+		{"2026-05-29", "2026-06-01", time.Date(2026, 6, 29, 15, 59, 0, 0, time.UTC), time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC)},
+		{"2026-06-30", "2026-07-01", time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC), time.Date(2026, 7, 31, 16, 0, 0, 0, time.UTC)},
+	} {
+		addCheckinBalanceFixture(t, tx, id, grant.day, 2, grant.received)
+		var month string
+		var deadline time.Time
+		require.NoError(t, tx.QueryRow(`SELECT credit_month::text,expires_at FROM checkin_balance_credits
+			WHERE user_id=$1 AND day=$2`, id, grant.day).Scan(&month, &deadline))
+		require.Equal(t, grant.month, month)
+		require.Equal(t, grant.deadline, deadline.UTC())
+	}
+}
+
+func TestCheckinCreditUsesCutoffAfterWalletLock(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	id := achievementAccessUser(t, integrationDB)
+	_, err := integrationDB.ExecContext(ctx, `UPDATE users SET balance = 10 WHERE id = $1`, id)
+	require.NoError(t, err)
+	addCheckinBalanceFixture(t, integrationDB, id, "2026-01-01", 5, time.Now())
+
+	debit, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = debit.Close() }()
+	var pid int
+	require.NoError(t, debit.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+
+	locked, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = locked.Rollback() }()
+	_, err = locked.ExecContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	type outcome struct {
+		balance    float64
+		sufficient bool
+		err        error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		var result outcome
+		result.err = debit.QueryRowContext(ctx, `SELECT balance, sufficient FROM checkin_charge_balance($1, 1)`, id).
+			Scan(&result.balance, &result.sufficient)
+		done <- result
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := integrationDB.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity WHERE pid = $1 AND wait_event_type = 'Lock'
+		)`, pid).Scan(&waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond)
+	// Put the deadline between the debit's statement start and its lock acquisition.
+	_, err = locked.ExecContext(ctx, `UPDATE checkin_balance_credits SET expires_at = clock_timestamp() WHERE user_id = $1`, id)
+	require.NoError(t, err)
+	require.NoError(t, locked.Commit())
+
+	select {
+	case result := <-done:
+		require.NoError(t, result.err)
+		require.True(t, result.sufficient)
+		require.Equal(t, 9.0, result.balance)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	var expired, remaining float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT expired, remaining FROM checkin_balance_credits
+		WHERE user_id = $1`, id).Scan(&expired, &remaining))
+	require.Equal(t, 5.0, expired)
+	require.Zero(t, remaining)
 }
 
 func TestCheckinCreditCachedBalanceDeadline(t *testing.T) {

@@ -8,6 +8,7 @@ services:
     cpus: "1.0"
     mem_limit: 768m
     environment:
+      - MG_STAGING_CHECKIN_ADMIN_EMAIL=${ADMIN_EMAIL:-staging-admin@model-gate.cc}
       # Shared allocation budget, including temporary body copies; this is not a per-request size limit.
       # Leave headroom for SSE frames, application caches, connections and GC.
       - GATEWAY_REQUEST_BODY_MEMORY_BUDGET_BYTES=${STAGING_GATEWAY_REQUEST_BODY_MEMORY_BUDGET_BYTES:-268435456}

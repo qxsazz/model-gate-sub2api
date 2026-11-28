@@ -9,7 +9,7 @@
       </p>
       <p v-if="!state && !error" class="loading">正在读取你的成就记录…</p>
       <template v-if="state">
-        <AchievementRechargeNotice :access="rechargeAccess" :refreshing="accessRefreshing" @refresh="load" />
+        <AchievementRechargeNotice :access="rechargeAccess" :refreshing="accessRefreshing" :checkin-exempt="checkinExempt" @refresh="load" />
         <section class="hero account-summary">
           <div class="wear-panel equipped">
             <button
@@ -187,7 +187,7 @@
               </div>
               <p class="policy-status" data-testid="current-cash-status">
                 {{
-                  rechargeAccess.blocked ? rechargeAccess.message : state.today && state.cash_reason === 'eligible'
+                  checkinBlocked ? rechargeAccess.message : state.today && state.cash_reason === 'eligible'
                     ? '当前签到金额奖励已开放。'
                     : cashReason(state.cash_reason)
                 }}
@@ -195,7 +195,7 @@
               <button
                 data-testid="checkin"
                 class="gold-button primary"
-                :disabled="busy || !!state.today || rechargeAccess.blocked"
+                :disabled="busy || accessRefreshing || !!state.today || checkinBlocked"
                 @click="act('checkin')"
               >
                 {{
@@ -203,7 +203,7 @@
                     ? '正在处理…'
                     : state.today
                       ? '今日已签到 · 明天再见'
-                      : rechargeAccess.blocked ? '暂不可签到，请核对资格' : '立即签到'
+                      : checkinBlocked ? '暂不可签到，请核对资格' : '立即签到'
                 }}
               </button>
               <template v-if="state.today"
@@ -219,11 +219,10 @@
                 </p></template
               >
               <div class="quiet-note flex-col" data-testid="checkin-credit-policy">
-                <p>新发的签到奖励自到账起有效 1 个月。消费时先用最早到期的签到金额，到期剩余部分自动清零。</p>
+                <p>签到和补签奖励计入到账当月的签到余额，优先按到期时间扣除。北京时间下月 1 日 00:00，剩余月度签到余额统一清零。成就现金奖励计入其他可用余额。</p>
                 <p v-if="state.checkin_credit">
-                  可用签到金额 <strong>${{ creditAmount.format(state.checkin_credit.available) }}</strong>，
-                  其中 ${{ creditAmount.format(state.checkin_credit.next_amount) }} 将于
-                  <time :datetime="state.checkin_credit.next_expiry">{{ formatDateTime(state.checkin_credit.next_expiry, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
+                  本月签到余额 <strong>${{ money(state.checkin_credit.available) }}</strong>，将于
+                  <time :datetime="state.checkin_credit.expires_at">{{ formatDateTime(state.checkin_credit.expires_at, creditDateFormat, 'zh-CN') }}</time>（北京时间）到期。
                 </p>
               </div>
               <div class="sign-stats day-stats">
@@ -636,7 +635,7 @@
             class="day-makeup-action"
           >
             <span>今日签到权益 ${{ money(state.daily_amount) }}</span
-            ><button class="primary" :disabled="busy || rechargeAccess.blocked" @click="checkinFromDate">
+            ><button class="primary" :disabled="busy || accessRefreshing || checkinBlocked" @click="checkinFromDate">
               {{ busy ? '正在处理…' : '立即签到' }}
             </button>
           </div>
@@ -779,6 +778,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useEventBus } from '@vueuse/core'
 import { formatDateTime, formatMoneyFixed as money } from '@/utils/format'
 import AchievementIcon from '@/components/achievements/AchievementIcon.vue'
 import '@/components/achievements/achievement-ui.css'
@@ -786,7 +786,9 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import MedalArt from '@/components/achievements/MedalArt.vue'
 import ActivityExplorer from '@/components/achievements/ActivityExplorer.vue'
 import AchievementRechargeNotice from '@/components/achievements/AchievementRechargeNotice.vue'
+import { achievementCheckinEvent } from '@/components/achievements/checkinEvents'
 import { achievementRechargeAccess, isAchievementAccessRestricted } from '@/components/achievements/rechargeAccess'
+import { useCheckinDayRefresh } from '@/components/achievements/useCheckinDayRefresh'
 import AchievementCompanion from '@/components/achievements/AchievementCompanion.vue'
 import { lunarDate } from '@/components/achievements/companion'
 import { calendarEntryFor, calendarFutureStatus, calendarStatusFor } from '@/components/achievements/calendarContent'
@@ -802,6 +804,8 @@ import {
   useAchievementCard,
 } from '@/api/achievements'
 import { useAuthStore } from '@/stores/auth'
+import { extractApiErrorCode } from '@/utils/apiError'
+const checkins = useEventBus(achievementCheckinEvent)
 const auth = useAuthStore(),
   state = ref<AchievementState | null>(null),
   error = ref(''),
@@ -811,15 +815,17 @@ const auth = useAuthStore(),
   tab = ref('sign'),
   selected = ref<Medal | null>(null),
   detailDialog = ref<HTMLDialogElement>()
-const creditAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
 const creditDateFormat: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
 }
 const requestKey = ref(crypto.randomUUID())
+let checkinAttempt: { date: string; key: string } | undefined
 const accessRefreshing = ref(false)
 const requireAccessConfirmation = ref(false)
 const rechargeAccess = computed(() => achievementRechargeAccess(state.value, requireAccessConfirmation.value))
+const checkinExempt = computed(() => state.value?.checkin_exempt === true)
+const checkinBlocked = computed(() => rechargeAccess.value.blocked && !checkinExempt.value)
 const cardDialog = ref<HTMLDialogElement>()
 const cardDay = ref(''),
   cardError = ref('')
@@ -1172,7 +1178,7 @@ async function load() {
       error.value = errorMessage(e)
       if (state.value && rechargeAccess.value.supported) {
         requireAccessConfirmation.value = true
-        state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+        state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable', checkin_exempt: false }
       }
     }
   } finally {
@@ -1182,19 +1188,17 @@ async function load() {
 async function refreshRestrictedAccess() {
   requireAccessConfirmation.value = true
   // Do not retain an old positive result if the authoritative write has been refused.
-  if (state.value) state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable' }
+  if (state.value) state.value = { ...state.value, access_unlocked: false, access_reason: 'verification_unavailable', checkin_exempt: false }
   clearCardPreview()
   await load()
-}
-function refreshAccessOnFocus() {
-  if (rechargeAccess.value.supported && !busy.value && !accessRefreshing.value) void load()
 }
 async function act(
   action: 'checkin' | 'claim' | 'claim_series' | 'equip',
   key?: string,
 ) {
   if (busy.value || !state.value) return
-  if (action !== 'equip' && rechargeAccess.value.blocked) {
+  if (action === 'checkin' && (accessRefreshing.value || state.value.today)) return
+  if (action === 'checkin' ? checkinBlocked.value : action !== 'equip' && rechargeAccess.value.blocked) {
     actionError.value = rechargeAccess.value.message
     return
   }
@@ -1202,22 +1206,33 @@ async function act(
   error.value = ''
   message.value = ''
   actionError.value = ''
+  const userId = auth.user?.id
+  const date = state.value.date
   try {
     if (
       action === 'checkin' ||
       action === 'claim' ||
       action === 'claim_series'
     ) {
+      let commandKey: string = requestKey.value
+      if (action === 'checkin') {
+        if (checkinAttempt?.date !== date) checkinAttempt = { date, key: crypto.randomUUID() }
+        commandKey = checkinAttempt.key
+      }
       const r = await changeAchievement(action, {
         key,
-        date: state.value.date,
-        request_key: requestKey.value,
+        date,
+        request_key: commandKey,
       })
+      if (action === 'checkin') {
+        if (userId !== undefined && auth.user?.id === userId) checkins.emit({ userId, date })
+      } else {
+        requestKey.value = crypto.randomUUID()
+      }
       message.value =
         r.cards_awarded !== undefined
           ? `已领取 ${r.cards_awarded} 张补签卡，剩余 ${r.card_balance} 张。`
           : `${action === 'checkin' ? '签到成功' : '奖励已领取'}：奖励 $${money(r.gross)}，实际到账 $${money(r.net)}${r.offset_amount ? '，抵扣待追回金额 $' + money(r.offset_amount) : ''}`
-      requestKey.value = crypto.randomUUID()
       await auth.refreshUser()
     } else {
       await changeAchievement('equip', { key })
@@ -1228,7 +1243,15 @@ async function act(
   } catch (e) {
     error.value = errorMessage(e)
     actionError.value = error.value
-    if (isAchievementAccessRestricted(e)) await refreshRestrictedAccess()
+    if (isAchievementAccessRestricted(e)) {
+      await refreshRestrictedAccess()
+    } else if (action === 'checkin' && extractApiErrorCode(e) === 'ACHIEVEMENT_DATE_CHANGED') {
+      await load()
+      if (!error.value && state.value?.date !== date) {
+        message.value = '日期已更新，请重新点击签到。'
+        actionError.value = message.value
+      }
+    }
   } finally {
     busy.value = false
   }
@@ -1238,10 +1261,13 @@ function openDetail(m: Medal) {
   selected.value = m
   detailDialog.value?.showModal()
 }
-onMounted(() => {
-  void load()
-  window.addEventListener('focus', refreshAccessOnFocus)
+checkins.on((event) => {
+  if (event && event.userId === auth.user?.id && !busy.value) void load()
 })
+useCheckinDayRefresh((dayChanged) => {
+  if (dayChanged || (!busy.value && !accessRefreshing.value)) void load()
+})
+onMounted(() => { void load() })
 
 const activityName = computed(
   () => activityGroups.find((g) => g.key === activityGroup.value)?.name || '',
@@ -1288,7 +1314,7 @@ const dayStatus = computed(() => {
   if (day > s.date) return calendarFutureStatus(day, s.date)
   if (s.joined_date && day < s.joined_date) return calendarStatusFor(day, 'beforeJoin')
   if (day === s.date) {
-    return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'today')
+    return checkinBlocked.value ? rechargeAccess.value.message : calendarStatusFor(day, 'today')
   }
   if (s.card_min_date && s.card_max_date && day >= s.card_min_date && day <= s.card_max_date) {
     return rechargeAccess.value.blocked ? rechargeAccess.value.message : calendarStatusFor(day, 'makeup')
@@ -1400,7 +1426,6 @@ watch(message, (value) => {
 })
 onUnmounted(() => {
   clearTimeout(toastTimer)
-  window.removeEventListener('focus', refreshAccessOnFocus)
 })
 
 function documentScrollSeries() {

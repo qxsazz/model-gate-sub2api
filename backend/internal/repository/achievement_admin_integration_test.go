@@ -63,6 +63,13 @@ func TestAchievementAdminBackfillUsesHistoricalTierAndRebuildsStreak(t *testing.
 	var streak int
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT balance FROM users WHERE id=$1`, id).Scan(&balance))
 	require.Equal(t, .05, balance)
+	var monthCredit float64
+	require.NoError(t, tx.QueryRowContext(ctx, `SELECT c.remaining
+		FROM checkin_balance_credits c JOIN achievement_checkins a USING (user_id,day)
+		WHERE c.user_id=$1 AND c.day=$2 AND a.source='admin'
+		AND c.credit_month=date_trunc('month',a.created_at AT TIME ZONE 'Asia/Shanghai')::date
+		AND c.expires_at=(c.credit_month+interval '1 month') AT TIME ZONE 'Asia/Shanghai'`, id, day).Scan(&monthCredit))
+	require.Equal(t, .05, monthCredit)
 	require.NoError(t, tx.QueryRowContext(ctx, `SELECT streak FROM achievement_checkins WHERE user_id=$1 AND day=$2`, id, today).Scan(&streak))
 	require.Equal(t, 2, streak)
 }

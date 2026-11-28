@@ -71,12 +71,24 @@ type AchievementAccessRepository interface {
 	EnsureAchievementAccess(context.Context, int64) error
 }
 
+type AchievementCheckinStatusRepository interface {
+	AchievementCheckinStatus(context.Context, int64) (json.RawMessage, error)
+	EnsureAchievementCheckinAccess(context.Context, int64) error
+}
+
 func (s *UserService) EnsureAchievementAccess(ctx context.Context, id int64) error {
 	repo, ok := s.userRepo.(AchievementAccessRepository)
 	if !ok {
 		return infraerrors.New(503, "ACHIEVEMENT_ACCESS_UNAVAILABLE", "暂时无法核验充值资格，请稍后重试，无需重复充值")
 	}
 	return repo.EnsureAchievementAccess(ctx, id)
+}
+
+func (s *UserService) EnsureAchievementCheckinAccess(ctx context.Context, id int64) error {
+	if repo, ok := s.userRepo.(AchievementCheckinStatusRepository); ok {
+		return repo.EnsureAchievementCheckinAccess(ctx, id)
+	}
+	return s.EnsureAchievementAccess(ctx, id)
 }
 
 func (s *UserService) achievementRepo() (AchievementRepository, error) {
@@ -93,6 +105,15 @@ func (s *UserService) GetAchievements(ctx context.Context, id int64) (json.RawMe
 	}
 	return r.AchievementSnapshot(ctx, id)
 }
+
+func (s *UserService) GetAchievementCheckinStatus(ctx context.Context, id int64) (json.RawMessage, error) {
+	repo, ok := s.userRepo.(AchievementCheckinStatusRepository)
+	if !ok {
+		return nil, fmt.Errorf("achievement check-in status repository unavailable")
+	}
+	return repo.AchievementCheckinStatus(ctx, id)
+}
+
 func (s *UserService) ChangeAchievement(ctx context.Context, id int64, action, key, date, idem string) (json.RawMessage, error) {
 	if action == "checkin" {
 		if _, e := time.Parse("2006-01-02", date); e != nil {
