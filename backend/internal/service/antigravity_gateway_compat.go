@@ -324,6 +324,9 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		body = ensureGeminiFunctionCallThoughtSignatures(body)
 		// Antigravity selects named variants by model ID. Keep MG summaries and bare-model budgets.
 		body = applyModelGateGeminiThinkingIntent(body, claudeBody, mappedModel)
+		if s.settingService != nil && s.settingService.cfg != nil && s.settingService.cfg.Gateway.AntigravityGeminiOmitIncludeThoughts {
+			body, _ = sjson.DeleteBytes(body, "generationConfig.thinkingConfig.includeThoughts")
+		}
 		body, err = injectIdentityPatchToGeminiRequest(body)
 		if err != nil {
 			return nil, err
